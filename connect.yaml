@@ -1,0 +1,13 @@
+deployAs:
+  - name: service
+    applicationType: service
+    endpoint: /service
+    scripts:
+      postDeploy: npm install && npm run build && npm run connector:post-deploy
+      preUndeploy: npm install && npm run build && npm run connector:pre-undeploy
+    configurationType:
+      CTP_PROJECT_KEY: secret
+      CTP_CLIENT_ID: secret
+      CTP_CLIENT_SECRET: secret
+      CTP_SCOPE: secret
+      CTP_REGION : standard
