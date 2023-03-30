@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { apiSuccess } from '../api/success.api';
 import CustomError from '../errors/custom.error';
-import { cartController } from './cart.controller';
+import { paymentController } from './payment.controller';
 
 /**
  * Exposed service endpoint.
@@ -23,9 +23,9 @@ export const post = async (request: Request, response: Response) => {
   // Identify the type of resource in order to redirect
   // to the correct controller
   switch (resource.typeId) {
-    case 'cart':
+    case 'payment':
       try {
-        const data = await cartController(action, resource);
+        const data = await paymentController(action, resource);
 
         if (data && data.statusCode === 200) {
           apiSuccess(200, data.actions, response);
@@ -43,16 +43,10 @@ export const post = async (request: Request, response: Response) => {
       }
 
       break;
-    case 'payments':
-      break;
-
-    case 'orders':
-      break;
-
     default:
       throw new CustomError(
         500,
-        `Internal Server Error - Resource not recognized. Allowed values are 'cart', 'payments' or 'orders'.`
+        `Internal Server Error - Resource not recognized. Allowed values are 'payment'.`
       );
   }
 };
