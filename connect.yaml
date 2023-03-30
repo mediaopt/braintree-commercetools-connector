@@ -1,7 +1,7 @@
 deployAs:
-  - name: service
+  - name: braintree-extension
     applicationType: service
-    endpoint: /service
+    endpoint: /braintree-extension
     scripts:
       postDeploy: npm install && npm run build && npm run connector:post-deploy
       preUndeploy: npm install && npm run build && npm run connector:pre-undeploy

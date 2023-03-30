@@ -26,14 +26,14 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Define routes
-app.use('/service', ServiceRoutes);
+app.use('/braintree-extension', ServiceRoutes);
 
 // Global error handler
 app.use(errorMiddleware);
 
 // Listen the application
 const server = app.listen(PORT, () => {
-  logger.info(`⚡️ Service application listening on port ${PORT}`);
+  logger.info(`⚡️ Braintree extension application listening on port ${PORT}`);
 });
 
 export default server;
