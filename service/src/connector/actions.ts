@@ -1,9 +1,9 @@
 import { ByProjectKeyRequestBuilder } from '@commercetools/platform-sdk/dist/declarations/src/generated/client/by-project-key-request-builder';
 
-const CART_UPDATE_EXTENSION_KEY = 'myconnector-cartUpdateExtension';
-const CART_DISCOUNT_TYPE_KEY = 'myconnector-cartDiscountType';
+const BRAINTREE_EXTENSION_KEY = 'braintree-extension';
+const BRAINTREE_PAYMENT_TYPE_KEY = 'braintree-payment-type';
 
-export async function createCartUpdateExtension(
+export async function createBraintreeExtension(
   apiRoot: ByProjectKeyRequestBuilder,
   applicationUrl: string
 ): Promise<void> {
@@ -13,7 +13,7 @@ export async function createCartUpdateExtension(
     .extensions()
     .get({
       queryArgs: {
-        where: `key = "${CART_UPDATE_EXTENSION_KEY}"`,
+        where: `key = "${BRAINTREE_EXTENSION_KEY}"`,
       },
     })
     .execute();
@@ -23,7 +23,7 @@ export async function createCartUpdateExtension(
 
     await apiRoot
       .extensions()
-      .withKey({ key: CART_UPDATE_EXTENSION_KEY })
+      .withKey({ key: BRAINTREE_EXTENSION_KEY })
       .delete({
         queryArgs: {
           version: extension.version,
@@ -36,14 +36,14 @@ export async function createCartUpdateExtension(
     .extensions()
     .post({
       body: {
-        key: CART_UPDATE_EXTENSION_KEY,
+        key: BRAINTREE_EXTENSION_KEY,
         destination: {
           type: 'HTTP',
           url: applicationUrl,
         },
         triggers: [
           {
-            resourceTypeId: 'cart',
+            resourceTypeId: 'payment',
             actions: ['Update'],
           },
         ],
@@ -61,7 +61,7 @@ export async function deleteCartUpdateExtension(
     .extensions()
     .get({
       queryArgs: {
-        where: `key = "${CART_UPDATE_EXTENSION_KEY}"`,
+        where: `key = "${BRAINTREE_EXTENSION_KEY}"`,
       },
     })
     .execute();
@@ -71,7 +71,7 @@ export async function deleteCartUpdateExtension(
 
     await apiRoot
       .extensions()
-      .withKey({ key: CART_UPDATE_EXTENSION_KEY })
+      .withKey({ key: BRAINTREE_EXTENSION_KEY })
       .delete({
         queryArgs: {
           version: extension.version,
@@ -81,7 +81,7 @@ export async function deleteCartUpdateExtension(
   }
 }
 
-export async function createCustomCartDiscountType(
+export async function createCustomPaymentType(
   apiRoot: ByProjectKeyRequestBuilder
 ): Promise<void> {
   const {
@@ -90,7 +90,7 @@ export async function createCustomCartDiscountType(
     .types()
     .get({
       queryArgs: {
-        where: `key = "${CART_DISCOUNT_TYPE_KEY}"`,
+        where: `key = "${BRAINTREE_PAYMENT_TYPE_KEY}"`,
       },
     })
     .execute();
@@ -100,7 +100,7 @@ export async function createCustomCartDiscountType(
 
     await apiRoot
       .types()
-      .withKey({ key: CART_DISCOUNT_TYPE_KEY })
+      .withKey({ key: BRAINTREE_PAYMENT_TYPE_KEY })
       .delete({
         queryArgs: {
           version: type.version,
@@ -113,23 +113,12 @@ export async function createCustomCartDiscountType(
     .types()
     .post({
       body: {
-        key: CART_DISCOUNT_TYPE_KEY,
+        key: BRAINTREE_PAYMENT_TYPE_KEY,
         name: {
-          en: 'Custom type to store a string',
+          en: 'Custom payment type to braintree fields',
         },
-        resourceTypeIds: ['cart-discount'],
-        fieldDefinitions: [
-          {
-            type: {
-              name: 'String',
-            },
-            name: 'customCartField',
-            label: {
-              en: 'Custom cart field',
-            },
-            required: false,
-          },
-        ],
+        resourceTypeIds: ['payment'],
+        fieldDefinitions: [],
       },
     })
     .execute();
