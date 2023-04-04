@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { apiSuccess } from '../api/success.api';
 import CustomError from '../errors/custom.error';
 import { paymentController } from './payment.controller';
+import {ExtensionInput} from "@commercetools/platform-sdk/dist/declarations/src/generated/models/extension";
 
 /**
  * Exposed service endpoint.
@@ -14,7 +15,7 @@ import { paymentController } from './payment.controller';
  */
 export const post = async (request: Request, response: Response) => {
   // Deserialize the action and resource from the body
-  const { action, resource } = request.body;
+  const { action, resource }: ExtensionInput = request.body;
 
   if (!action || !resource) {
     throw new CustomError(400, 'Bad request - Missing body parameters.');
