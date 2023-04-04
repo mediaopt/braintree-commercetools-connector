@@ -5,7 +5,7 @@ import express, { Express } from 'express';
 import bodyParser from 'body-parser';
 
 // Import routes
-import ServiceRoutes from './routes/service.route';
+import braintreeExtensionRouter from './routes/extension.route';
 
 // Import logger
 import { logger } from './utils/logger.utils';
@@ -26,7 +26,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Define routes
-app.use('/braintree-extension', ServiceRoutes);
+app.use('/braintree-extension', braintreeExtensionRouter);
 
 // Global error handler
 app.use(errorMiddleware);

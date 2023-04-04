@@ -1,8 +1,5 @@
-import { UpdateAction } from '@commercetools/sdk-client-v2';
-
 import CustomError from '../errors/custom.error';
 import { Resource } from '../interfaces/resource.interface';
-import { logger } from '../utils/logger.utils';
 
 /**
  * Handle the update action
@@ -12,13 +9,7 @@ import { logger } from '../utils/logger.utils';
  */
 const update = async (resource: Resource) => {
     try {
-        const updateActions: Array<UpdateAction> = [];
-
-        // Deserialize the resource to a PaymentDraft
-        const paymentDraft = JSON.parse(JSON.stringify(resource));
-        logger.info('Update payment called', paymentDraft);
-
-        return { statusCode: 200, actions: updateActions };
+        return { statusCode: 200, actions: [] };
     } catch (error) {
         // Retry or handle the error
         // Create an error object
