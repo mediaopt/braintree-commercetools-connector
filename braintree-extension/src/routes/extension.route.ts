@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { post } from '../controllers/service.controller';
+import { post } from '../controllers/extension.controller';
 
 const braintreeExtensionRouter = Router();
 
