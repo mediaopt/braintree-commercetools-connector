@@ -1,3 +1,7 @@
+import * as dotenv from 'dotenv';
+
+dotenv.config();
+
 import { createApiRoot } from '../client/create.client';
 import { assertError } from '../utils/assert.utils';
 import { deleteCartUpdateExtension } from './actions';
