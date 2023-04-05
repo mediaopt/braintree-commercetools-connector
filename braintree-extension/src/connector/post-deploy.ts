@@ -1,12 +1,10 @@
 import * as dotenv from 'dotenv';
+
 dotenv.config();
 
 import { createApiRoot } from '../client/create.client';
 import { assertError, assertString } from '../utils/assert.utils';
-import {
-  createCustomPaymentType,
-  createBraintreeExtension,
-} from './actions';
+import { createCustomPaymentType, createBraintreeExtension } from './actions';
 
 const CONNECT_APPLICATION_URL_KEY = 'CONNECT_SERVICE_URL';
 

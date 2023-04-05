@@ -8,18 +8,18 @@ import { Resource } from '../interfaces/resource.interface';
  * @returns {object}
  */
 const update = async (resource: Resource) => {
-    try {
-        return { statusCode: 200, actions: [] };
-    } catch (error) {
-        // Retry or handle the error
-        // Create an error object
-        if (error instanceof Error) {
-            throw new CustomError(
-                400,
-                `Internal server error on PaymentController: ${error.stack}`
-            );
-        }
+  try {
+    return { statusCode: 200, actions: [] };
+  } catch (error) {
+    // Retry or handle the error
+    // Create an error object
+    if (error instanceof Error) {
+      throw new CustomError(
+        400,
+        `Internal server error on PaymentController: ${error.stack}`
+      );
     }
+  }
 };
 
 /**
@@ -30,16 +30,16 @@ const update = async (resource: Resource) => {
  * @returns {Promise<object>} The data from the method that handles the action
  */
 export const paymentController = async (action: string, resource: Resource) => {
-    switch (action) {
-        case 'Create': {
-            break;
-        }
-        case 'Update':
-            return update(resource);
-        default:
-            throw new CustomError(
-                500,
-                `Internal Server Error - Resource not recognized. Allowed values are 'Create' or 'Update'.`
-            );
+  switch (action) {
+    case 'Create': {
+      break;
     }
+    case 'Update':
+      return update(resource);
+    default:
+      throw new CustomError(
+        500,
+        `Internal Server Error - Resource not recognized. Allowed values are 'Create' or 'Update'.`
+      );
+  }
 };

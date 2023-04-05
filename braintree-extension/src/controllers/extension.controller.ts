@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { apiSuccess } from '../api/success.api';
 import CustomError from '../errors/custom.error';
 import { paymentController } from './payment.controller';
-import {ExtensionInput} from "@commercetools/platform-sdk/dist/declarations/src/generated/models/extension";
+import { ExtensionInput } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/extension';
 
 /**
  * Exposed service endpoint.
