@@ -1,15 +1,58 @@
+import { UpdateAction } from '@commercetools/sdk-client-v2';
 import CustomError from '../errors/custom.error';
-import { Resource } from '../interfaces/resource.interface';
+import { logger } from '../utils/logger.utils';
+import { getClientToken } from '../service/braintree.service';
+import { PaymentReference } from '@commercetools/platform-sdk';
+import braintree, { ClientTokenRequest } from 'braintree';
+
+const handleRequest = async (
+  requestName: string,
+  request: braintree.ClientTokenRequest
+): Promise<UpdateAction[]> => {
+  const updateActions: Array<UpdateAction> = [];
+  let response;
+  switch (requestName) {
+    case 'getClientToken':
+      response = await getClientToken(request);
+      break;
+    default:
+      throw new CustomError(
+        500,
+        `Internal Server Error - Request not recognized. Allowed values are 'getClientToken'.`
+      );
+  }
+  updateActions.push({
+    action: 'setCustomField',
+    name: requestName + 'Response',
+    value: response,
+  });
+  updateActions.push({
+    action: 'setCustomField',
+    name: requestName + 'Request',
+    value: null,
+  });
+  return updateActions;
+};
 
 /**
  * Handle the update action
  *
- * @param {Resource} resource The resource from the request body
+ * @param {PaymentReference} resource The resource from the request body
  * @returns {object}
  */
-const update = async (resource: Resource) => {
+const update = async (resource: PaymentReference) => {
   try {
-    return { statusCode: 200, actions: [] };
+    let updateActions: Array<UpdateAction> = [];
+
+    logger.info('Update payment called', resource);
+    if (resource?.obj?.custom?.fields?.getClientTokenRequest) {
+      const request: ClientTokenRequest = JSON.parse(
+        resource.obj.custom.fields.getClientTokenRequest
+      );
+      updateActions = await handleRequest('getClientToken', request);
+    }
+
+    return { statusCode: 200, actions: updateActions };
   } catch (error) {
     // Retry or handle the error
     // Create an error object
@@ -29,7 +72,10 @@ const update = async (resource: Resource) => {
  * @param {Resource} resource The resource from the request body
  * @returns {Promise<object>} The data from the method that handles the action
  */
-export const paymentController = async (action: string, resource: Resource) => {
+export const paymentController = async (
+  action: string,
+  resource: PaymentReference
+) => {
   switch (action) {
     case 'Create': {
       break;
