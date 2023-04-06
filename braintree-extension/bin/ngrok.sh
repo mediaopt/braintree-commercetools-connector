@@ -4,7 +4,7 @@
 if ! nc -z localhost 4040
 then
   echo "⚡️Starting ngrok"
-  ngrok http 8080 > /dev/null &
+  ./node_modules/.bin/ngrok http 8080 > /dev/null &
 fi
 
 # Wait for ngrok to be available
@@ -16,7 +16,7 @@ sleep 0.5
 # Get NGROK dynamic URL from its own exposed local API
 NGROK_REMOTE_URL="$(curl http://localhost:4040/api/tunnels | sed 's#.*"public_url":"\([^"]*\)".*#\1#g')"
 
-if test -z "${NGROK_REMOTE_URL}"
+if ! [[ "${NGROK_REMOTE_URL}" = http* ]]
 then
   echo "❌ ERROR: ngrok doesn't seem to return a valid URL (${NGROK_REMOTE_URL})."
   exit 1
