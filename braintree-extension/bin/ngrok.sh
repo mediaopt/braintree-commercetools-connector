@@ -26,4 +26,5 @@ NGROK_REMOTE_URL=${NGROK_REMOTE_URL}"/braintree-extension/"
 echo "✓ SUCCESS: dynamic url endpoint: ${NGROK_REMOTE_URL}"
 
 # Write CONNECT_SERVICE_URL to .env file
-sed -i "s#CONNECT_SERVICE_URL=.*#CONNECT_SERVICE_URL=${NGROK_REMOTE_URL}#g" .env
+sed -i.bak "s#CONNECT_SERVICE_URL=.*#CONNECT_SERVICE_URL=${NGROK_REMOTE_URL}#g" .env
+rm .env.bak
