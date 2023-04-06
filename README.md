@@ -1,17 +1,25 @@
 <p align="center">
   <a href="https://commercetools.com/">
     <img alt="commercetools logo" src="https://unpkg.com/@commercetools-frontend/assets/logos/commercetools_primary-logo_horizontal_RGB.png">
-  </a></br>
-  <b>Connect Application Starter in TypeScript</b>
+  </a><br>
+  <a href="https://www.braintreepayments.com/">
+    <img alt="braintree logo" src="https://www.braintreepayments.com/images/braintree-logo-black.png">
+  </a><br>
 </p>
 
-This is the `starter-typescript` template to develop [connect applications](https://marketplace.commercetools.com/) in TypeScript.
+This is a [connect application](https://marketplace.commercetools.com/) to integrate Braintree into Commercetools.
+It follows the folder structure to ensure certification & deployment from commercetools connect team as stated [here](https://github.com/commercetools/connect-application-kit#readme).
 
 ## Instructions
 
-Use `create-connect-app` cli with `starter-typescript` as `template` value to download this template repository to build the integration application , folder structure needs to be followed to ensure certification & deployment from commercetools connect team as stated [here](https://github.com/commercetools/connect-application-kit#readme) 
+* `cd braintree-extension`
+* run `yarn` to install the dependencies 
+* insert `.env` file from https://access.mediaopt.de/password/edit/73510a78-c1d2-ed11-9d14-005056103f91
+* run `./bin/ngrok.sh` to start ngrok and insert the dynamic url in the `.env` file
+* run `yarn connector:post-deploy` to register the extension with the public ngrok url
+* run `ỳarn start:dev` to build the application
 
-## Architecture principles for building an connect application 
+## Architecture principles for building a connect application 
 
 * Connector solution should be lightweight in nature
 * Connector solutions should follow test driven development. Unit , Integration (& E2E) tests should be included and successfully passed to be used
