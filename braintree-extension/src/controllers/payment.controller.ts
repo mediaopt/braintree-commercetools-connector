@@ -3,36 +3,8 @@ import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
 import { getClientToken } from '../service/braintree.service';
 import { PaymentReference } from '@commercetools/platform-sdk';
-import braintree, { ClientTokenRequest } from 'braintree';
-
-const handleRequest = async (
-  requestName: string,
-  request: braintree.ClientTokenRequest
-): Promise<UpdateAction[]> => {
-  const updateActions: Array<UpdateAction> = [];
-  let response;
-  switch (requestName) {
-    case 'getClientToken':
-      response = await getClientToken(request);
-      break;
-    default:
-      throw new CustomError(
-        500,
-        `Internal Server Error - Request not recognized. Allowed values are 'getClientToken'.`
-      );
-  }
-  updateActions.push({
-    action: 'setCustomField',
-    name: requestName + 'Response',
-    value: response,
-  });
-  updateActions.push({
-    action: 'setCustomField',
-    name: requestName + 'Request',
-    value: null,
-  });
-  return updateActions;
-};
+import { ClientTokenRequest } from 'braintree';
+import { handleResponse, handleError } from '../utils/response.utils';
 
 /**
  * Handle the update action
@@ -49,7 +21,16 @@ const update = async (resource: PaymentReference) => {
       const request: ClientTokenRequest = JSON.parse(
         resource.obj.custom.fields.getClientTokenRequest
       );
-      updateActions = await handleRequest('getClientToken', request);
+      try {
+        const response = await getClientToken(request);
+        updateActions = handleResponse('getClientToken', response);
+      } catch (e) {
+        logger.error('Call to getClientToken resulted in an error', e);
+        updateActions = handleError(
+          'getClientToken',
+          !!resource.obj.custom.fields.getClientTokenResponse
+        );
+      }
     }
 
     return { statusCode: 200, actions: updateActions };
@@ -81,7 +62,7 @@ export const paymentController = async (
       break;
     }
     case 'Update':
-      return update(resource);
+      return await update(resource);
     default:
       throw new CustomError(
         500,
