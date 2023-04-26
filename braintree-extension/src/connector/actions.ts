@@ -131,15 +131,16 @@ export async function createCustomPaymentType(
     const type = types[0];
     const updates = fieldDefinitions
       .filter(
-        (x: FieldDefinition): boolean =>
+        (newFieldDefinition: FieldDefinition): boolean =>
           !type.fieldDefinitions.find(
-            (y: FieldDefinition): boolean => x.name === y.name
+            (existingFieldDefinition: FieldDefinition): boolean =>
+              newFieldDefinition.name === existingFieldDefinition.name
           )
       )
-      .map((x: FieldDefinition): TypeAddFieldDefinitionAction => {
+      .map((fieldDefinition: FieldDefinition): TypeAddFieldDefinitionAction => {
         return {
           action: 'addFieldDefinition',
-          fieldDefinition: x,
+          fieldDefinition: fieldDefinition,
         };
       });
     await apiRoot
