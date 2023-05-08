@@ -1,7 +1,12 @@
 import { ByProjectKeyRequestBuilder } from '@commercetools/platform-sdk/dist/declarations/src/generated/client/by-project-key-request-builder';
+import {
+  FieldDefinition,
+  TypeAddFieldDefinitionAction,
+} from '@commercetools/platform-sdk/dist/declarations/src/generated/models/type';
 
 const BRAINTREE_EXTENSION_KEY = 'braintree-extension';
 const BRAINTREE_PAYMENT_TYPE_KEY = 'braintree-payment-type';
+const BRAINTREE_API_ENDPOINTS = ['getClientToken'];
 
 export async function createBraintreeExtension(
   apiRoot: ByProjectKeyRequestBuilder,
@@ -95,18 +100,60 @@ export async function createCustomPaymentType(
     })
     .execute();
 
+  const fieldDefinitions: FieldDefinition[] = [];
+  BRAINTREE_API_ENDPOINTS.forEach((element) =>
+    fieldDefinitions.push({
+      name: element + 'Request',
+      label: {
+        en: element + 'Request',
+      },
+      type: {
+        name: 'String',
+      },
+      inputHint: 'MultiLine',
+      required: false,
+    })
+  );
+  BRAINTREE_API_ENDPOINTS.forEach((element) =>
+    fieldDefinitions.push({
+      name: element + 'Response',
+      label: {
+        en: element + 'Response',
+      },
+      type: {
+        name: 'String',
+      },
+      inputHint: 'MultiLine',
+      required: false,
+    })
+  );
   if (types.length > 0) {
     const type = types[0];
-
+    const updates = fieldDefinitions
+      .filter(
+        (newFieldDefinition: FieldDefinition): boolean =>
+          !type.fieldDefinitions.find(
+            (existingFieldDefinition: FieldDefinition): boolean =>
+              newFieldDefinition.name === existingFieldDefinition.name
+          )
+      )
+      .map((fieldDefinition: FieldDefinition): TypeAddFieldDefinitionAction => {
+        return {
+          action: 'addFieldDefinition',
+          fieldDefinition: fieldDefinition,
+        };
+      });
     await apiRoot
       .types()
       .withKey({ key: BRAINTREE_PAYMENT_TYPE_KEY })
-      .delete({
-        queryArgs: {
+      .post({
+        body: {
           version: type.version,
+          actions: updates,
         },
       })
       .execute();
+    return;
   }
 
   await apiRoot
@@ -118,7 +165,7 @@ export async function createCustomPaymentType(
           en: 'Custom payment type to braintree fields',
         },
         resourceTypeIds: ['payment'],
-        fieldDefinitions: [],
+        fieldDefinitions: fieldDefinitions,
       },
     })
     .execute();

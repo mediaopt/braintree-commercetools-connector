@@ -818,6 +818,13 @@
     "@types/connect" "*"
     "@types/node" "*"
 
+"@types/braintree@^3.3.7":
+  version "3.3.7"
+  resolved "https://registry.npmjs.org/@types/braintree/-/braintree-3.3.7.tgz"
+  integrity sha512-nOgPxv/+p6QBDqaia2/BBDdEo7mJR/MrVZy6s+OYPNE3ZTEj1szbFm+7MCJhAVcVAfGUbjA9ZuZhorTNbABpMA==
+  dependencies:
+    "@types/node" "*"
+
 "@types/cacheable-request@^6.0.1":
   version "6.0.3"
   resolved "https://registry.npmjs.org/@types/cacheable-request/-/cacheable-request-6.0.3.tgz"
