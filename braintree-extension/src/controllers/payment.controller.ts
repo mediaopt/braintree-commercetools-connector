@@ -1,10 +1,37 @@
 import { UpdateAction } from '@commercetools/sdk-client-v2';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
-import { getClientToken } from '../service/braintree.service';
+import { getClientToken, transactionSale } from '../service/braintree.service';
 import { PaymentReference } from '@commercetools/platform-sdk';
-import { ClientTokenRequest } from 'braintree';
+import { ClientTokenRequest, TransactionRequest } from 'braintree';
 import { handleResponse, handleError } from '../utils/response.utils';
+
+function parseTransactionSaleRequest(
+  resource: PaymentReference
+): TransactionRequest {
+  if (!resource?.obj?.custom?.fields.transactionSaleRequest) {
+    throw new CustomError(500, 'transactionSaleRequest is missing');
+  }
+  if (!resource.obj.amountPlanned) {
+    throw new CustomError(500, 'amountPlanned is missing');
+  }
+  const amount = String(
+    resource.obj.amountPlanned.centAmount *
+      Math.pow(10, -resource.obj.amountPlanned.fractionDigits || 0)
+  );
+  try {
+    const request: TransactionRequest = JSON.parse(
+      resource.obj.custom.fields.transactionSaleRequest
+    );
+    request.amount = amount;
+    return request;
+  } catch (e) {
+    return {
+      paymentMethodNonce: resource.obj.custom.fields.transactionSaleRequest,
+      amount: amount,
+    } as TransactionRequest;
+  }
+}
 
 /**
  * Handle the update action
@@ -26,10 +53,30 @@ const update = async (resource: PaymentReference) => {
         updateActions = handleResponse('getClientToken', response);
       } catch (e) {
         logger.error('Call to getClientToken resulted in an error', e);
-        updateActions = handleError(
-          'getClientToken',
-          !!resource.obj.custom.fields.getClientTokenResponse
-        );
+        updateActions = handleError('getClientToken', e);
+      }
+    }
+    if (resource?.obj?.custom?.fields?.transactionSaleRequest) {
+      try {
+        const request = parseTransactionSaleRequest(resource);
+        logger.info('Transaction Sale request', request);
+        const response = await transactionSale(request);
+        updateActions = handleResponse('transactionSale', response);
+        updateActions.push({
+          action: 'addTransaction',
+          transaction: {
+            type: response.status === 'authorized' ? 'Authorization' : 'Charge',
+            amount: {
+              centAmount: resource.obj?.amountPlanned.centAmount,
+              currencyCode: resource.obj?.amountPlanned.currencyCode,
+            },
+            interactionId: response.id,
+            timestamp: response.createdAt,
+            state: 'Success',
+          },
+        });
+      } catch (e) {
+        updateActions = handleError('transactionSale', e);
       }
     }
 

@@ -6,7 +6,7 @@ import {
 
 const BRAINTREE_EXTENSION_KEY = 'braintree-extension';
 const BRAINTREE_PAYMENT_TYPE_KEY = 'braintree-payment-type';
-const BRAINTREE_API_ENDPOINTS = ['getClientToken'];
+const BRAINTREE_API_ENDPOINTS = ['getClientToken', 'transactionSale'];
 
 export async function createBraintreeExtension(
   apiRoot: ByProjectKeyRequestBuilder,
@@ -52,6 +52,7 @@ export async function createBraintreeExtension(
             actions: ['Update'],
           },
         ],
+        "timeoutInMs": 10000,
       },
     })
     .execute();
