@@ -1,5 +1,9 @@
 import { logger } from '../utils/logger.utils';
-import braintree, { ClientTokenRequest, Environment } from 'braintree';
+import braintree, {
+  ClientTokenRequest,
+  TransactionRequest,
+  Environment,
+} from 'braintree';
 import CustomError from '../errors/custom.error';
 const getBraintreeGateway = () => {
   if (
@@ -26,5 +30,18 @@ export const getClientToken = async (request: ClientTokenRequest) => {
   const gateway = getBraintreeGateway();
   const response = await gateway.clientToken.generate(request);
   logger.info('getClientToken Response: ' + JSON.stringify(response));
+  if (!response.success) {
+    throw new CustomError(500, response.message);
+  }
   return response.clientToken;
+};
+
+export const transactionSale = async (request: TransactionRequest) => {
+  const gateway = getBraintreeGateway();
+  const response = await gateway.transaction.sale(request);
+  logger.info('transactionSale Response: ' + JSON.stringify(response));
+  if (!response.success) {
+    throw new CustomError(500, response.message);
+  }
+  return response.transaction;
 };
