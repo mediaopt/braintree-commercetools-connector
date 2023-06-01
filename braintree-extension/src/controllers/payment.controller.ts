@@ -4,7 +4,11 @@ import { logger } from '../utils/logger.utils';
 import { getClientToken, transactionSale } from '../service/braintree.service';
 import { PaymentReference } from '@commercetools/platform-sdk';
 import { ClientTokenRequest, TransactionRequest } from 'braintree';
-import { handleResponse, handleError } from '../utils/response.utils';
+import {
+  handleRequest,
+  handleResponse,
+  handleError,
+} from '../utils/response.utils';
 
 function parseTransactionSaleRequest(
   resource: PaymentReference
@@ -52,9 +56,12 @@ const update = async (resource: PaymentReference) => {
       const request: ClientTokenRequest = JSON.parse(
         resource.obj.custom.fields.getClientTokenRequest
       );
+      updateActions = handleRequest('getClientToken', request);
       try {
         const response = await getClientToken(request);
-        updateActions = handleResponse('getClientToken', response);
+        updateActions = updateActions.concat(
+          handleResponse('getClientToken', response)
+        );
       } catch (e) {
         logger.error('Call to getClientToken resulted in an error', e);
         updateActions = handleError('getClientToken', e);
@@ -63,9 +70,12 @@ const update = async (resource: PaymentReference) => {
     if (resource?.obj?.custom?.fields?.transactionSaleRequest) {
       try {
         const request = parseTransactionSaleRequest(resource);
+        updateActions = handleRequest('transactionSale', request);
         logger.info('Transaction Sale request', request);
         const response = await transactionSale(request);
-        updateActions = handleResponse('transactionSale', response);
+        updateActions = updateActions.concat(
+          handleResponse('transactionSale', response)
+        );
         updateActions.push({
           action: 'addTransaction',
           transaction: {
@@ -78,6 +88,24 @@ const update = async (resource: PaymentReference) => {
             timestamp: response.createdAt,
             state: 'Success',
           },
+        });
+        if (!resource?.obj?.interfaceId) {
+          updateActions.push({
+            action: 'setInterfaceId',
+            interfaceId: response.id,
+          });
+        }
+        updateActions.push({
+          action: 'setStatusInterfaceCode',
+          interfaceCode: response.status,
+        });
+        updateActions.push({
+          action: 'setStatusInterfaceText',
+          interfaceText: response.status,
+        });
+        updateActions.push({
+          action: 'setMethodInfoMethod',
+          method: response.paymentInstrumentType,
         });
       } catch (e) {
         updateActions = handleError('transactionSale', e);
