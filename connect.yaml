@@ -11,3 +11,8 @@ deployAs:
       CTP_CLIENT_SECRET: secret
       CTP_SCOPE: secret
       CTP_REGION : standard
+      BRAINTREE_MERCHANT_ID: standard
+      BRAINTREE_PUBLIC_KEY: standard
+      BRAINTREE_PRIVATE_KEY: secret
+      BRAINTREE_ENVIRONMENT: standard
+      BRAINTREE_AUTOCAPTURE: standard

@@ -15,22 +15,26 @@ function parseTransactionSaleRequest(
   if (!resource.obj.amountPlanned) {
     throw new CustomError(500, 'amountPlanned is missing');
   }
-  const amount = String(
+  let request: TransactionRequest;
+  try {
+    request = JSON.parse(
+      resource.obj.custom.fields.transactionSaleRequest
+    ) as TransactionRequest;
+
+    return request;
+  } catch (e) {
+    request = {
+      paymentMethodNonce: resource.obj.custom.fields.transactionSaleRequest,
+    } as TransactionRequest;
+  }
+  request.amount = String(
     resource.obj.amountPlanned.centAmount *
       Math.pow(10, -resource.obj.amountPlanned.fractionDigits || 0)
   );
-  try {
-    const request: TransactionRequest = JSON.parse(
-      resource.obj.custom.fields.transactionSaleRequest
-    );
-    request.amount = amount;
-    return request;
-  } catch (e) {
-    return {
-      paymentMethodNonce: resource.obj.custom.fields.transactionSaleRequest,
-      amount: amount,
-    } as TransactionRequest;
-  }
+  request.options = {
+    submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
+  };
+  return request;
 }
 
 /**
