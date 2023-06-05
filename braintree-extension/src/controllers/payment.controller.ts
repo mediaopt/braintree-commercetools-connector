@@ -3,11 +3,11 @@ import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
 import { getClientToken, transactionSale } from '../service/braintree.service';
 import { PaymentReference } from '@commercetools/platform-sdk';
-import { ClientTokenRequest, TransactionRequest } from 'braintree';
+import { ClientTokenRequest, Transaction, TransactionRequest } from 'braintree';
 import {
+  handleError,
   handleRequest,
   handleResponse,
-  handleError,
 } from '../utils/response.utils';
 
 function parseTransactionSaleRequest(
@@ -39,6 +39,15 @@ function parseTransactionSaleRequest(
     submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
   };
   return request;
+}
+
+function getPaymentMethodHint(response: Transaction): string {
+  switch (response.paymentInstrumentType) {
+    case 'credit_card':
+      return ` (${response?.creditCard?.cardType} ${response?.creditCard?.maskedNumber})`;
+    default:
+      return '';
+  }
 }
 
 /**
@@ -105,7 +114,8 @@ const update = async (resource: PaymentReference) => {
         });
         updateActions.push({
           action: 'setMethodInfoMethod',
-          method: response.paymentInstrumentType,
+          method:
+            response.paymentInstrumentType + getPaymentMethodHint(response),
         });
       } catch (e) {
         updateActions = handleError('transactionSale', e);
