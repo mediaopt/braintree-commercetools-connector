@@ -1,5 +1,6 @@
 import { UpdateAction } from '@commercetools/sdk-client-v2';
 import { BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY } from '../connector/actions';
+import {getCurrentTimestamp} from "./data.utils";
 
 export const handleRequest = (
   requestName: string,
@@ -18,11 +19,15 @@ export const handleRequest = (
     fields: {
       type: requestName + 'Request',
       data: typeof request === 'string' ? request : JSON.stringify(request),
-      timestamp: new Date().toISOString(),
+      timestamp: getCurrentTimestamp(),
     },
   });
   return updateActions;
 };
+
+function stringifyResponse(response: string | object) {
+  return typeof response === 'string' ? response : JSON.stringify(response);
+}
 
 export const handleResponse = (
   requestName: string,
@@ -35,7 +40,7 @@ export const handleResponse = (
   updateActions.push({
     action: 'setCustomField',
     name: requestName + 'Response',
-    value: typeof response === 'string' ? response : JSON.stringify(response),
+    value: stringifyResponse(response),
   });
   updateActions.push({
     action: 'addInterfaceInteraction',
@@ -45,8 +50,8 @@ export const handleResponse = (
     },
     fields: {
       type: requestName + 'Response',
-      data: typeof response === 'string' ? response : JSON.stringify(response),
-      timestamp: new Date().toISOString(),
+      data: stringifyResponse(response),
+      timestamp: getCurrentTimestamp(),
     },
   });
   updateActions.push({
