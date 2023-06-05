@@ -14,7 +14,7 @@ It follows the folder structure to ensure certification & deployment from commer
 
 * `cd braintree-extension`
 * run `yarn` to install the dependencies 
-* insert `.env` file from https://access.mediaopt.de/password/edit/73510a78-c1d2-ed11-9d14-005056103f91
+* insert `.env` file from https://access.mediaopt.de/password/edit/73510a78-c1d2-ed11-9d14-005056103f91 (DE) or https://access.mediaopt.de/password/edit/1c6cf552-bf00-ee11-9d14-005056103f91 (US)
 * run `./bin/ngrok.sh` to start ngrok and insert the dynamic url in the `.env` file
 * run `yarn connector:post-deploy` to register the extension with the public ngrok url
 * run `ỳarn start:dev` to build the application
