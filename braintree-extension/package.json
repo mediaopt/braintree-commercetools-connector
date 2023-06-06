@@ -11,7 +11,7 @@
     "build": "rimraf ./build && tsc",
     "lint": "eslint . --ext .ts",
     "prettier": "prettier --write '**/*.{js,ts}'",
-    "test": "jest --config jest.config.cjs",
+    "test": "jest --setupFiles dotenv/config --config jest.config.cjs",
     "test:watch": "jest --watch",
     "connector:post-deploy": "node build/connector/post-deploy.js",
     "connector:pre-undeploy": "node build/connector/pre-undeploy.js"
