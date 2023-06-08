@@ -9,6 +9,11 @@ import {
   handleRequest,
   handleResponse,
 } from '../utils/response.utils';
+import {
+  mapBraintreeStatusToCommercetoolsTransactionState,
+  mapBraintreeStatusToCommercetoolsTransactionType,
+  mapBraintreeMoneyToCommercetoolsMoney,
+} from '../utils/map.utils';
 
 function parseTransactionSaleRequest(
   resource: PaymentReference
@@ -88,14 +93,21 @@ const update = async (resource: PaymentReference) => {
         updateActions.push({
           action: 'addTransaction',
           transaction: {
-            type: response.status === 'authorized' ? 'Authorization' : 'Charge',
+            type: mapBraintreeStatusToCommercetoolsTransactionType(
+              response.status
+            ),
             amount: {
-              centAmount: resource.obj?.amountPlanned.centAmount,
+              centAmount: mapBraintreeMoneyToCommercetoolsMoney(
+                response.amount,
+                resource.obj?.amountPlanned.fractionDigits
+              ),
               currencyCode: resource.obj?.amountPlanned.currencyCode,
             },
             interactionId: response.id,
             timestamp: response.createdAt,
-            state: 'Success',
+            state: mapBraintreeStatusToCommercetoolsTransactionState(
+              response.status
+            ),
           },
         });
         if (!resource?.obj?.interfaceId) {
