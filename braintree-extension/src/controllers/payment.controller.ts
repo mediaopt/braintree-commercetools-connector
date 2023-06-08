@@ -1,7 +1,6 @@
 import { UpdateAction } from '@commercetools/sdk-client-v2';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
-import { parseMoney } from '../utils/data.utils';
 import { getClientToken, transactionSale } from '../service/braintree.service';
 import { PaymentReference } from '@commercetools/platform-sdk';
 import { ClientTokenRequest, Transaction, TransactionRequest } from 'braintree';
@@ -9,9 +8,12 @@ import {
   handleError,
   handleRequest,
   handleResponse,
+} from '../utils/response.utils';
+import {
   mapBraintreeStatusToCommercetoolsTransactionState,
   mapBraintreeStatusToCommercetoolsTransactionType,
-} from '../utils/response.utils';
+  mapBraintreeMoneyToCommercetoolsMoney,
+} from '../utils/map.utils';
 
 function parseTransactionSaleRequest(
   resource: PaymentReference
@@ -95,7 +97,7 @@ const update = async (resource: PaymentReference) => {
               response.status
             ),
             amount: {
-              centAmount: parseMoney(
+              centAmount: mapBraintreeMoneyToCommercetoolsMoney(
                 response.amount,
                 resource.obj?.amountPlanned.fractionDigits
               ),
