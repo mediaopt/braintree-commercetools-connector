@@ -1,6 +1,7 @@
 import { UpdateAction } from '@commercetools/sdk-client-v2';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
+import { parseMoney } from '../utils/data.utils';
 import { getClientToken, transactionSale } from '../service/braintree.service';
 import { PaymentReference } from '@commercetools/platform-sdk';
 import { ClientTokenRequest, Transaction, TransactionRequest } from 'braintree';
@@ -8,6 +9,8 @@ import {
   handleError,
   handleRequest,
   handleResponse,
+  mapBraintreeStatusToCommercetoolsTransactionState,
+  mapBraintreeStatusToCommercetoolsTransactionType,
 } from '../utils/response.utils';
 
 function parseTransactionSaleRequest(
@@ -88,14 +91,21 @@ const update = async (resource: PaymentReference) => {
         updateActions.push({
           action: 'addTransaction',
           transaction: {
-            type: response.status === 'authorized' ? 'Authorization' : 'Charge',
+            type: mapBraintreeStatusToCommercetoolsTransactionType(
+              response.status
+            ),
             amount: {
-              centAmount: resource.obj?.amountPlanned.centAmount,
+              centAmount: parseMoney(
+                response.amount,
+                resource.obj?.amountPlanned.fractionDigits
+              ),
               currencyCode: resource.obj?.amountPlanned.currencyCode,
             },
             interactionId: response.id,
             timestamp: response.createdAt,
-            state: 'Success',
+            state: mapBraintreeStatusToCommercetoolsTransactionState(
+              response.status
+            ),
           },
         });
         if (!resource?.obj?.interfaceId) {

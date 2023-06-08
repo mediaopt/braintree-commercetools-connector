@@ -1,6 +1,8 @@
 import { UpdateAction } from '@commercetools/sdk-client-v2';
 import { BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY } from '../connector/actions';
 import { getCurrentTimestamp } from './data.utils';
+import { TransactionStatus } from 'braintree';
+import { TransactionState, TransactionType } from '@commercetools/platform-sdk';
 
 export const handleRequest = (
   requestName: string,
@@ -96,4 +98,43 @@ export const handleError = (
     value: null,
   });
   return updateActions;
+};
+
+export const mapBraintreeStatusToCommercetoolsTransactionState = (
+  status: TransactionStatus
+): TransactionState => {
+  switch (status) {
+    case 'authorized':
+    case 'settled':
+    case 'voided':
+    case 'settlement_confirmed':
+      return 'Success';
+    case 'authorization_expired':
+    case 'gateway_rejected':
+    case 'failed':
+    case 'settlement_declined':
+    case 'processor_declined':
+      return 'Failure';
+    default:
+      return 'Pending';
+  }
+};
+
+export const mapBraintreeStatusToCommercetoolsTransactionType = (
+  status: TransactionStatus
+): TransactionType => {
+  switch (status) {
+    case 'authorized':
+    case 'authorizing':
+      return 'Authorization';
+    case 'voided':
+      return 'CancelAuthorization';
+    case 'settled':
+    case 'settling':
+    case 'settlement_confirmed':
+    case 'settlement_pending':
+    case 'submitted_for_settlement':
+    default:
+      return 'Charge';
+  }
 };
