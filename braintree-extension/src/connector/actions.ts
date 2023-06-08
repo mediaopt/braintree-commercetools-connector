@@ -2,13 +2,21 @@ import { ByProjectKeyRequestBuilder } from '@commercetools/platform-sdk/dist/dec
 import {
   FieldDefinition,
   TypeAddFieldDefinitionAction,
+  TypeDraft,
 } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/type';
 
 const BRAINTREE_EXTENSION_KEY = 'braintree-extension';
 const BRAINTREE_PAYMENT_TYPE_KEY = 'braintree-payment-type';
 export const BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY =
   'braintree-payment-interaction-type';
-const BRAINTREE_API_PAYMENT_ENDPOINTS = ['getClientToken', 'transactionSale'];
+const BRAINTREE_API_PAYMENT_ENDPOINTS = [
+  'getClientToken',
+  'transactionSale',
+  'refund',
+];
+export const BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY =
+  'braintree-payment-transaction-type';
+const BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS = ['refund'];
 
 export async function createBraintreeExtension(
   apiRoot: ByProjectKeyRequestBuilder,
@@ -92,17 +100,6 @@ export async function deleteCartUpdateExtension(
 export async function createCustomPaymentType(
   apiRoot: ByProjectKeyRequestBuilder
 ): Promise<void> {
-  const {
-    body: { results: types },
-  } = await apiRoot
-    .types()
-    .get({
-      queryArgs: {
-        where: `key = "${BRAINTREE_PAYMENT_TYPE_KEY}"`,
-      },
-    })
-    .execute();
-
   const fieldDefinitions: FieldDefinition[] = [];
   BRAINTREE_API_PAYMENT_ENDPOINTS.forEach((element) =>
     fieldDefinitions.push({
@@ -130,64 +127,20 @@ export async function createCustomPaymentType(
       required: false,
     })
   );
-  if (types.length > 0) {
-    const type = types[0];
-    const updates = fieldDefinitions
-      .filter(
-        (newFieldDefinition: FieldDefinition): boolean =>
-          !type.fieldDefinitions.find(
-            (existingFieldDefinition: FieldDefinition): boolean =>
-              newFieldDefinition.name === existingFieldDefinition.name
-          )
-      )
-      .map((fieldDefinition: FieldDefinition): TypeAddFieldDefinitionAction => {
-        return {
-          action: 'addFieldDefinition',
-          fieldDefinition: fieldDefinition,
-        };
-      });
-    await apiRoot
-      .types()
-      .withKey({ key: BRAINTREE_PAYMENT_TYPE_KEY })
-      .post({
-        body: {
-          version: type.version,
-          actions: updates,
-        },
-      })
-      .execute();
-    return;
-  }
-
-  await apiRoot
-    .types()
-    .post({
-      body: {
-        key: BRAINTREE_PAYMENT_TYPE_KEY,
-        name: {
-          en: 'Custom payment type to braintree fields',
-        },
-        resourceTypeIds: ['payment'],
-        fieldDefinitions: fieldDefinitions,
-      },
-    })
-    .execute();
+  const customType = {
+    key: BRAINTREE_PAYMENT_TYPE_KEY,
+    name: {
+      en: 'Custom payment type to braintree fields',
+    },
+    resourceTypeIds: ['payment'],
+    fieldDefinitions: fieldDefinitions,
+  };
+  await addOrUpdateCustomType(apiRoot, customType);
 }
 
 export async function createCustomPaymentInteractionType(
   apiRoot: ByProjectKeyRequestBuilder
 ): Promise<void> {
-  const {
-    body: { results: types },
-  } = await apiRoot
-    .types()
-    .get({
-      queryArgs: {
-        where: `key = "${BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY}"`,
-      },
-    })
-    .execute();
-
   const fieldDefinitions: FieldDefinition[] = [
     {
       name: 'type',
@@ -222,9 +175,75 @@ export async function createCustomPaymentInteractionType(
       required: false,
     },
   ];
+  const customType = {
+    key: BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
+    name: {
+      en: 'Custom payment interaction type to braintree fields',
+    },
+    resourceTypeIds: ['payment-interface-interaction'],
+    fieldDefinitions: fieldDefinitions,
+  };
+  await addOrUpdateCustomType(apiRoot, customType);
+}
+
+export async function createCustomPaymentTransactionType(
+  apiRoot: ByProjectKeyRequestBuilder
+): Promise<void> {
+  const fieldDefinitions: FieldDefinition[] = [];
+  BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS.forEach((element) =>
+    fieldDefinitions.push({
+      name: element + 'Request',
+      label: {
+        en: element + 'Request',
+      },
+      type: {
+        name: 'String',
+      },
+      inputHint: 'MultiLine',
+      required: false,
+    })
+  );
+  BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS.forEach((element) =>
+    fieldDefinitions.push({
+      name: element + 'Response',
+      label: {
+        en: element + 'Response',
+      },
+      type: {
+        name: 'String',
+      },
+      inputHint: 'MultiLine',
+      required: false,
+    })
+  );
+  const customType = {
+    key: BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY,
+    name: {
+      en: 'Custom payment transaction type to braintree fields',
+    },
+    resourceTypeIds: ['transaction'],
+    fieldDefinitions: fieldDefinitions,
+  };
+  await addOrUpdateCustomType(apiRoot, customType);
+}
+
+async function addOrUpdateCustomType(
+  apiRoot: ByProjectKeyRequestBuilder,
+  customType: TypeDraft
+): Promise<void> {
+  const {
+    body: { results: types },
+  } = await apiRoot
+    .types()
+    .get({
+      queryArgs: {
+        where: `key = "${customType.key}"`,
+      },
+    })
+    .execute();
   if (types.length > 0) {
     const type = types[0];
-    const updates = fieldDefinitions
+    const updates = (customType.fieldDefinitions ?? [])
       .filter(
         (newFieldDefinition: FieldDefinition): boolean =>
           !type.fieldDefinitions.find(
@@ -240,7 +259,7 @@ export async function createCustomPaymentInteractionType(
       });
     await apiRoot
       .types()
-      .withKey({ key: BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY })
+      .withKey({ key: customType.key })
       .post({
         body: {
           version: type.version,
@@ -250,18 +269,10 @@ export async function createCustomPaymentInteractionType(
       .execute();
     return;
   }
-
   await apiRoot
     .types()
     .post({
-      body: {
-        key: BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
-        name: {
-          en: 'Custom payment interaction type to braintree fields',
-        },
-        resourceTypeIds: ['payment-interface-interaction'],
-        fieldDefinitions: fieldDefinitions,
-      },
+      body: customType,
     })
     .execute();
 }

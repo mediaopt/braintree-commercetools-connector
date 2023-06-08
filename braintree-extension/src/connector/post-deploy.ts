@@ -8,6 +8,7 @@ import {
   createCustomPaymentType,
   createBraintreeExtension,
   createCustomPaymentInteractionType,
+  createCustomPaymentTransactionType,
 } from './actions';
 
 const CONNECT_APPLICATION_URL_KEY = 'CONNECT_SERVICE_URL';
@@ -21,6 +22,7 @@ async function postDeploy(properties: Map<string, unknown>): Promise<void> {
   await createBraintreeExtension(apiRoot, applicationUrl);
   await createCustomPaymentType(apiRoot);
   await createCustomPaymentInteractionType(apiRoot);
+  await createCustomPaymentTransactionType(apiRoot);
 }
 
 async function run(): Promise<void> {
