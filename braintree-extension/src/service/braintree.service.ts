@@ -45,3 +45,16 @@ export const transactionSale = async (request: TransactionRequest) => {
   }
   return response.transaction;
 };
+
+export const refund = async (
+  transactionId: string,
+  amount: string | undefined
+) => {
+  const gateway = getBraintreeGateway();
+  const response = await gateway.transaction.refund(transactionId, amount);
+  logger.info('refund Response: ' + JSON.stringify(response));
+  if (!response.success) {
+    throw new CustomError(500, response.message);
+  }
+  return response.transaction;
+};

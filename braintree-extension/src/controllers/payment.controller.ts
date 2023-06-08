@@ -1,8 +1,15 @@
 import { UpdateAction } from '@commercetools/sdk-client-v2';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
-import { getClientToken, transactionSale } from '../service/braintree.service';
-import { PaymentReference } from '@commercetools/platform-sdk';
+import {
+  getClientToken,
+  refund as braintreeRefund,
+  transactionSale,
+} from '../service/braintree.service';
+import {
+  PaymentReference,
+  Transaction as CommercetoolsTransaction,
+} from '@commercetools/platform-sdk';
 import { ClientTokenRequest, Transaction, TransactionRequest } from 'braintree';
 import {
   handleError,
@@ -43,6 +50,31 @@ function parseTransactionSaleRequest(
   request.options = {
     submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
   };
+  return request;
+}
+
+function parseRefundRequest(resource: PaymentReference) {
+  if (!resource?.obj?.custom?.fields.refundRequest) {
+    throw new CustomError(500, 'refundRequest is missing');
+  }
+  let request;
+  try {
+    request = JSON.parse(resource?.obj.custom.fields.refundRequest);
+  } catch (e) {
+    request = {
+      transactionId: resource?.obj.custom.fields.refundRequest,
+    };
+  }
+  if (!request.transactionId) {
+    const settledTransactions = resource?.obj.transactions.filter(
+        (transaction: CommercetoolsTransaction): boolean =>
+            transaction.type === 'Charge'
+    );
+    if (settledTransactions.length === 0) {
+      throw new CustomError(500, 'The payment has no settled transactions to refund');
+    }
+    request.transactionId = settledTransactions[settledTransactions.length - 1].interactionId;
+  }
   return request;
 }
 
@@ -139,6 +171,55 @@ const update = async (resource: PaymentReference) => {
         });
       } catch (e) {
         updateActions = handleError('transactionSale', e);
+      }
+    }
+    if (resource?.obj?.custom?.fields?.refundRequest) {
+      try {
+        const request = parseRefundRequest(resource);
+        updateActions = handleRequest('refund', request);
+        logger.info('Refund request', request);
+        const response = await braintreeRefund(
+          request.transactionId,
+          request.amount ?? null
+        );
+        updateActions = updateActions.concat(
+          handleResponse('refund', response)
+        );
+        updateActions.push({
+          action: 'addTransaction',
+          transaction: {
+            type: 'Refund',
+            amount: {
+              centAmount: mapBraintreeMoneyToCommercetoolsMoney(
+                response.amount,
+                resource.obj?.amountPlanned.fractionDigits
+              ),
+              currencyCode: resource.obj?.amountPlanned.currencyCode,
+            },
+            interactionId: response.id,
+            timestamp: response.createdAt,
+            state: mapBraintreeStatusToCommercetoolsTransactionState(
+              response.status
+            ),
+          },
+        });
+        updateActions.push({
+          action: 'setStatusInterfaceCode',
+          interfaceCode: response.status,
+        });
+        updateActions.push({
+          action: 'setStatusInterfaceText',
+          interfaceText: response.status,
+        });
+        const paymentMethodHint = getPaymentMethodHint(response);
+        updateActions.push({
+          action: 'setMethodInfoMethod',
+          method:
+            response.paymentInstrumentType +
+            (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
+        });
+      } catch (e) {
+        updateActions =  handleError('refund', e);
       }
     }
 
