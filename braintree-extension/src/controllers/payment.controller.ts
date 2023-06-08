@@ -49,7 +49,13 @@ function parseTransactionSaleRequest(
 function getPaymentMethodHint(response: Transaction): string {
   switch (response.paymentInstrumentType) {
     case 'credit_card':
-      return ` (${response?.creditCard?.cardType} ${response?.creditCard?.maskedNumber})`;
+      return `${response?.creditCard?.cardType} ${response?.creditCard?.maskedNumber}`;
+    case 'paypal_account':
+      return response?.paypalAccount?.payerEmail ?? '';
+    case 'venmo_account':
+      return response?.venmoAccount?.username ?? '';
+    case 'android_pay_card':
+      return response?.androidPayCard?.sourceDescription ?? '';
     default:
       return '';
   }
@@ -124,10 +130,12 @@ const update = async (resource: PaymentReference) => {
           action: 'setStatusInterfaceText',
           interfaceText: response.status,
         });
+        const paymentMethodHint = getPaymentMethodHint(response);
         updateActions.push({
           action: 'setMethodInfoMethod',
           method:
-            response.paymentInstrumentType + getPaymentMethodHint(response),
+            response.paymentInstrumentType +
+            (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
         });
       } catch (e) {
         updateActions = handleError('transactionSale', e);
