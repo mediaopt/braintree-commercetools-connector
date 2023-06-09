@@ -139,7 +139,7 @@ async function refund(
           currencyCode: resource.obj?.amountPlanned.currencyCode,
         },
         interactionId: response.id,
-        timestamp: response.createdAt,
+        timestamp: response.updatedAt,
         state: mapBraintreeStatusToCommercetoolsTransactionState(
           response.status
         ),
@@ -215,7 +215,7 @@ const update = async (resource: PaymentReference) => {
               currencyCode: resource.obj?.amountPlanned.currencyCode,
             },
             interactionId: response.id,
-            timestamp: response.createdAt,
+            timestamp: response.updatedAt,
             state: mapBraintreeStatusToCommercetoolsTransactionState(
               response.status
             ),
