@@ -9,6 +9,7 @@ import {
 import {
   PaymentReference,
   Transaction as CommercetoolsTransaction,
+  TransactionType,
 } from '@commercetools/platform-sdk';
 import { ClientTokenRequest, Transaction, TransactionRequest } from 'braintree';
 import {
@@ -53,29 +54,46 @@ function parseTransactionSaleRequest(
   return request;
 }
 
-function parseRefundRequest(resource: PaymentReference) {
-  if (!resource?.obj?.custom?.fields.refundRequest) {
+function parseRefundRequest(
+  resource: PaymentReference,
+  transaction: CommercetoolsTransaction | undefined = undefined
+) {
+  const refundRequest =
+    resource?.obj?.custom?.fields?.refundRequest ??
+    transaction?.custom?.fields?.refundRequest;
+  if (!refundRequest) {
     throw new CustomError(500, 'refundRequest is missing');
   }
   let request;
   try {
-    request = JSON.parse(resource?.obj.custom.fields.refundRequest);
+    request = JSON.parse(refundRequest);
   } catch (e) {
     request = {
-      transactionId: resource?.obj.custom.fields.refundRequest,
+      transactionId: refundRequest,
     };
   }
-  if (!request.transactionId) {
-    const settledTransactions = resource?.obj.transactions.filter(
-        (transaction: CommercetoolsTransaction): boolean =>
-            transaction.type === 'Charge'
-    );
-    if (settledTransactions.length === 0) {
-      throw new CustomError(500, 'The payment has no settled transactions to refund');
-    }
-    request.transactionId = settledTransactions[settledTransactions.length - 1].interactionId;
-  }
+  request.transactionId =
+    request.transactionId ??
+    findSuitableTransactionId(resource, transaction, 'Charge');
   return request;
+}
+
+function findSuitableTransactionId(
+  resource: PaymentReference,
+  transaction: CommercetoolsTransaction | undefined = undefined,
+  type: TransactionType
+) {
+  if (transaction) {
+    return transaction.interactionId;
+  }
+  const transactions = resource?.obj?.transactions.filter(
+    (transaction: CommercetoolsTransaction): boolean =>
+      transaction.type === type
+  );
+  if (!transactions || transactions.length === 0) {
+    throw new CustomError(500, 'The payment has no suitable transaction');
+  }
+  return transactions[transactions.length - 1].interactionId;
 }
 
 function getPaymentMethodHint(response: Transaction): string {
@@ -90,6 +108,61 @@ function getPaymentMethodHint(response: Transaction): string {
       return response?.androidPayCard?.sourceDescription ?? '';
     default:
       return '';
+  }
+}
+
+async function refund(
+  resource: PaymentReference,
+  updateActions: Array<UpdateAction>,
+  transaction: CommercetoolsTransaction | undefined = undefined
+) {
+  try {
+    const request = parseRefundRequest(resource, transaction);
+    updateActions = handleRequest('refund', request);
+    logger.info('Refund request', request);
+    const response = await braintreeRefund(
+      request.transactionId,
+      request?.amount
+    );
+    updateActions = updateActions.concat(
+      handleResponse('refund', response, transaction?.id)
+    );
+    updateActions.push({
+      action: 'addTransaction',
+      transaction: {
+        type: 'Refund',
+        amount: {
+          centAmount: mapBraintreeMoneyToCommercetoolsMoney(
+            response.amount,
+            resource.obj?.amountPlanned.fractionDigits
+          ),
+          currencyCode: resource.obj?.amountPlanned.currencyCode,
+        },
+        interactionId: response.id,
+        timestamp: response.createdAt,
+        state: mapBraintreeStatusToCommercetoolsTransactionState(
+          response.status
+        ),
+      },
+    });
+    updateActions.push({
+      action: 'setStatusInterfaceCode',
+      interfaceCode: response.status,
+    });
+    updateActions.push({
+      action: 'setStatusInterfaceText',
+      interfaceText: response.status,
+    });
+    const paymentMethodHint = getPaymentMethodHint(response);
+    updateActions.push({
+      action: 'setMethodInfoMethod',
+      method:
+        response.paymentInstrumentType +
+        (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
+    });
+    return updateActions;
+  } catch (e) {
+    return handleError('refund', e, transaction?.id);
   }
 }
 
@@ -174,52 +247,20 @@ const update = async (resource: PaymentReference) => {
       }
     }
     if (resource?.obj?.custom?.fields?.refundRequest) {
-      try {
-        const request = parseRefundRequest(resource);
-        updateActions = handleRequest('refund', request);
-        logger.info('Refund request', request);
-        const response = await braintreeRefund(
-          request.transactionId,
-          request.amount ?? null
-        );
+      updateActions = updateActions.concat(
+        await refund(resource, updateActions)
+      );
+    }
+    for (
+      let index = 0;
+      index < (resource?.obj?.transactions?.length || 0);
+      index++
+    ) {
+      const transaction = resource?.obj?.transactions[index];
+      if (transaction?.custom?.fields?.refundRequest) {
         updateActions = updateActions.concat(
-          handleResponse('refund', response)
+          await refund(resource, updateActions, transaction)
         );
-        updateActions.push({
-          action: 'addTransaction',
-          transaction: {
-            type: 'Refund',
-            amount: {
-              centAmount: mapBraintreeMoneyToCommercetoolsMoney(
-                response.amount,
-                resource.obj?.amountPlanned.fractionDigits
-              ),
-              currencyCode: resource.obj?.amountPlanned.currencyCode,
-            },
-            interactionId: response.id,
-            timestamp: response.createdAt,
-            state: mapBraintreeStatusToCommercetoolsTransactionState(
-              response.status
-            ),
-          },
-        });
-        updateActions.push({
-          action: 'setStatusInterfaceCode',
-          interfaceCode: response.status,
-        });
-        updateActions.push({
-          action: 'setStatusInterfaceText',
-          interfaceText: response.status,
-        });
-        const paymentMethodHint = getPaymentMethodHint(response);
-        updateActions.push({
-          action: 'setMethodInfoMethod',
-          method:
-            response.paymentInstrumentType +
-            (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
-        });
-      } catch (e) {
-        updateActions =  handleError('refund', e);
       }
     }
 
