@@ -32,7 +32,7 @@ function stringifyData(data: string | object) {
 export const handleResponse = (
   requestName: string,
   response: string | object,
-  transactionId: string | undefined = undefined
+  transactionId?: string
 ): UpdateAction[] => {
   const updateActions: Array<UpdateAction> = [];
   if (typeof response === 'object') {
@@ -82,7 +82,7 @@ export const removeEmptyProperties = (response: any) => {
 export const handleError = (
   requestName: string,
   error: unknown,
-  transactionId: string | undefined = undefined
+  transactionId?: string
 ): UpdateAction[] => {
   const errorMessage =
     error instanceof Error && 'message' in error

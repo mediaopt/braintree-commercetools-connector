@@ -56,7 +56,7 @@ function parseTransactionSaleRequest(
 
 function parseRefundRequest(
   resource: PaymentReference,
-  transaction: CommercetoolsTransaction | undefined = undefined
+  transaction?: CommercetoolsTransaction
 ) {
   const refundRequest =
     resource?.obj?.custom?.fields?.refundRequest ??
@@ -74,14 +74,14 @@ function parseRefundRequest(
   }
   request.transactionId =
     request.transactionId ??
-    findSuitableTransactionId(resource, transaction, 'Charge');
+    findSuitableTransactionId(resource, 'Charge', transaction);
   return request;
 }
 
 function findSuitableTransactionId(
   resource: PaymentReference,
-  transaction: CommercetoolsTransaction | undefined = undefined,
-  type: TransactionType
+  type: TransactionType,
+  transaction?: CommercetoolsTransaction
 ) {
   if (transaction) {
     return transaction.interactionId;
@@ -114,7 +114,7 @@ function getPaymentMethodHint(response: Transaction): string {
 async function refund(
   resource: PaymentReference,
   updateActions: Array<UpdateAction>,
-  transaction: CommercetoolsTransaction | undefined = undefined
+  transaction?: CommercetoolsTransaction
 ) {
   try {
     const request = parseRefundRequest(resource, transaction);
