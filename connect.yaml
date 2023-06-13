@@ -5,14 +5,26 @@ deployAs:
     scripts:
       postDeploy: npm install && npm run build && npm run connector:post-deploy
       preUndeploy: npm install && npm run build && npm run connector:pre-undeploy
-    configurationType:
-      CTP_PROJECT_KEY: secret
-      CTP_CLIENT_ID: secret
-      CTP_CLIENT_SECRET: secret
-      CTP_SCOPE: secret
-      CTP_REGION : standard
-      BRAINTREE_MERCHANT_ID: standard
-      BRAINTREE_PUBLIC_KEY: standard
-      BRAINTREE_PRIVATE_KEY: secret
-      BRAINTREE_ENVIRONMENT: standard
-      BRAINTREE_AUTOCAPTURE: standard
+    configuration:
+      standardConfiguration:
+        - key: CTP_REGION
+          description: commercetools Composable Commerce API region
+        - key: BRAINTREE_MERCHANT_ID
+          description: Braintree Merchant Account
+        - key: BRAINTREE_PUBLIC_KEY
+          description: Braintree public key
+        - key: BRAINTREE_ENVIRONMENT
+          description: Braintree environment (Sandbox or Production)
+        - key: BRAINTREE_AUTOCAPTURE
+          description: Braintree setting whether transactions should be captured directly
+      securedConfiguration:
+        - key: CTP_PROJECT_KEY
+          description: commercetools Composable Commerce project key
+        - key: CTP_CLIENT_ID
+          description: commercetools Composable Commerce client ID
+        - key: CTP_CLIENT_SECRET
+          description: commercetools Composable Commerce client secret
+        - key: CTP_SCOPE
+          description: commercetools Composable Commerce client scope
+        - key: BRAINTREE_PRIVATE_KEY
+          description: Braintree private key

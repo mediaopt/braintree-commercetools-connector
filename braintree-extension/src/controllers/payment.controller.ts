@@ -3,8 +3,17 @@ import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
 import { getClientToken, transactionSale } from '../service/braintree.service';
 import { PaymentReference } from '@commercetools/platform-sdk';
-import { ClientTokenRequest, TransactionRequest } from 'braintree';
-import { handleResponse, handleError } from '../utils/response.utils';
+import { ClientTokenRequest, Transaction, TransactionRequest } from 'braintree';
+import {
+  handleError,
+  handleRequest,
+  handleResponse,
+} from '../utils/response.utils';
+import {
+  mapBraintreeStatusToCommercetoolsTransactionState,
+  mapBraintreeStatusToCommercetoolsTransactionType,
+  mapBraintreeMoneyToCommercetoolsMoney,
+} from '../utils/map.utils';
 
 function parseTransactionSaleRequest(
   resource: PaymentReference
@@ -37,6 +46,21 @@ function parseTransactionSaleRequest(
   return request;
 }
 
+function getPaymentMethodHint(response: Transaction): string {
+  switch (response.paymentInstrumentType) {
+    case 'credit_card':
+      return `${response?.creditCard?.cardType} ${response?.creditCard?.maskedNumber}`;
+    case 'paypal_account':
+      return response?.paypalAccount?.payerEmail ?? '';
+    case 'venmo_account':
+      return response?.venmoAccount?.username ?? '';
+    case 'android_pay_card':
+      return response?.androidPayCard?.sourceDescription ?? '';
+    default:
+      return '';
+  }
+}
+
 /**
  * Handle the update action
  *
@@ -52,9 +76,12 @@ const update = async (resource: PaymentReference) => {
       const request: ClientTokenRequest = JSON.parse(
         resource.obj.custom.fields.getClientTokenRequest
       );
+      updateActions = handleRequest('getClientToken', request);
       try {
         const response = await getClientToken(request);
-        updateActions = handleResponse('getClientToken', response);
+        updateActions = updateActions.concat(
+          handleResponse('getClientToken', response)
+        );
       } catch (e) {
         logger.error('Call to getClientToken resulted in an error', e);
         updateActions = handleError('getClientToken', e);
@@ -63,21 +90,52 @@ const update = async (resource: PaymentReference) => {
     if (resource?.obj?.custom?.fields?.transactionSaleRequest) {
       try {
         const request = parseTransactionSaleRequest(resource);
+        updateActions = handleRequest('transactionSale', request);
         logger.info('Transaction Sale request', request);
         const response = await transactionSale(request);
-        updateActions = handleResponse('transactionSale', response);
+        updateActions = updateActions.concat(
+          handleResponse('transactionSale', response)
+        );
         updateActions.push({
           action: 'addTransaction',
           transaction: {
-            type: response.status === 'authorized' ? 'Authorization' : 'Charge',
+            type: mapBraintreeStatusToCommercetoolsTransactionType(
+              response.status
+            ),
             amount: {
-              centAmount: resource.obj?.amountPlanned.centAmount,
+              centAmount: mapBraintreeMoneyToCommercetoolsMoney(
+                response.amount,
+                resource.obj?.amountPlanned.fractionDigits
+              ),
               currencyCode: resource.obj?.amountPlanned.currencyCode,
             },
             interactionId: response.id,
             timestamp: response.createdAt,
-            state: 'Success',
+            state: mapBraintreeStatusToCommercetoolsTransactionState(
+              response.status
+            ),
           },
+        });
+        if (!resource?.obj?.interfaceId) {
+          updateActions.push({
+            action: 'setInterfaceId',
+            interfaceId: response.id,
+          });
+        }
+        updateActions.push({
+          action: 'setStatusInterfaceCode',
+          interfaceCode: response.status,
+        });
+        updateActions.push({
+          action: 'setStatusInterfaceText',
+          interfaceText: response.status,
+        });
+        const paymentMethodHint = getPaymentMethodHint(response);
+        updateActions.push({
+          action: 'setMethodInfoMethod',
+          method:
+            response.paymentInstrumentType +
+            (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
         });
       } catch (e) {
         updateActions = handleError('transactionSale', e);

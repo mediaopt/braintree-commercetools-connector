@@ -4,7 +4,11 @@ dotenv.config();
 
 import { createApiRoot } from '../client/create.client';
 import { assertError, assertString } from '../utils/assert.utils';
-import { createCustomPaymentType, createBraintreeExtension } from './actions';
+import {
+  createCustomPaymentType,
+  createBraintreeExtension,
+  createCustomPaymentInteractionType,
+} from './actions';
 
 const CONNECT_APPLICATION_URL_KEY = 'CONNECT_SERVICE_URL';
 
@@ -16,6 +20,7 @@ async function postDeploy(properties: Map<string, unknown>): Promise<void> {
   const apiRoot = await createApiRoot();
   await createBraintreeExtension(apiRoot, applicationUrl);
   await createCustomPaymentType(apiRoot);
+  await createCustomPaymentInteractionType(apiRoot);
 }
 
 async function run(): Promise<void> {
