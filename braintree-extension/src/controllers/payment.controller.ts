@@ -113,10 +113,10 @@ function getPaymentMethodHint(response: Transaction): string {
 
 async function refund(
   resource: PaymentReference,
-  updateActions: Array<UpdateAction>,
   transaction?: CommercetoolsTransaction
 ) {
   try {
+    let updateActions: Array<UpdateAction>;
     const request = parseRefundRequest(resource, transaction);
     updateActions = handleRequest('refund', request);
     logger.info('Refund request', request);
@@ -247,21 +247,20 @@ const update = async (resource: PaymentReference) => {
       }
     }
     if (resource?.obj?.custom?.fields?.refundRequest) {
-      updateActions = updateActions.concat(
-        await refund(resource, updateActions)
-      );
+      updateActions = updateActions.concat(await refund(resource));
     }
-    for (
-      let index = 0;
-      index < (resource?.obj?.transactions?.length || 0);
-      index++
-    ) {
-      const transaction = resource?.obj?.transactions[index];
-      if (transaction?.custom?.fields?.refundRequest) {
-        updateActions = updateActions.concat(
-          await refund(resource, updateActions, transaction)
-        );
-      }
+    if (resource?.obj?.transactions) {
+      const promises = resource.obj.transactions.map(
+        async (
+          transaction: CommercetoolsTransaction
+        ): Promise<UpdateAction[]> => {
+          if (transaction?.custom?.fields?.refundRequest) {
+            return await refund(resource, transaction);
+          }
+          return [];
+        }
+      );
+      updateActions = updateActions.concat(...(await Promise.all(promises)));
     }
 
     return { statusCode: 200, actions: updateActions };

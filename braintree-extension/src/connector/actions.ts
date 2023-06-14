@@ -103,9 +103,9 @@ export async function createCustomPaymentType(
   const fieldDefinitions: FieldDefinition[] = [];
   BRAINTREE_API_PAYMENT_ENDPOINTS.forEach((element) =>
     fieldDefinitions.push({
-      name: `${element} Request`,
+      name: `${element}Request`,
       label: {
-        en: `${element} Request`,
+        en: `${element}Request`,
       },
       type: {
         name: 'String',
@@ -116,9 +116,9 @@ export async function createCustomPaymentType(
   );
   BRAINTREE_API_PAYMENT_ENDPOINTS.forEach((element) =>
     fieldDefinitions.push({
-      name: `${element} Response`,
+      name: `${element}Response`,
       label: {
-        en: `${element} Response`,
+        en: `${element}Response`,
       },
       type: {
         name: 'String',
@@ -192,9 +192,9 @@ export async function createCustomPaymentTransactionType(
   const fieldDefinitions: FieldDefinition[] = [];
   BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS.forEach((element) =>
     fieldDefinitions.push({
-      name: `${element} Request`,
+      name: `${element}Request`,
       label: {
-        en: `${element} Request`,
+        en: `${element}Request`,
       },
       type: {
         name: 'String',
@@ -205,9 +205,9 @@ export async function createCustomPaymentTransactionType(
   );
   BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS.forEach((element) =>
     fieldDefinitions.push({
-      name: `${element} Response`,
+      name: `${element}Response`,
       label: {
-        en: `${element} Response`,
+        en: `${element}Response`,
       },
       type: {
         name: 'String',
@@ -257,6 +257,9 @@ async function addOrUpdateCustomType(
           fieldDefinition: fieldDefinition,
         };
       });
+    if (updates.length === 0) {
+      return;
+    }
     await apiRoot
       .types()
       .withKey({ key: customType.key })
