@@ -6,6 +6,7 @@ import {
   refund as braintreeRefund,
   transactionSale,
   submitForSettlement as braintreeSubmitForSettlement,
+  voidTransaction as braintreeVoidTransaction,
 } from '../service/braintree.service';
 import {
   PaymentReference,
@@ -227,6 +228,49 @@ async function submitForSettlement(
   }
 }
 
+async function voidTransaction(
+  resource: PaymentReference,
+  transaction: CommercetoolsTransaction | undefined = undefined
+) {
+  try {
+    let updateActions: Array<UpdateAction>;
+    const request = parseRequest(
+      resource,
+      'voidRequest',
+      'Authorization',
+      transaction
+    );
+    updateActions = handleRequest('void', request);
+    logger.info('void request', request);
+    const response = await braintreeVoidTransaction(request.transactionId);
+    updateActions = updateActions.concat(
+      handleResponse('void', response, transaction?.id)
+    );
+    updateActions.push({
+      action: 'addTransaction',
+      transaction: {
+        type: 'CancelAuthorization',
+        amount: {
+          centAmount: mapBraintreeMoneyToCommercetoolsMoney(
+            response.amount,
+            resource.obj?.amountPlanned.fractionDigits
+          ),
+          currencyCode: resource.obj?.amountPlanned.currencyCode,
+        },
+        interactionId: response.id,
+        timestamp: response.updatedAt,
+        state: mapBraintreeStatusToCommercetoolsTransactionState(
+          response.status
+        ),
+      },
+    });
+    updateActions = updateActions.concat(updatePaymentFields(response));
+    return updateActions;
+  } catch (e) {
+    return handleError('void', e, transaction?.id);
+  }
+}
+
 /**
  * Handle the update action
  *
@@ -299,6 +343,9 @@ const update = async (resource: PaymentReference) => {
     if (resource?.obj?.custom?.fields?.submitForSettlementRequest) {
       updateActions = updateActions.concat(await submitForSettlement(resource));
     }
+    if (resource?.obj?.custom?.fields?.voidRequest) {
+      updateActions = updateActions.concat(await voidTransaction(resource));
+    }
     if (resource?.obj?.transactions) {
       const promises = resource.obj.transactions.map(
         async (
@@ -309,6 +356,9 @@ const update = async (resource: PaymentReference) => {
           }
           if (transaction?.custom?.fields?.submitForSettlementRequest) {
             return await submitForSettlement(resource, transaction);
+          }
+          if (transaction?.custom?.fields?.voidRequest) {
+            return await voidTransaction(resource, transaction);
           }
           return [];
         }
