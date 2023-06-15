@@ -55,51 +55,30 @@ function parseTransactionSaleRequest(
   return request;
 }
 
-function parseRefundRequest(
+function parseRequest(
   resource: PaymentReference,
+  requestField: string,
+  transactionType: TransactionType,
   transaction?: CommercetoolsTransaction
 ) {
-  const refundRequest =
-    resource?.obj?.custom?.fields?.refundRequest ??
-    transaction?.custom?.fields?.refundRequest;
-  if (!refundRequest) {
-    throw new CustomError(500, 'refundRequest is missing');
+  const requestJSON =
+    resource?.obj?.custom?.fields[requestField] ??
+    transaction?.custom?.fields[requestField] ??
+    null;
+  if (!requestJSON) {
+    throw new CustomError(500, `${requestField} is missing`);
   }
   let request;
   try {
-    request = JSON.parse(refundRequest);
+    request = JSON.parse(requestJSON);
   } catch (e) {
     request = {
-      transactionId: refundRequest,
+      transactionId: requestJSON,
     };
   }
   request.transactionId =
     request.transactionId ??
-    findSuitableTransactionId(resource, 'Charge', transaction);
-  return request;
-}
-
-function parseSubmitForSettlementRequest(
-  resource: PaymentReference,
-  transaction?: CommercetoolsTransaction
-) {
-  const submitForSettlementRequest =
-    resource?.obj?.custom?.fields?.submitForSettlementRequest ??
-    transaction?.custom?.fields?.submitForSettlementRequest;
-  if (!submitForSettlementRequest) {
-    throw new CustomError(500, 'submitForSettlementRequest is missing');
-  }
-  let request;
-  try {
-    request = JSON.parse(submitForSettlementRequest);
-  } catch (e) {
-    request = {
-      transactionId: submitForSettlementRequest,
-    };
-  }
-  request.transactionId =
-    request.transactionId ??
-    findSuitableTransactionId(resource, 'Authorization', transaction);
+    findSuitableTransactionId(resource, transactionType, transaction);
   return request;
 }
 
@@ -142,7 +121,12 @@ async function refund(
 ) {
   try {
     let updateActions: Array<UpdateAction>;
-    const request = parseRefundRequest(resource, transaction);
+    const request = parseRequest(
+      resource,
+      'refundRequest',
+      'Charge',
+      transaction
+    );
     updateActions = handleRequest('refund', request);
     logger.info('Refund request', request);
     const response = await braintreeRefund(
@@ -203,7 +187,12 @@ async function submitForSettlement(
 ) {
   try {
     let updateActions: Array<UpdateAction>;
-    const request = parseSubmitForSettlementRequest(resource, transaction);
+    const request = parseRequest(
+      resource,
+      'submitForSettlementRequest',
+      'Authorization',
+      transaction
+    );
     updateActions = handleRequest('submitForSettlement', request);
     logger.info('submitForSettlement request', request);
     const response = await braintreeSubmitForSettlement(
