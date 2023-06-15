@@ -154,7 +154,7 @@ async function refund(
         ),
       },
     });
-    updateActions.concat(updatePaymentFields(response));
+    updateActions = updateActions.concat(updatePaymentFields(response));
     return updateActions;
   } catch (e) {
     return handleError('refund', e, transaction?.id);
@@ -220,7 +220,7 @@ async function submitForSettlement(
         ),
       },
     });
-    updateActions.concat(updatePaymentFields(response));
+    updateActions = updateActions.concat(updatePaymentFields(response));
     return updateActions;
   } catch (e) {
     return handleError('submitForSettlement', e, transaction?.id);
@@ -288,7 +288,7 @@ const update = async (resource: PaymentReference) => {
             interfaceId: response.id,
           });
         }
-        updateActions.concat(updatePaymentFields(response));
+        updateActions = updateActions.concat(updatePaymentFields(response));
       } catch (e) {
         updateActions = handleError('transactionSale', e);
       }
