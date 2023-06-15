@@ -5,6 +5,7 @@ import {
   getClientToken,
   refund as braintreeRefund,
   transactionSale,
+  submitForSettlement as braintreeSubmitForSettlement,
 } from '../service/braintree.service';
 import {
   PaymentReference,
@@ -54,27 +55,30 @@ function parseTransactionSaleRequest(
   return request;
 }
 
-function parseRefundRequest(
+function parseRequest(
   resource: PaymentReference,
+  requestField: string,
+  transactionType: TransactionType,
   transaction?: CommercetoolsTransaction
 ) {
-  const refundRequest =
-    resource?.obj?.custom?.fields?.refundRequest ??
-    transaction?.custom?.fields?.refundRequest;
-  if (!refundRequest) {
-    throw new CustomError(500, 'refundRequest is missing');
+  const requestJSON =
+    resource?.obj?.custom?.fields[requestField] ??
+    transaction?.custom?.fields[requestField] ??
+    null;
+  if (!requestJSON) {
+    throw new CustomError(500, `${requestField} is missing`);
   }
   let request;
   try {
-    request = JSON.parse(refundRequest);
+    request = JSON.parse(requestJSON);
   } catch (e) {
     request = {
-      transactionId: refundRequest,
+      transactionId: requestJSON,
     };
   }
   request.transactionId =
     request.transactionId ??
-    findSuitableTransactionId(resource, 'Charge', transaction);
+    findSuitableTransactionId(resource, transactionType, transaction);
   return request;
 }
 
@@ -117,7 +121,12 @@ async function refund(
 ) {
   try {
     let updateActions: Array<UpdateAction>;
-    const request = parseRefundRequest(resource, transaction);
+    const request = parseRequest(
+      resource,
+      'refundRequest',
+      'Charge',
+      transaction
+    );
     updateActions = handleRequest('refund', request);
     logger.info('Refund request', request);
     const response = await braintreeRefund(
@@ -145,24 +154,76 @@ async function refund(
         ),
       },
     });
-    updateActions.push({
-      action: 'setStatusInterfaceCode',
-      interfaceCode: response.status,
-    });
-    updateActions.push({
-      action: 'setStatusInterfaceText',
-      interfaceText: response.status,
-    });
-    const paymentMethodHint = getPaymentMethodHint(response);
-    updateActions.push({
-      action: 'setMethodInfoMethod',
-      method:
-        response.paymentInstrumentType +
-        (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
-    });
+    updateActions = updateActions.concat(updatePaymentFields(response));
     return updateActions;
   } catch (e) {
     return handleError('refund', e, transaction?.id);
+  }
+}
+
+function updatePaymentFields(response: Transaction): Array<UpdateAction> {
+  const updateActions: Array<UpdateAction> = [];
+  updateActions.push({
+    action: 'setStatusInterfaceCode',
+    interfaceCode: response.status,
+  });
+  updateActions.push({
+    action: 'setStatusInterfaceText',
+    interfaceText: response.status,
+  });
+  const paymentMethodHint = getPaymentMethodHint(response);
+  updateActions.push({
+    action: 'setMethodInfoMethod',
+    method:
+      response.paymentInstrumentType +
+      (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
+  });
+  return updateActions;
+}
+
+async function submitForSettlement(
+  resource: PaymentReference,
+  transaction?: CommercetoolsTransaction
+) {
+  try {
+    let updateActions: Array<UpdateAction>;
+    const request = parseRequest(
+      resource,
+      'submitForSettlementRequest',
+      'Authorization',
+      transaction
+    );
+    updateActions = handleRequest('submitForSettlement', request);
+    logger.info('submitForSettlement request', request);
+    const response = await braintreeSubmitForSettlement(
+      request.transactionId,
+      request?.amount
+    );
+    updateActions = updateActions.concat(
+      handleResponse('submitForSettlement', response, transaction?.id)
+    );
+    updateActions.push({
+      action: 'addTransaction',
+      transaction: {
+        type: 'Charge',
+        amount: {
+          centAmount: mapBraintreeMoneyToCommercetoolsMoney(
+            response.amount,
+            resource.obj?.amountPlanned.fractionDigits
+          ),
+          currencyCode: resource.obj?.amountPlanned.currencyCode,
+        },
+        interactionId: response.id,
+        timestamp: response.updatedAt,
+        state: mapBraintreeStatusToCommercetoolsTransactionState(
+          response.status
+        ),
+      },
+    });
+    updateActions = updateActions.concat(updatePaymentFields(response));
+    return updateActions;
+  } catch (e) {
+    return handleError('submitForSettlement', e, transaction?.id);
   }
 }
 
@@ -227,27 +288,16 @@ const update = async (resource: PaymentReference) => {
             interfaceId: response.id,
           });
         }
-        updateActions.push({
-          action: 'setStatusInterfaceCode',
-          interfaceCode: response.status,
-        });
-        updateActions.push({
-          action: 'setStatusInterfaceText',
-          interfaceText: response.status,
-        });
-        const paymentMethodHint = getPaymentMethodHint(response);
-        updateActions.push({
-          action: 'setMethodInfoMethod',
-          method:
-            response.paymentInstrumentType +
-            (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
-        });
+        updateActions = updateActions.concat(updatePaymentFields(response));
       } catch (e) {
         updateActions = handleError('transactionSale', e);
       }
     }
     if (resource?.obj?.custom?.fields?.refundRequest) {
       updateActions = updateActions.concat(await refund(resource));
+    }
+    if (resource?.obj?.custom?.fields?.submitForSettlementRequest) {
+      updateActions = updateActions.concat(await submitForSettlement(resource));
     }
     if (resource?.obj?.transactions) {
       const promises = resource.obj.transactions.map(
@@ -256,6 +306,9 @@ const update = async (resource: PaymentReference) => {
         ): Promise<UpdateAction[]> => {
           if (transaction?.custom?.fields?.refundRequest) {
             return await refund(resource, transaction);
+          }
+          if (transaction?.custom?.fields?.submitForSettlementRequest) {
+            return await submitForSettlement(resource, transaction);
           }
           return [];
         }
