@@ -1,8 +1,16 @@
 import { UpdateAction } from '@commercetools/sdk-client-v2';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
-import { getClientToken, transactionSale } from '../service/braintree.service';
-import { PaymentReference } from '@commercetools/platform-sdk';
+import {
+  getClientToken,
+  refund as braintreeRefund,
+  transactionSale,
+} from '../service/braintree.service';
+import {
+  PaymentReference,
+  Transaction as CommercetoolsTransaction,
+  TransactionType,
+} from '@commercetools/platform-sdk';
 import { ClientTokenRequest, Transaction, TransactionRequest } from 'braintree';
 import {
   handleError,
@@ -46,6 +54,48 @@ function parseTransactionSaleRequest(
   return request;
 }
 
+function parseRefundRequest(
+  resource: PaymentReference,
+  transaction?: CommercetoolsTransaction
+) {
+  const refundRequest =
+    resource?.obj?.custom?.fields?.refundRequest ??
+    transaction?.custom?.fields?.refundRequest;
+  if (!refundRequest) {
+    throw new CustomError(500, 'refundRequest is missing');
+  }
+  let request;
+  try {
+    request = JSON.parse(refundRequest);
+  } catch (e) {
+    request = {
+      transactionId: refundRequest,
+    };
+  }
+  request.transactionId =
+    request.transactionId ??
+    findSuitableTransactionId(resource, 'Charge', transaction);
+  return request;
+}
+
+function findSuitableTransactionId(
+  resource: PaymentReference,
+  type: TransactionType,
+  transaction?: CommercetoolsTransaction
+) {
+  if (transaction) {
+    return transaction.interactionId;
+  }
+  const transactions = resource?.obj?.transactions.filter(
+    (transaction: CommercetoolsTransaction): boolean =>
+      transaction.type === type
+  );
+  if (!transactions || transactions.length === 0) {
+    throw new CustomError(500, 'The payment has no suitable transaction');
+  }
+  return transactions[transactions.length - 1].interactionId;
+}
+
 function getPaymentMethodHint(response: Transaction): string {
   switch (response.paymentInstrumentType) {
     case 'credit_card':
@@ -58,6 +108,61 @@ function getPaymentMethodHint(response: Transaction): string {
       return response?.androidPayCard?.sourceDescription ?? '';
     default:
       return '';
+  }
+}
+
+async function refund(
+  resource: PaymentReference,
+  transaction?: CommercetoolsTransaction
+) {
+  try {
+    let updateActions: Array<UpdateAction>;
+    const request = parseRefundRequest(resource, transaction);
+    updateActions = handleRequest('refund', request);
+    logger.info('Refund request', request);
+    const response = await braintreeRefund(
+      request.transactionId,
+      request?.amount
+    );
+    updateActions = updateActions.concat(
+      handleResponse('refund', response, transaction?.id)
+    );
+    updateActions.push({
+      action: 'addTransaction',
+      transaction: {
+        type: 'Refund',
+        amount: {
+          centAmount: mapBraintreeMoneyToCommercetoolsMoney(
+            response.amount,
+            resource.obj?.amountPlanned.fractionDigits
+          ),
+          currencyCode: resource.obj?.amountPlanned.currencyCode,
+        },
+        interactionId: response.id,
+        timestamp: response.updatedAt,
+        state: mapBraintreeStatusToCommercetoolsTransactionState(
+          response.status
+        ),
+      },
+    });
+    updateActions.push({
+      action: 'setStatusInterfaceCode',
+      interfaceCode: response.status,
+    });
+    updateActions.push({
+      action: 'setStatusInterfaceText',
+      interfaceText: response.status,
+    });
+    const paymentMethodHint = getPaymentMethodHint(response);
+    updateActions.push({
+      action: 'setMethodInfoMethod',
+      method:
+        response.paymentInstrumentType +
+        (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
+    });
+    return updateActions;
+  } catch (e) {
+    return handleError('refund', e, transaction?.id);
   }
 }
 
@@ -110,7 +215,7 @@ const update = async (resource: PaymentReference) => {
               currencyCode: resource.obj?.amountPlanned.currencyCode,
             },
             interactionId: response.id,
-            timestamp: response.createdAt,
+            timestamp: response.updatedAt,
             state: mapBraintreeStatusToCommercetoolsTransactionState(
               response.status
             ),
@@ -140,6 +245,22 @@ const update = async (resource: PaymentReference) => {
       } catch (e) {
         updateActions = handleError('transactionSale', e);
       }
+    }
+    if (resource?.obj?.custom?.fields?.refundRequest) {
+      updateActions = updateActions.concat(await refund(resource));
+    }
+    if (resource?.obj?.transactions) {
+      const promises = resource.obj.transactions.map(
+        async (
+          transaction: CommercetoolsTransaction
+        ): Promise<UpdateAction[]> => {
+          if (transaction?.custom?.fields?.refundRequest) {
+            return await refund(resource, transaction);
+          }
+          return [];
+        }
+      );
+      updateActions = updateActions.concat(...(await Promise.all(promises)));
     }
 
     return { statusCode: 200, actions: updateActions };

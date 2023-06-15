@@ -29,7 +29,7 @@ const getBraintreeGateway = () => {
 export const getClientToken = async (request: ClientTokenRequest) => {
   const gateway = getBraintreeGateway();
   const response = await gateway.clientToken.generate(request);
-  logger.info('getClientToken Response: ' + JSON.stringify(response));
+  logger.info(`getClientToken Response: ${JSON.stringify(response)}`);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }
@@ -39,7 +39,17 @@ export const getClientToken = async (request: ClientTokenRequest) => {
 export const transactionSale = async (request: TransactionRequest) => {
   const gateway = getBraintreeGateway();
   const response = await gateway.transaction.sale(request);
-  logger.info('transactionSale Response: ' + JSON.stringify(response));
+  logger.info(`transactionSale Response: ${JSON.stringify(response)}`);
+  if (!response.success) {
+    throw new CustomError(500, response.message);
+  }
+  return response.transaction;
+};
+
+export const refund = async (transactionId: string, amount?: string) => {
+  const gateway = getBraintreeGateway();
+  const response = await gateway.transaction.refund(transactionId, amount);
+  logger.info(`refund Response: ${JSON.stringify(response)}`);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }

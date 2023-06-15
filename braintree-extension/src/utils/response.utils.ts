@@ -31,14 +31,16 @@ function stringifyData(data: string | object) {
 
 export const handleResponse = (
   requestName: string,
-  response: string | object
+  response: string | object,
+  transactionId?: string
 ): UpdateAction[] => {
   const updateActions: Array<UpdateAction> = [];
   if (typeof response === 'object') {
     removeEmptyProperties(response);
   }
   updateActions.push({
-    action: 'setCustomField',
+    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
+    transactionId: transactionId,
     name: requestName + 'Response',
     value: stringifyData(response),
   });
@@ -55,7 +57,8 @@ export const handleResponse = (
     },
   });
   updateActions.push({
-    action: 'setCustomField',
+    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
+    transactionId: transactionId,
     name: requestName + 'Request',
     value: null,
   });
@@ -78,7 +81,8 @@ export const removeEmptyProperties = (response: any) => {
 
 export const handleError = (
   requestName: string,
-  error: unknown
+  error: unknown,
+  transactionId?: string
 ): UpdateAction[] => {
   const errorMessage =
     error instanceof Error && 'message' in error
@@ -86,12 +90,14 @@ export const handleError = (
       : 'Unknown error';
   const updateActions: Array<UpdateAction> = [];
   updateActions.push({
-    action: 'setCustomField',
+    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
+    transactionId: transactionId,
     name: requestName + 'Response',
     value: JSON.stringify({ success: false, message: errorMessage }),
   });
   updateActions.push({
-    action: 'setCustomField',
+    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
+    transactionId: transactionId,
     name: requestName + 'Request',
     value: null,
   });
