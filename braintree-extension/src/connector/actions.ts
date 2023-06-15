@@ -13,10 +13,14 @@ const BRAINTREE_API_PAYMENT_ENDPOINTS = [
   'getClientToken',
   'transactionSale',
   'refund',
+  'submitForSettlement',
 ];
 export const BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY =
   'braintree-payment-transaction-type';
-const BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS = ['refund'];
+const BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS = [
+  'refund',
+  'submitForSettlement',
+];
 
 export async function createBraintreeExtension(
   apiRoot: ByProjectKeyRequestBuilder,

@@ -5,6 +5,7 @@ import {
   getClientToken,
   refund as braintreeRefund,
   transactionSale,
+  submitForSettlement as braintreeSubmitForSettlement,
 } from '../service/braintree.service';
 import {
   PaymentReference,
@@ -78,6 +79,30 @@ function parseRefundRequest(
   return request;
 }
 
+function parseSubmitForSettlementRequest(
+  resource: PaymentReference,
+  transaction?: CommercetoolsTransaction
+) {
+  const submitForSettlementRequest =
+    resource?.obj?.custom?.fields?.submitForSettlementRequest ??
+    transaction?.custom?.fields?.submitForSettlementRequest;
+  if (!submitForSettlementRequest) {
+    throw new CustomError(500, 'submitForSettlementRequest is missing');
+  }
+  let request;
+  try {
+    request = JSON.parse(submitForSettlementRequest);
+  } catch (e) {
+    request = {
+      transactionId: submitForSettlementRequest,
+    };
+  }
+  request.transactionId =
+    request.transactionId ??
+    findSuitableTransactionId(resource, 'Authorization', transaction);
+  return request;
+}
+
 function findSuitableTransactionId(
   resource: PaymentReference,
   type: TransactionType,
@@ -145,24 +170,71 @@ async function refund(
         ),
       },
     });
-    updateActions.push({
-      action: 'setStatusInterfaceCode',
-      interfaceCode: response.status,
-    });
-    updateActions.push({
-      action: 'setStatusInterfaceText',
-      interfaceText: response.status,
-    });
-    const paymentMethodHint = getPaymentMethodHint(response);
-    updateActions.push({
-      action: 'setMethodInfoMethod',
-      method:
-        response.paymentInstrumentType +
-        (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
-    });
+    updateActions.concat(updatePaymentFields(response));
     return updateActions;
   } catch (e) {
     return handleError('refund', e, transaction?.id);
+  }
+}
+
+function updatePaymentFields(response: Transaction): Array<UpdateAction> {
+  const updateActions: Array<UpdateAction> = [];
+  updateActions.push({
+    action: 'setStatusInterfaceCode',
+    interfaceCode: response.status,
+  });
+  updateActions.push({
+    action: 'setStatusInterfaceText',
+    interfaceText: response.status,
+  });
+  const paymentMethodHint = getPaymentMethodHint(response);
+  updateActions.push({
+    action: 'setMethodInfoMethod',
+    method:
+      response.paymentInstrumentType +
+      (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
+  });
+  return updateActions;
+}
+
+async function submitForSettlement(
+  resource: PaymentReference,
+  transaction: CommercetoolsTransaction | undefined = undefined
+) {
+  try {
+    let updateActions: Array<UpdateAction>;
+    const request = parseSubmitForSettlementRequest(resource, transaction);
+    updateActions = handleRequest('submitForSettlement', request);
+    logger.info('submitForSettlement request', request);
+    const response = await braintreeSubmitForSettlement(
+      request.transactionId,
+      request?.amount
+    );
+    updateActions = updateActions.concat(
+      handleResponse('submitForSettlement', response, transaction?.id)
+    );
+    updateActions.push({
+      action: 'addTransaction',
+      transaction: {
+        type: 'Charge',
+        amount: {
+          centAmount: mapBraintreeMoneyToCommercetoolsMoney(
+            response.amount,
+            resource.obj?.amountPlanned.fractionDigits
+          ),
+          currencyCode: resource.obj?.amountPlanned.currencyCode,
+        },
+        interactionId: response.id,
+        timestamp: response.updatedAt,
+        state: mapBraintreeStatusToCommercetoolsTransactionState(
+          response.status
+        ),
+      },
+    });
+    updateActions.concat(updatePaymentFields(response));
+    return updateActions;
+  } catch (e) {
+    return handleError('submitForSettlement', e, transaction?.id);
   }
 }
 
@@ -227,27 +299,16 @@ const update = async (resource: PaymentReference) => {
             interfaceId: response.id,
           });
         }
-        updateActions.push({
-          action: 'setStatusInterfaceCode',
-          interfaceCode: response.status,
-        });
-        updateActions.push({
-          action: 'setStatusInterfaceText',
-          interfaceText: response.status,
-        });
-        const paymentMethodHint = getPaymentMethodHint(response);
-        updateActions.push({
-          action: 'setMethodInfoMethod',
-          method:
-            response.paymentInstrumentType +
-            (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
-        });
+        updateActions.concat(updatePaymentFields(response));
       } catch (e) {
         updateActions = handleError('transactionSale', e);
       }
     }
     if (resource?.obj?.custom?.fields?.refundRequest) {
       updateActions = updateActions.concat(await refund(resource));
+    }
+    if (resource?.obj?.custom?.fields?.submitForSettlementRequest) {
+      updateActions = updateActions.concat(await submitForSettlement(resource));
     }
     if (resource?.obj?.transactions) {
       const promises = resource.obj.transactions.map(
@@ -256,6 +317,9 @@ const update = async (resource: PaymentReference) => {
         ): Promise<UpdateAction[]> => {
           if (transaction?.custom?.fields?.refundRequest) {
             return await refund(resource, transaction);
+          }
+          if (transaction?.custom?.fields?.submitForSettlementRequest) {
+            return await submitForSettlement(resource, transaction);
           }
           return [];
         }

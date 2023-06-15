@@ -55,3 +55,21 @@ export const refund = async (transactionId: string, amount?: string) => {
   }
   return response.transaction;
 };
+
+export const submitForSettlement = async (
+  transactionId: string,
+  amount: string | undefined
+) => {
+  const gateway = getBraintreeGateway();
+  const response = amount
+    ? await gateway.transaction.submitForPartialSettlement(
+        transactionId,
+        amount
+      )
+    : await gateway.transaction.submitForSettlement(transactionId);
+  logger.info('submitForSettlement Response: ' + JSON.stringify(response));
+  if (!response.success) {
+    throw new CustomError(500, response.message);
+  }
+  return response.transaction;
+};
