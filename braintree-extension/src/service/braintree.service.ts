@@ -58,7 +58,7 @@ export const refund = async (transactionId: string, amount?: string) => {
 
 export const submitForSettlement = async (
   transactionId: string,
-  amount: string | undefined
+  amount?: string
 ) => {
   const gateway = getBraintreeGateway();
   const response = amount
@@ -67,7 +67,7 @@ export const submitForSettlement = async (
         amount
       )
     : await gateway.transaction.submitForSettlement(transactionId);
-  logger.info('submitForSettlement Response: ' + JSON.stringify(response));
+  logger.info(`submitForSettlement Response: ${JSON.stringify(response)}`);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }

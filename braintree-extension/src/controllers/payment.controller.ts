@@ -183,7 +183,7 @@ function updatePaymentFields(response: Transaction): Array<UpdateAction> {
 
 async function submitForSettlement(
   resource: PaymentReference,
-  transaction: CommercetoolsTransaction | undefined = undefined
+  transaction?: CommercetoolsTransaction
 ) {
   try {
     let updateActions: Array<UpdateAction>;
