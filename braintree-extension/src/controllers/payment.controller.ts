@@ -38,8 +38,6 @@ function parseTransactionSaleRequest(
     request = JSON.parse(
       resource.obj.custom.fields.transactionSaleRequest
     ) as TransactionRequest;
-
-    return request;
   } catch (e) {
     request = {
       paymentMethodNonce: resource.obj.custom.fields.transactionSaleRequest,
@@ -49,9 +47,13 @@ function parseTransactionSaleRequest(
     resource.obj.amountPlanned.centAmount *
       Math.pow(10, -resource.obj.amountPlanned.fractionDigits || 0)
   );
-  request.options = {
-    submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
-  };
+  if (typeof request.options === 'undefined') {
+    request.options = {};
+  }
+  request.options.submitForSettlement =
+    process.env.BRAINTREE_AUTOCAPTURE === 'true';
+  request.options.storeInVaultOnSuccess =
+    !!request?.customerId || !!request.customer?.id;
   return request;
 }
 
