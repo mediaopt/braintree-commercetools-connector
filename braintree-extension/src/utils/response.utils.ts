@@ -1,6 +1,7 @@
 import { UpdateAction } from '@commercetools/sdk-client-v2';
 import { BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY } from '../connector/actions';
 import { getCurrentTimestamp } from './data.utils';
+import { logger } from './logger.utils';
 
 export const handleRequest = (
   requestName: string,
@@ -22,6 +23,7 @@ export const handleRequest = (
       timestamp: getCurrentTimestamp(),
     },
   });
+  logger.info(`${requestName} request: ${JSON.stringify(request)}`);
   return updateActions;
 };
 

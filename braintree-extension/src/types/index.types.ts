@@ -1,3 +1,5 @@
+import { Payment, Transaction } from '@commercetools/platform-sdk';
+
 export type Message = {
   code: string;
   message: string;
@@ -15,3 +17,8 @@ export type ValidatorFunction = (o: object) => boolean;
 export type Wrapper = (
   validator: ValidatorFunction
 ) => (value: object) => boolean;
+
+export type PaymentWithOptionalTransaction = {
+  payment: Payment;
+  transaction?: Transaction;
+};
