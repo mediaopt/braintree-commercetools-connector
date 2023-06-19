@@ -6,6 +6,7 @@ import {
 } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/type';
 
 const BRAINTREE_EXTENSION_KEY = 'braintree-extension';
+const BRAINTREE_CUSTOMER_TYPE_KEY = 'braintree-customer-type';
 const BRAINTREE_PAYMENT_TYPE_KEY = 'braintree-payment-type';
 export const BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY =
   'braintree-payment-interaction-type';
@@ -185,6 +186,33 @@ export async function createCustomPaymentInteractionType(
       en: 'Custom payment interaction type to braintree fields',
     },
     resourceTypeIds: ['payment-interface-interaction'],
+    fieldDefinitions: fieldDefinitions,
+  };
+  await addOrUpdateCustomType(apiRoot, customType);
+}
+
+export async function createCustomCustomerType(
+  apiRoot: ByProjectKeyRequestBuilder
+): Promise<void> {
+  const fieldDefinitions: FieldDefinition[] = [
+    {
+      name: 'customerId',
+      label: {
+        en: 'Braintree customer Id',
+      },
+      type: {
+        name: 'String',
+      },
+      inputHint: 'SingleLine',
+      required: false,
+    },
+  ];
+  const customType = {
+    key: BRAINTREE_CUSTOMER_TYPE_KEY,
+    name: {
+      en: 'Custom customer type to braintree fields',
+    },
+    resourceTypeIds: ['customer'],
     fieldDefinitions: fieldDefinitions,
   };
   await addOrUpdateCustomType(apiRoot, customType);
