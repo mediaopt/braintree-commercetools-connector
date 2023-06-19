@@ -54,6 +54,11 @@ describe('Testing Braintree Transaction Sale', () => {
       nonce: 'fake-venmo-account-nonce',
       expectedPaymentInstrumentType: 'venmo_account',
     },
+    {
+      name: 'apple_pay',
+      nonce: 'fake-apple-pay-visa-nonce',
+      expectedPaymentInstrumentType: 'apple_pay_card',
+    },
   ])(
     '$name transaction',
     async ({ nonce, expectedPaymentInstrumentType }) => {
