@@ -110,6 +110,8 @@ function getPaymentMethodHint(response: Transaction): string {
       return response?.venmoAccount?.username ?? '';
     case 'android_pay_card':
       return response?.androidPayCard?.sourceDescription ?? '';
+    case 'apple_pay_card':
+      return response?.applePayCard?.sourceDescription ?? '';
     default:
       return '';
   }
