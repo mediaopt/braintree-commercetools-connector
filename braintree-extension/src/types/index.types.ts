@@ -1,4 +1,5 @@
 import { Payment, Transaction } from '@commercetools/platform-sdk';
+import { UpdateAction } from '@commercetools/sdk-client-v2';
 
 export type Message = {
   code: string;
@@ -22,3 +23,5 @@ export type PaymentWithOptionalTransaction = {
   payment: Payment;
   transaction?: Transaction;
 };
+
+export type UpdateActions = Array<UpdateAction>;

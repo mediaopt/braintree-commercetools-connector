@@ -1,4 +1,3 @@
-import { UpdateAction } from '@commercetools/sdk-client-v2';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
 import {
@@ -25,30 +24,32 @@ import {
   mapBraintreeStatusToCommercetoolsTransactionType,
   mapBraintreeMoneyToCommercetoolsMoney,
 } from '../utils/map.utils';
-import { PaymentWithOptionalTransaction } from '../types/index.types';
+import {
+  PaymentWithOptionalTransaction,
+  UpdateActions,
+} from '../types/index.types';
 
 function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
-  if (!payment?.custom?.fields.transactionSaleRequest) {
+  const transactionSaleRequest = payment?.custom?.fields.transactionSaleRequest;
+  if (!transactionSaleRequest) {
     throw new CustomError(500, 'transactionSaleRequest is missing');
   }
-  if (!payment.amountPlanned) {
+  const amountPlanned = payment?.amountPlanned;
+  if (!amountPlanned) {
     throw new CustomError(500, 'amountPlanned is missing');
   }
   let request: TransactionRequest;
   try {
-    request = JSON.parse(
-      payment.custom.fields.transactionSaleRequest
-    ) as TransactionRequest;
+    request = JSON.parse(transactionSaleRequest) as TransactionRequest;
 
     return request;
   } catch (e) {
     request = {
-      paymentMethodNonce: payment.custom.fields.transactionSaleRequest,
+      paymentMethodNonce: transactionSaleRequest,
     } as TransactionRequest;
   }
   request.amount = String(
-    payment.amountPlanned.centAmount *
-      Math.pow(10, -payment.amountPlanned.fractionDigits || 0)
+    amountPlanned.centAmount * Math.pow(10, -amountPlanned.fractionDigits || 0)
   );
   request.options = {
     submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
@@ -119,7 +120,7 @@ async function refund(
   paymentWithOptionalTransaction: PaymentWithOptionalTransaction
 ) {
   try {
-    let updateActions: Array<UpdateAction>;
+    let updateActions: UpdateActions;
     const request = parseRequest(
       paymentWithOptionalTransaction,
       'refundRequest',
@@ -137,6 +138,7 @@ async function refund(
         paymentWithOptionalTransaction?.transaction?.id
       )
     );
+    const amountPlanned = paymentWithOptionalTransaction.payment?.amountPlanned;
     updateActions.push({
       action: 'addTransaction',
       transaction: {
@@ -144,10 +146,9 @@ async function refund(
         amount: {
           centAmount: mapBraintreeMoneyToCommercetoolsMoney(
             response.amount,
-            paymentWithOptionalTransaction.payment?.amountPlanned.fractionDigits
+            amountPlanned?.fractionDigits
           ),
-          currencyCode:
-            paymentWithOptionalTransaction.payment?.amountPlanned.currencyCode,
+          currencyCode: amountPlanned?.currencyCode,
         },
         interactionId: response.id,
         timestamp: response.updatedAt,
@@ -167,8 +168,8 @@ async function refund(
   }
 }
 
-function updatePaymentFields(response: Transaction): Array<UpdateAction> {
-  const updateActions: Array<UpdateAction> = [];
+function updatePaymentFields(response: Transaction): UpdateActions {
+  const updateActions: UpdateActions = [];
   updateActions.push({
     action: 'setStatusInterfaceCode',
     interfaceCode: response.status,
@@ -191,7 +192,7 @@ async function submitForSettlement(
   paymentWithOptionalTransaction: PaymentWithOptionalTransaction
 ) {
   try {
-    let updateActions: Array<UpdateAction>;
+    let updateActions: UpdateActions;
     const request = parseRequest(
       paymentWithOptionalTransaction,
       'submitForSettlementRequest',
@@ -209,6 +210,7 @@ async function submitForSettlement(
         paymentWithOptionalTransaction?.transaction?.id
       )
     );
+    const amountPlanned = paymentWithOptionalTransaction.payment?.amountPlanned;
     updateActions.push({
       action: 'addTransaction',
       transaction: {
@@ -216,10 +218,9 @@ async function submitForSettlement(
         amount: {
           centAmount: mapBraintreeMoneyToCommercetoolsMoney(
             response.amount,
-            paymentWithOptionalTransaction.payment?.amountPlanned.fractionDigits
+            amountPlanned?.fractionDigits
           ),
-          currencyCode:
-            paymentWithOptionalTransaction.payment?.amountPlanned.currencyCode,
+          currencyCode: amountPlanned?.currencyCode,
         },
         interactionId: response.id,
         timestamp: response.updatedAt,
@@ -243,7 +244,7 @@ async function voidTransaction(
   paymentWithOptionalTransaction: PaymentWithOptionalTransaction
 ) {
   try {
-    let updateActions: Array<UpdateAction>;
+    let updateActions: UpdateActions;
     const request = parseRequest(
       paymentWithOptionalTransaction,
       'voidRequest',
@@ -258,6 +259,7 @@ async function voidTransaction(
         paymentWithOptionalTransaction?.transaction?.id
       )
     );
+    const amountPlanned = paymentWithOptionalTransaction.payment?.amountPlanned;
     updateActions.push({
       action: 'addTransaction',
       transaction: {
@@ -265,10 +267,9 @@ async function voidTransaction(
         amount: {
           centAmount: mapBraintreeMoneyToCommercetoolsMoney(
             response.amount,
-            paymentWithOptionalTransaction.payment?.amountPlanned.fractionDigits
+            amountPlanned?.fractionDigits
           ),
-          currencyCode:
-            paymentWithOptionalTransaction.payment?.amountPlanned.currencyCode,
+          currencyCode: amountPlanned?.currencyCode,
         },
         interactionId: response.id,
         timestamp: response.updatedAt,
@@ -296,7 +297,7 @@ async function voidTransaction(
  */
 const update = async (paymentReference: PaymentReference) => {
   try {
-    let updateActions: Array<UpdateAction> = [];
+    let updateActions: UpdateActions = [];
     const payment = paymentReference.obj;
     logger.info('Update payment called', payment);
     if (payment?.custom?.fields?.getClientTokenRequest) {
@@ -322,6 +323,7 @@ const update = async (paymentReference: PaymentReference) => {
         updateActions = updateActions.concat(
           handleResponse('transactionSale', response)
         );
+        const amountPlanned = payment?.amountPlanned;
         updateActions.push({
           action: 'addTransaction',
           transaction: {
@@ -331,9 +333,9 @@ const update = async (paymentReference: PaymentReference) => {
             amount: {
               centAmount: mapBraintreeMoneyToCommercetoolsMoney(
                 response.amount,
-                payment?.amountPlanned.fractionDigits
+                amountPlanned?.fractionDigits
               ),
-              currencyCode: payment?.amountPlanned.currencyCode,
+              currencyCode: amountPlanned?.currencyCode,
             },
             interactionId: response.id,
             timestamp: response.updatedAt,
@@ -372,7 +374,7 @@ const update = async (paymentReference: PaymentReference) => {
       const promises = payment.transactions.map(
         async (
           transaction: CommercetoolsTransaction
-        ): Promise<UpdateAction[]> => {
+        ): Promise<UpdateActions> => {
           if (transaction?.custom?.fields?.refundRequest) {
             return await refund({
               payment,
