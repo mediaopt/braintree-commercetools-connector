@@ -3,10 +3,11 @@ import { Request } from 'express';
 import braintree, { BaseWebhookNotification, Environment } from 'braintree';
 import CustomError from '../errors/custom.error';
 const getBraintreeGateway = () => {
+  const braintreeEnv = process.env;
   if (
-    !process.env.BRAINTREE_MERCHANT_ID ||
-    !process.env.BRAINTREE_PUBLIC_KEY ||
-    !process.env.BRAINTREE_PRIVATE_KEY
+    !braintreeEnv.BRAINTREE_MERCHANT_ID ||
+    !braintreeEnv.BRAINTREE_PUBLIC_KEY ||
+    !braintreeEnv.BRAINTREE_PRIVATE_KEY
   ) {
     throw new CustomError(
       500,
@@ -15,21 +16,22 @@ const getBraintreeGateway = () => {
   }
   return new braintree.BraintreeGateway({
     environment:
-      process.env.BRAINTREE_ENVIRONMENT === 'Production'
+      braintreeEnv.BRAINTREE_ENVIRONMENT === 'Production'
         ? Environment.Production
         : Environment.Sandbox,
-    merchantId: process.env.BRAINTREE_MERCHANT_ID,
-    publicKey: process.env.BRAINTREE_PUBLIC_KEY,
-    privateKey: process.env.BRAINTREE_PRIVATE_KEY,
+    merchantId: braintreeEnv.BRAINTREE_MERCHANT_ID,
+    publicKey: braintreeEnv.BRAINTREE_PUBLIC_KEY,
+    privateKey: braintreeEnv.BRAINTREE_PRIVATE_KEY,
   });
 };
 export const parseNotification = async (
   request: Request
 ): Promise<BaseWebhookNotification> => {
   const gateway = getBraintreeGateway();
+  const { bt_signature, bt_payload } = request.body;
   const response = await gateway.webhookNotification.parse(
-    request.body.bt_signature,
-    request.body.bt_payload
+    bt_signature,
+    bt_payload
   );
   logger.info(
     `[Webhook Received ${response.timestamp} ] | Kind: ${response.kind}`
