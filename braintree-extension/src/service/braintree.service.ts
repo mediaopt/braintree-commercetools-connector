@@ -26,10 +26,18 @@ const getBraintreeGateway = () => {
     privateKey: process.env.BRAINTREE_PRIVATE_KEY,
   });
 };
+
+function logResponse(
+  requestName: string,
+  response: braintree.ValidatedResponse<any>
+) {
+  logger.info(`${requestName} response: ${JSON.stringify(response)}`);
+}
+
 export const getClientToken = async (request: ClientTokenRequest) => {
   const gateway = getBraintreeGateway();
   const response = await gateway.clientToken.generate(request);
-  logger.info(`getClientToken Response: ${JSON.stringify(response)}`);
+  logResponse('getClientToken', response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }
@@ -39,7 +47,7 @@ export const getClientToken = async (request: ClientTokenRequest) => {
 export const transactionSale = async (request: TransactionRequest) => {
   const gateway = getBraintreeGateway();
   const response = await gateway.transaction.sale(request);
-  logger.info(`transactionSale Response: ${JSON.stringify(response)}`);
+  logResponse('transactionSale', response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }
@@ -49,7 +57,17 @@ export const transactionSale = async (request: TransactionRequest) => {
 export const refund = async (transactionId: string, amount?: string) => {
   const gateway = getBraintreeGateway();
   const response = await gateway.transaction.refund(transactionId, amount);
-  logger.info(`refund Response: ${JSON.stringify(response)}`);
+  logResponse('refund', response);
+  if (!response.success) {
+    throw new CustomError(500, response.message);
+  }
+  return response.transaction;
+};
+
+export const voidTransaction = async (transactionId: string) => {
+  const gateway = getBraintreeGateway();
+  const response = await gateway.transaction.void(transactionId);
+  logResponse('void', response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }
@@ -67,7 +85,7 @@ export const submitForSettlement = async (
         amount
       )
     : await gateway.transaction.submitForSettlement(transactionId);
-  logger.info(`submitForSettlement Response: ${JSON.stringify(response)}`);
+  logResponse('submitForSettlement', response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }

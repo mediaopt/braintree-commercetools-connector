@@ -1,12 +1,13 @@
-import { UpdateAction } from '@commercetools/sdk-client-v2';
 import { BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY } from '../connector/actions';
 import { getCurrentTimestamp } from './data.utils';
+import { logger } from './logger.utils';
+import { UpdateActions } from '../types/index.types';
 
 export const handleRequest = (
   requestName: string,
   request: string | object
-): UpdateAction[] => {
-  const updateActions: Array<UpdateAction> = [];
+): UpdateActions => {
+  const updateActions: UpdateActions = [];
   if (typeof request === 'object') {
     removeEmptyProperties(request);
   }
@@ -22,6 +23,7 @@ export const handleRequest = (
       timestamp: getCurrentTimestamp(),
     },
   });
+  logger.info(`${requestName} request: ${JSON.stringify(request)}`);
   return updateActions;
 };
 
@@ -33,8 +35,8 @@ export const handleResponse = (
   requestName: string,
   response: string | object,
   transactionId?: string
-): UpdateAction[] => {
-  const updateActions: Array<UpdateAction> = [];
+): UpdateActions => {
+  const updateActions: UpdateActions = [];
   if (typeof response === 'object') {
     removeEmptyProperties(response);
   }
@@ -83,12 +85,12 @@ export const handleError = (
   requestName: string,
   error: unknown,
   transactionId?: string
-): UpdateAction[] => {
+): UpdateActions => {
   const errorMessage =
     error instanceof Error && 'message' in error
       ? error.message
       : 'Unknown error';
-  const updateActions: Array<UpdateAction> = [];
+  const updateActions: UpdateActions = [];
   updateActions.push({
     action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
     transactionId: transactionId,
