@@ -34,7 +34,8 @@ function stringifyData(data: string | object) {
 export const handleResponse = (
   requestName: string,
   response: string | object,
-  transactionId?: string
+  transactionId?: string,
+  addInterfaceInteraction = true
 ): UpdateActions => {
   const updateActions: UpdateActions = [];
   if (typeof response === 'object') {
@@ -46,18 +47,20 @@ export const handleResponse = (
     name: requestName + 'Response',
     value: stringifyData(response),
   });
-  updateActions.push({
-    action: 'addInterfaceInteraction',
-    type: {
-      typeId: 'type',
-      key: BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
-    },
-    fields: {
-      type: requestName + 'Response',
-      data: stringifyData(response),
-      timestamp: getCurrentTimestamp(),
-    },
-  });
+  if (addInterfaceInteraction) {
+    updateActions.push({
+      action: 'addInterfaceInteraction',
+      type: {
+        typeId: 'type',
+        key: BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
+      },
+      fields: {
+        type: requestName + 'Response',
+        data: stringifyData(response),
+        timestamp: getCurrentTimestamp(),
+      },
+    });
+  }
   updateActions.push({
     action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
     transactionId: transactionId,

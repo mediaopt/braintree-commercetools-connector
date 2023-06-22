@@ -5,8 +5,10 @@ import {
   TypeDraft,
 } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/type';
 
-const BRAINTREE_EXTENSION_KEY = 'braintree-extension';
+export const BRAINTREE_EXTENSION_KEY = 'braintree-extension';
+export const BRAINTREE_CUSTOMER_EXTENSION_KEY = 'braintree-customer-extension';
 const BRAINTREE_CUSTOMER_TYPE_KEY = 'braintree-customer-type';
+const BRAINTREE_API_CUSTOMER_ENDPOINTS = ['find', 'create'];
 const BRAINTREE_PAYMENT_TYPE_KEY = 'braintree-payment-type';
 export const BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY =
   'braintree-payment-interaction-type';
@@ -75,8 +77,9 @@ export async function createBraintreeExtension(
     .execute();
 }
 
-export async function deleteCartUpdateExtension(
-  apiRoot: ByProjectKeyRequestBuilder
+export async function createBraintreeCustomerExtension(
+  apiRoot: ByProjectKeyRequestBuilder,
+  applicationUrl: string
 ): Promise<void> {
   const {
     body: { results: extensions },
@@ -84,7 +87,7 @@ export async function deleteCartUpdateExtension(
     .extensions()
     .get({
       queryArgs: {
-        where: `key = "${BRAINTREE_EXTENSION_KEY}"`,
+        where: `key = "${BRAINTREE_CUSTOMER_EXTENSION_KEY}"`,
       },
     })
     .execute();
@@ -94,7 +97,57 @@ export async function deleteCartUpdateExtension(
 
     await apiRoot
       .extensions()
-      .withKey({ key: BRAINTREE_EXTENSION_KEY })
+      .withKey({ key: BRAINTREE_CUSTOMER_EXTENSION_KEY })
+      .delete({
+        queryArgs: {
+          version: extension.version,
+        },
+      })
+      .execute();
+  }
+
+  await apiRoot
+    .extensions()
+    .post({
+      body: {
+        key: BRAINTREE_CUSTOMER_EXTENSION_KEY,
+        destination: {
+          type: 'HTTP',
+          url: applicationUrl,
+        },
+        triggers: [
+          {
+            resourceTypeId: 'customer',
+            actions: ['Update'],
+          },
+        ],
+        timeoutInMs: 2000,
+      },
+    })
+    .execute();
+}
+
+export async function deleteCartUpdateExtension(
+  apiRoot: ByProjectKeyRequestBuilder,
+  extensionKey: string
+): Promise<void> {
+  const {
+    body: { results: extensions },
+  } = await apiRoot
+    .extensions()
+    .get({
+      queryArgs: {
+        where: `key = "${extensionKey}"`,
+      },
+    })
+    .execute();
+
+  if (extensions.length > 0) {
+    const extension = extensions[0];
+
+    await apiRoot
+      .extensions()
+      .withKey({ key: extensionKey })
       .delete({
         queryArgs: {
           version: extension.version,
@@ -209,6 +262,33 @@ export async function createCustomCustomerType(
       required: false,
     },
   ];
+
+  BRAINTREE_API_CUSTOMER_ENDPOINTS.forEach((element) =>
+    fieldDefinitions.push({
+      name: `${element}Request`,
+      label: {
+        en: `${element}Request`,
+      },
+      type: {
+        name: 'String',
+      },
+      inputHint: 'MultiLine',
+      required: false,
+    })
+  );
+  BRAINTREE_API_CUSTOMER_ENDPOINTS.forEach((element) =>
+    fieldDefinitions.push({
+      name: `${element}Response`,
+      label: {
+        en: `${element}Response`,
+      },
+      type: {
+        name: 'String',
+      },
+      inputHint: 'MultiLine',
+      required: false,
+    })
+  );
   const customType = {
     key: BRAINTREE_CUSTOMER_TYPE_KEY,
     name: {

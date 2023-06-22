@@ -1,5 +1,5 @@
-import { TransactionStatus } from 'braintree';
-import { TransactionState, TransactionType } from '@commercetools/platform-sdk';
+import {TransactionStatus, CustomerCreateRequest} from 'braintree';
+import {Customer, TransactionState, TransactionType} from '@commercetools/platform-sdk';
 
 export const mapBraintreeStatusToCommercetoolsTransactionState = (
   status: TransactionStatus
@@ -46,3 +46,19 @@ export const mapBraintreeMoneyToCommercetoolsMoney = (
 ): number => {
   return parseFloat(amount) * Math.pow(10, fractionDigits ?? 0);
 };
+
+export const mapCommercetoolsCustomerToBraintreeCustomerCreateRequest = (
+    customer: Customer,
+    createRequest: string
+): CustomerCreateRequest => {
+  const request = JSON.parse(
+      createRequest
+  );
+  return Object.assign({
+    id: customer.id,
+    firstName: customer.firstName,
+    lastName: customer.lastName,
+    email: customer.email,
+    company: customer.companyName,
+  }, request) as CustomerCreateRequest;
+}

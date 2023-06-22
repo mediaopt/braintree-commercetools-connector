@@ -3,6 +3,9 @@ import braintree, {
   ClientTokenRequest,
   TransactionRequest,
   Environment,
+  Customer,
+  CustomerCreateRequest,
+  ValidatedResponse,
 } from 'braintree';
 import CustomError from '../errors/custom.error';
 const getBraintreeGateway = () => {
@@ -29,7 +32,7 @@ const getBraintreeGateway = () => {
 
 function logResponse(
   requestName: string,
-  response: braintree.ValidatedResponse<any>
+  response: ValidatedResponse<any>|Customer
 ) {
   logger.info(`${requestName} response: ${JSON.stringify(response)}`);
 }
@@ -90,4 +93,23 @@ export const submitForSettlement = async (
     throw new CustomError(500, response.message);
   }
   return response.transaction;
+};
+
+export const findCustomer = async (customerId: string): Promise<Customer> => {
+  const gateway = getBraintreeGateway();
+  const response = await gateway.customer.find(customerId);
+  logResponse('findCustomer', response);
+  return response;
+};
+
+export const createCustomer = async (
+  request: CustomerCreateRequest
+): Promise<Customer> => {
+  const gateway = getBraintreeGateway();
+  const response = await gateway.customer.create(request);
+  logResponse('createCustomer', response);
+  if (!response.success) {
+    throw new CustomError(500, response.message);
+  }
+  return response.customer;
 };

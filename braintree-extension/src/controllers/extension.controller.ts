@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { apiSuccess } from '../api/success.api';
 import CustomError from '../errors/custom.error';
 import { paymentController } from './payment.controller';
+import { customerController } from './customer.controller';
 import { ExtensionInput } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/extension';
 
 /**
@@ -27,6 +28,26 @@ export const post = async (request: Request, response: Response) => {
     case 'payment':
       try {
         const data = await paymentController(action, resource);
+
+        if (data && data.statusCode === 200) {
+          apiSuccess(200, data.actions, response);
+          return;
+        }
+
+        throw new CustomError(
+          data ? data.statusCode : 400,
+          JSON.stringify(data)
+        );
+      } catch (error) {
+        if (error instanceof Error) {
+          throw new CustomError(500, error.message);
+        }
+      }
+
+      break;
+    case 'customer':
+      try {
+        const data = await customerController(action, resource);
 
         if (data && data.statusCode === 200) {
           apiSuccess(200, data.actions, response);
