@@ -28,3 +28,30 @@ deployAs:
           description: commercetools Composable Commerce client scope
         - key: BRAINTREE_PRIVATE_KEY
           description: Braintree private key
+  - name: braintree-notifications
+    applicationType: service
+    endpoint: /braintree-notifications
+    scripts:
+      postDeploy: npm install && npm run build && npm run connector:post-deploy
+      preUndeploy: npm install && npm run build && npm run connector:pre-undeploy
+    configuration:
+      standardConfiguration:
+        - key: CTP_REGION
+          description: commercetools Composable Commerce API region
+        - key: BRAINTREE_MERCHANT_ID
+          description: Braintree Merchant Account
+        - key: BRAINTREE_PUBLIC_KEY
+          description: Braintree public key
+        - key: BRAINTREE_ENVIRONMENT
+          description: Braintree environment (Sandbox or Production)
+      securedConfiguration:
+        - key: CTP_PROJECT_KEY
+          description: commercetools Composable Commerce project key
+        - key: CTP_CLIENT_ID
+          description: commercetools Composable Commerce client ID
+        - key: CTP_CLIENT_SECRET
+          description: commercetools Composable Commerce client secret
+        - key: CTP_SCOPE
+          description: commercetools Composable Commerce client scope
+        - key: BRAINTREE_PRIVATE_KEY
+          description: Braintree private key
