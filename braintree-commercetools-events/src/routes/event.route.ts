@@ -1,8 +1,19 @@
 import { Router } from 'express';
+import { NextFunction, Request, Response } from 'express';
+
 import { post } from '../controllers/event.controller';
 
 const eventRouter: Router = Router();
 
-eventRouter.post('/', post);
+eventRouter.post(
+  '/',
+  async function (req: Request, res: Response, next: NextFunction) {
+    try {
+      return await post(req, res);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 export default eventRouter;

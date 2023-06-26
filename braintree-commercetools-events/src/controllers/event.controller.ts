@@ -19,7 +19,8 @@ import { BRAINTREE_CUSTOMER_TYPE_KEY } from '../connector/actions';
  */
 export const post = async (request: Request, response: Response) => {
   logger.info('Event message received');
-  let interaction: PaymentInteractionAddedMessagePayload|undefined = undefined;
+  let interaction: PaymentInteractionAddedMessagePayload | undefined =
+    undefined;
   if (!request.body) {
     logger.error('Missing request body.');
     throw new CustomError(400, 'Bad request: No Pub/Sub message was received');
@@ -43,7 +44,10 @@ export const post = async (request: Request, response: Response) => {
     );
   }
   try {
-    if (interaction?.interaction?.fields?.type === 'transactionSaleResponse' && interaction?.interaction?.fields?.data) {
+    if (
+      interaction?.interaction?.fields?.type === 'transactionSaleResponse' &&
+      interaction?.interaction?.fields?.data
+    ) {
       const data = JSON.parse(interaction.interaction.fields.data);
       const customerId = data?.customer?.id;
       if (customerId) {

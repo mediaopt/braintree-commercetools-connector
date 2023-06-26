@@ -1,6 +1,7 @@
 import { ByProjectKeyRequestBuilder } from '@commercetools/platform-sdk/dist/declarations/src/generated/client/by-project-key-request-builder';
 
-const PAYMENT_UPDATE_SUBSCRIPTION_KEY = 'braintree-commercetools-events-payment-update-subscription';
+const PAYMENT_UPDATE_SUBSCRIPTION_KEY =
+  'braintree-commercetools-events-payment-update-subscription';
 
 export const BRAINTREE_CUSTOMER_TYPE_KEY = 'braintree-customer-type';
 export async function createCustomerCreateSubscription(
