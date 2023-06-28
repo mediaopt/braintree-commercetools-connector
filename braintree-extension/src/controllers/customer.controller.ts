@@ -5,15 +5,44 @@ import { handleCustomerResponse, handleError } from '../utils/response.utils';
 import {
   createCustomer,
   findCustomer,
-  updateCustomer,
+  createPaymentMethod,
 } from '../service/braintree.service';
 import { logger } from '../utils/logger.utils';
 import { mapCommercetoolsCustomerToBraintreeCustomerCreateRequest } from '../utils/map.utils';
 import {
   CustomerCreateRequest,
-  CustomerUpdateRequest,
   Customer as BraintreeCustomer,
+  PaymentMethod,
+  PaymentMethodCreateRequest,
 } from 'braintree';
+
+function parseVaultRequest(
+  customer: Customer
+): PaymentMethodCreateRequest | CustomerCreateRequest {
+  let request: PaymentMethodCreateRequest;
+  try {
+    request = JSON.parse(
+      customer?.custom?.fields?.vaultRequest
+    ) as PaymentMethodCreateRequest;
+  } catch (e) {
+    request = {
+      paymentMethodNonce: customer?.custom?.fields?.vaultRequest,
+    } as PaymentMethodCreateRequest;
+  }
+  if (customer?.custom?.fields?.customerId) {
+    request.customerId = customer?.custom?.fields?.customerId;
+    if (!request.options) {
+      request.options = {};
+    }
+    request.options.failOnDuplicatePaymentMethod = true;
+    return request as PaymentMethodCreateRequest;
+  } else {
+    return mapCommercetoolsCustomerToBraintreeCustomerCreateRequest(
+      customer,
+      JSON.stringify(request)
+    ) as CustomerCreateRequest;
+  }
+}
 
 /**
  * Handle the update action
@@ -68,32 +97,24 @@ const update = async (resource: CustomerReference) => {
     }
     if (customer?.custom?.fields?.vaultRequest) {
       try {
-        const request = {
-          paymentMethodNonce: customer.custom.fields.vaultRequest,
-        } as CustomerUpdateRequest;
-        let response: BraintreeCustomer;
+        const request = parseVaultRequest(customer);
+        let response: BraintreeCustomer | PaymentMethod;
         if (!customer?.custom.fields?.customerId) {
-          const createRequest: CustomerCreateRequest =
-            mapCommercetoolsCustomerToBraintreeCustomerCreateRequest(
-              customer,
-              JSON.stringify(request)
-            );
-          logger.info(
-            `createCustomer request: ${JSON.stringify(createRequest)}`
-          );
-          response = await createCustomer(createRequest);
+          logger.info(`createCustomer request: ${JSON.stringify(request)}`);
+          response = await createCustomer(request);
         } else {
-          logger.info(`updateCustomer request: ${JSON.stringify(request)}`);
-          response = await updateCustomer(
-            customer.custom.fields.customerId,
-            request
+          logger.info(
+            `createPaymentMethod request: ${JSON.stringify(request)}`
+          );
+          response = await createPaymentMethod(
+            <PaymentMethodCreateRequest>request
           );
         }
         updateActions = updateActions.concat(
           handleCustomerResponse('vault', response, customer)
         );
       } catch (e) {
-        logger.error('Call to create customer resulted in an error', e);
+        logger.error('Call to vault resulted in an error', e);
         updateActions = handleError('vault', e);
       }
     }

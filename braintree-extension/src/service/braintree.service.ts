@@ -6,7 +6,8 @@ import braintree, {
   Customer,
   CustomerCreateRequest,
   ValidatedResponse,
-  CustomerUpdateRequest,
+  PaymentMethodCreateRequest,
+  PaymentMethod,
 } from 'braintree';
 import CustomError from '../errors/custom.error';
 const getBraintreeGateway = () => {
@@ -115,15 +116,14 @@ export const createCustomer = async (
   return response.customer;
 };
 
-export const updateCustomer = async (
-  id: string,
-  request: CustomerUpdateRequest
-): Promise<Customer> => {
+export const createPaymentMethod = async (
+  request: PaymentMethodCreateRequest
+): Promise<PaymentMethod> => {
   const gateway = getBraintreeGateway();
-  const response = await gateway.customer.update(id, request);
-  logResponse('updateCustomer', response);
+  const response = await gateway.paymentMethod.create(request);
+  logResponse('createPaymentMethod', response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }
-  return response.customer;
+  return response.paymentMethod;
 };

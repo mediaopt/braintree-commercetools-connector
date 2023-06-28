@@ -3,7 +3,7 @@ import { getCurrentTimestamp } from './data.utils';
 import { logger } from './logger.utils';
 import { UpdateActions } from '../types/index.types';
 import { Customer } from '@commercetools/platform-sdk';
-import { Customer as BraintreeCustomer } from 'braintree';
+import { Customer as BraintreeCustomer, PaymentMethod } from 'braintree';
 
 export const handleRequest = (
   requestName: string,
@@ -71,7 +71,7 @@ export const handlePaymentResponse = (
 
 export const handleCustomerResponse = (
   requestName: string,
-  response: BraintreeCustomer,
+  response: BraintreeCustomer | PaymentMethod,
   customer: Customer
 ): UpdateActions => {
   const updateActions: UpdateActions = [];
@@ -86,7 +86,11 @@ export const handleCustomerResponse = (
     name: requestName + 'Request',
     value: null,
   });
-  if (!customer?.custom?.fields?.customerId && response?.id) {
+  if (
+    !customer?.custom?.fields?.customerId &&
+    'id' in response &&
+    response.id
+  ) {
     updateActions.push({
       action: 'setCustomField',
       name: 'customerId',
