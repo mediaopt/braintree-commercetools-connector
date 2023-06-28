@@ -4,7 +4,7 @@ import { UpdateAction } from '@commercetools/sdk-client-v2';
 import { handleError, handleResponse } from '../utils/response.utils';
 import { createCustomer, findCustomer } from '../service/braintree.service';
 import { logger } from '../utils/logger.utils';
-import {mapCommercetoolsCustomerToBraintreeCustomerCreateRequest} from "../utils/map.utils";
+import { mapCommercetoolsCustomerToBraintreeCustomerCreateRequest } from '../utils/map.utils';
 
 /**
  * Handle the update action
@@ -28,6 +28,7 @@ const update = async (resource: CustomerReference) => {
         if (!customerId) {
           throw new CustomError(400, 'field customerId is missing');
         }
+        logger.info(`findCustomer request: ${customerId}`);
         const response = await findCustomer(customerId);
         updateActions = updateActions.concat(
           handleResponse('find', response, undefined, false)
@@ -46,13 +47,16 @@ const update = async (resource: CustomerReference) => {
     }
     if (customer?.custom?.fields?.createRequest) {
       try {
-        const request = mapCommercetoolsCustomerToBraintreeCustomerCreateRequest(customer, customer.custom.fields.createRequest);
-        logger.info('create customer request: ' + JSON.stringify(request));
+        const request =
+          mapCommercetoolsCustomerToBraintreeCustomerCreateRequest(
+            customer,
+            customer.custom.fields.createRequest
+          );
+        logger.info(`createCustomer request: ${JSON.stringify(request)}`);
         if (!request.id) {
           throw new CustomError(400, 'field customerId is missing');
         }
         const response = await createCustomer(request);
-        logger.info('create customer response: ' + JSON.stringify(customer));
         updateActions = updateActions.concat(
           handleResponse('create', response, undefined, false)
         );
