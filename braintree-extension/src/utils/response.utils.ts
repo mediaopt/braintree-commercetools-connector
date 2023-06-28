@@ -2,6 +2,8 @@ import { BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY } from '../connector/actions';
 import { getCurrentTimestamp } from './data.utils';
 import { logger } from './logger.utils';
 import { UpdateActions } from '../types/index.types';
+import { Customer } from '@commercetools/platform-sdk';
+import { Customer as BraintreeCustomer } from 'braintree';
 
 export const handleRequest = (
   requestName: string,
@@ -31,11 +33,10 @@ function stringifyData(data: string | object) {
   return typeof data === 'string' ? data : JSON.stringify(data);
 }
 
-export const handleResponse = (
+export const handlePaymentResponse = (
   requestName: string,
   response: string | object,
-  transactionId?: string,
-  addInterfaceInteraction = true
+  transactionId?: string
 ): UpdateActions => {
   const updateActions: UpdateActions = [];
   if (typeof response === 'object') {
@@ -47,26 +48,51 @@ export const handleResponse = (
     name: requestName + 'Response',
     value: stringifyData(response),
   });
-  if (addInterfaceInteraction) {
-    updateActions.push({
-      action: 'addInterfaceInteraction',
-      type: {
-        typeId: 'type',
-        key: BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
-      },
-      fields: {
-        type: requestName + 'Response',
-        data: stringifyData(response),
-        timestamp: getCurrentTimestamp(),
-      },
-    });
-  }
+  updateActions.push({
+    action: 'addInterfaceInteraction',
+    type: {
+      typeId: 'type',
+      key: BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
+    },
+    fields: {
+      type: requestName + 'Response',
+      data: stringifyData(response),
+      timestamp: getCurrentTimestamp(),
+    },
+  });
   updateActions.push({
     action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
     transactionId: transactionId,
     name: requestName + 'Request',
     value: null,
   });
+  return updateActions;
+};
+
+export const handleCustomerResponse = (
+  requestName: string,
+  response: BraintreeCustomer,
+  customer: Customer
+): UpdateActions => {
+  const updateActions: UpdateActions = [];
+  removeEmptyProperties(response);
+  updateActions.push({
+    action: 'setCustomField',
+    name: requestName + 'Response',
+    value: stringifyData(response),
+  });
+  updateActions.push({
+    action: 'setCustomField',
+    name: requestName + 'Request',
+    value: null,
+  });
+  if (!customer?.custom?.fields?.customerId && response?.id) {
+    updateActions.push({
+      action: 'setCustomField',
+      name: 'customerId',
+      value: response.id,
+    });
+  }
   return updateActions;
 };
 

@@ -17,7 +17,7 @@ import { ClientTokenRequest, Transaction, TransactionRequest } from 'braintree';
 import {
   handleError,
   handleRequest,
-  handleResponse,
+  handlePaymentResponse,
 } from '../utils/response.utils';
 import {
   mapBraintreeStatusToCommercetoolsTransactionState,
@@ -134,7 +134,7 @@ async function refund(
       request?.amount
     );
     updateActions = updateActions.concat(
-      handleResponse(
+      handlePaymentResponse(
         'refund',
         response,
         paymentWithOptionalTransaction?.transaction?.id
@@ -206,7 +206,7 @@ async function submitForSettlement(
       request?.amount
     );
     updateActions = updateActions.concat(
-      handleResponse(
+      handlePaymentResponse(
         'submitForSettlement',
         response,
         paymentWithOptionalTransaction?.transaction?.id
@@ -255,7 +255,7 @@ async function voidTransaction(
     updateActions = handleRequest('void', request);
     const response = await braintreeVoidTransaction(request.transactionId);
     updateActions = updateActions.concat(
-      handleResponse(
+      handlePaymentResponse(
         'void',
         response,
         paymentWithOptionalTransaction?.transaction?.id
@@ -310,7 +310,7 @@ const update = async (paymentReference: PaymentReference) => {
       try {
         const response = await getClientToken(request);
         updateActions = updateActions.concat(
-          handleResponse('getClientToken', response)
+          handlePaymentResponse('getClientToken', response)
         );
       } catch (e) {
         logger.error('Call to getClientToken resulted in an error', e);
@@ -323,7 +323,7 @@ const update = async (paymentReference: PaymentReference) => {
         updateActions = handleRequest('transactionSale', request);
         const response = await transactionSale(request);
         updateActions = updateActions.concat(
-          handleResponse('transactionSale', response)
+          handlePaymentResponse('transactionSale', response)
         );
         const amountPlanned = payment?.amountPlanned;
         updateActions.push({
