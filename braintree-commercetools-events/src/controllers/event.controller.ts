@@ -50,7 +50,7 @@ export const post = async (request: Request, response: Response) => {
     ) {
       const data = JSON.parse(interaction.interaction.fields.data);
       const customerId = data?.customer?.id;
-      if (customerId) {
+      if (!customerId) {
         logger.info('transactionSaleResponse has no braintree customer id');
         response.status(204).send();
         return;
