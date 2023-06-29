@@ -1,9 +1,8 @@
 import { BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY } from '../connector/actions';
 import { getCurrentTimestamp } from './data.utils';
 import { logger } from './logger.utils';
-import { UpdateActions } from '../types/index.types';
+import { UpdateActions, CustomerResponse } from '../types/index.types';
 import { Customer } from '@commercetools/platform-sdk';
-import { Customer as BraintreeCustomer, PaymentMethod } from 'braintree';
 
 export const handleRequest = (
   requestName: string,
@@ -71,7 +70,7 @@ export const handlePaymentResponse = (
 
 export const handleCustomerResponse = (
   requestName: string,
-  response: BraintreeCustomer | PaymentMethod,
+  response: CustomerResponse,
   customer: Customer
 ): UpdateActions => {
   const updateActions: UpdateActions = [];

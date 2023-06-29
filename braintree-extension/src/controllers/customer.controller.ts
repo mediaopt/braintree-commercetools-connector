@@ -9,33 +9,28 @@ import {
 } from '../service/braintree.service';
 import { logger } from '../utils/logger.utils';
 import { mapCommercetoolsCustomerToBraintreeCustomerCreateRequest } from '../utils/map.utils';
-import {
-  CustomerCreateRequest,
-  Customer as BraintreeCustomer,
-  PaymentMethod,
-  PaymentMethodCreateRequest,
-} from 'braintree';
+import { CustomerCreateRequest, PaymentMethodCreateRequest } from 'braintree';
+import { CustomerResponse } from '../types/index.types';
 
 function parseVaultRequest(
   customer: Customer
 ): PaymentMethodCreateRequest | CustomerCreateRequest {
+  const { vaultRequest, customerId } = customer?.custom?.fields || {};
   let request: PaymentMethodCreateRequest;
   try {
-    request = JSON.parse(
-      customer?.custom?.fields?.vaultRequest
-    ) as PaymentMethodCreateRequest;
+    request = JSON.parse(vaultRequest) as PaymentMethodCreateRequest;
   } catch (e) {
     request = {
-      paymentMethodNonce: customer?.custom?.fields?.vaultRequest,
+      paymentMethodNonce: vaultRequest,
     } as PaymentMethodCreateRequest;
   }
-  if (customer?.custom?.fields?.customerId) {
-    request.customerId = customer?.custom?.fields?.customerId;
+  if (customerId) {
+    request = { ...request, customerId };
     if (!request.options) {
       request.options = {};
     }
     request.options.failOnDuplicatePaymentMethod = true;
-    return request as PaymentMethodCreateRequest;
+    return request;
   } else {
     return mapCommercetoolsCustomerToBraintreeCustomerCreateRequest(
       customer,
@@ -57,13 +52,15 @@ const update = async (resource: CustomerReference) => {
       throw new CustomError(400, 'customer obj is missing');
     }
     const customer: Customer = resource.obj;
-    if (customer?.custom?.fields?.findRequest) {
-      const request = JSON.parse(customer.custom.fields.findRequest);
+    const { findRequest, createRequest, vaultRequest } =
+      customer?.custom?.fields || {};
+    if (findRequest) {
+      const request = JSON.parse(findRequest);
 
       try {
         const customerId =
           request?.customerId ??
-          customer?.custom.fields?.customerId ??
+          customer?.custom?.fields?.customerId ??
           customer.id;
         logger.info(`findCustomer request: ${customerId}`);
         const response = await findCustomer(customerId);
@@ -75,12 +72,12 @@ const update = async (resource: CustomerReference) => {
         updateActions = handleError('find', e);
       }
     }
-    if (customer?.custom?.fields?.createRequest) {
+    if (createRequest) {
       try {
         const request =
           mapCommercetoolsCustomerToBraintreeCustomerCreateRequest(
             customer,
-            customer.custom.fields.createRequest
+            createRequest
           );
         logger.info(`createCustomer request: ${JSON.stringify(request)}`);
         if (!request.id) {
@@ -95,11 +92,11 @@ const update = async (resource: CustomerReference) => {
         updateActions = handleError('create', e);
       }
     }
-    if (customer?.custom?.fields?.vaultRequest) {
+    if (vaultRequest) {
       try {
         const request = parseVaultRequest(customer);
-        let response: BraintreeCustomer | PaymentMethod;
-        if (!customer?.custom.fields?.customerId) {
+        let response: CustomerResponse;
+        if (!customer?.custom?.fields?.customerId) {
           logger.info(`createCustomer request: ${JSON.stringify(request)}`);
           response = await createCustomer(request);
         } else {

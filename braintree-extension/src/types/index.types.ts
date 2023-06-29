@@ -1,5 +1,6 @@
 import { Payment, Transaction } from '@commercetools/platform-sdk';
 import { UpdateAction } from '@commercetools/sdk-client-v2';
+import { Customer, PaymentMethod } from 'braintree';
 
 export type Message = {
   code: string;
@@ -25,3 +26,5 @@ export type PaymentWithOptionalTransaction = {
 };
 
 export type UpdateActions = Array<UpdateAction>;
+
+export type CustomerResponse = PaymentMethod | Customer;
