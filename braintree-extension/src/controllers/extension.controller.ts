@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { apiSuccess } from '../api/success.api';
 import CustomError from '../errors/custom.error';
 import { paymentController } from './payment.controller';
@@ -11,22 +11,25 @@ import { ExtensionInput } from '@commercetools/platform-sdk/dist/declarations/sr
  *
  * @param {Request} request The express request
  * @param {Response} response The express response
+ * @param {NextFunction} next
  * @returns
  */
-export const post = async (request: Request, response: Response) => {
-  // Deserialize the action and resource from the body
-  const { action, resource }: ExtensionInput = request.body;
+export const post = async (
+  request: Request,
+  response: Response,
+  next: NextFunction
+) => {
+  try {
+    const { action, resource }: ExtensionInput = request.body;
 
-  if (!action || !resource) {
-    throw new CustomError(400, 'Bad request - Missing body parameters.');
-  }
+    if (!action || !resource) {
+      throw new CustomError(400, 'Bad request - Missing body parameters.');
+    }
 
-  // Identify the type of resource in order to redirect
-  // to the correct controller
-  switch (resource.typeId) {
-    case 'payment':
-      try {
-        const data = await paymentController(action, resource);
+    let data;
+    switch (resource.typeId) {
+      case 'payment':
+        data = await paymentController(action, resource);
 
         if (data && data.statusCode === 200) {
           apiSuccess(200, data.actions, response);
@@ -37,17 +40,17 @@ export const post = async (request: Request, response: Response) => {
           data ? data.statusCode : 400,
           JSON.stringify(data)
         );
-      } catch (error) {
-        if (error instanceof Error) {
-          throw new CustomError(500, error.message);
-        }
-      }
-
-      break;
-    default:
-      throw new CustomError(
-        500,
-        `Internal Server Error - Resource not recognized. Allowed values are 'payment'.`
-      );
+      default:
+        return new CustomError(
+          500,
+          `Internal Server Error - Resource not recognized. Allowed values are 'payment'.`
+        );
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      next(new CustomError(500, error.message));
+    } else {
+      next(error);
+    }
   }
 };
