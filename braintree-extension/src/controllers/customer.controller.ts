@@ -25,11 +25,11 @@ function parseVaultRequest(
     } as PaymentMethodCreateRequest;
   }
   if (customerId) {
-    request = { ...request, customerId };
-    if (!request.options) {
-      request.options = {};
-    }
-    request.options.failOnDuplicatePaymentMethod = true;
+    request = {
+      ...request,
+      customerId,
+      options: { failOnDuplicatePaymentMethod: true },
+    };
     return request;
   } else {
     return mapCommercetoolsCustomerToBraintreeCustomerCreateRequest(
