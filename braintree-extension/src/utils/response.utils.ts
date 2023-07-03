@@ -77,12 +77,12 @@ export const handleCustomerResponse = (
   removeEmptyProperties(response);
   updateActions.push({
     action: 'setCustomField',
-    name: requestName + 'Response',
+    name: `${requestName}Response`,
     value: stringifyData(response),
   });
   updateActions.push({
     action: 'setCustomField',
-    name: requestName + 'Request',
+    name: `${requestName}Request`,
     value: null,
   });
   if (
