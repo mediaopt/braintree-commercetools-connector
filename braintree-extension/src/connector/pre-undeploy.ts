@@ -4,11 +4,16 @@ dotenv.config();
 
 import { createApiRoot } from '../client/create.client';
 import { assertError } from '../utils/assert.utils';
-import { deleteCartUpdateExtension } from './actions';
+import {
+  BRAINTREE_CUSTOMER_EXTENSION_KEY,
+  BRAINTREE_EXTENSION_KEY,
+  deleteCartUpdateExtension,
+} from './actions';
 
 async function preUndeploy(): Promise<void> {
   const apiRoot = await createApiRoot();
-  await deleteCartUpdateExtension(apiRoot);
+  await deleteCartUpdateExtension(apiRoot, BRAINTREE_EXTENSION_KEY);
+  await deleteCartUpdateExtension(apiRoot, BRAINTREE_CUSTOMER_EXTENSION_KEY);
 }
 
 async function run(): Promise<void> {

@@ -1,49 +1,104 @@
-import { UpdateAction } from '@commercetools/sdk-client-v2';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
-import { getClientToken, transactionSale } from '../service/braintree.service';
-import { PaymentReference } from '@commercetools/platform-sdk';
+import {
+  getClientToken,
+  refund as braintreeRefund,
+  transactionSale,
+  submitForSettlement as braintreeSubmitForSettlement,
+  voidTransaction as braintreeVoidTransaction,
+} from '../service/braintree.service';
+import {
+  Payment,
+  PaymentReference,
+  Transaction as CommercetoolsTransaction,
+  TransactionType,
+} from '@commercetools/platform-sdk';
 import { ClientTokenRequest, Transaction, TransactionRequest } from 'braintree';
 import {
   handleError,
   handleRequest,
-  handleResponse,
+  handlePaymentResponse,
 } from '../utils/response.utils';
 import {
   mapBraintreeStatusToCommercetoolsTransactionState,
   mapBraintreeStatusToCommercetoolsTransactionType,
   mapBraintreeMoneyToCommercetoolsMoney,
 } from '../utils/map.utils';
+import {
+  PaymentWithOptionalTransaction,
+  UpdateActions,
+} from '../types/index.types';
 
-function parseTransactionSaleRequest(
-  resource: PaymentReference
-): TransactionRequest {
-  if (!resource?.obj?.custom?.fields.transactionSaleRequest) {
+function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
+  const transactionSaleRequest = payment?.custom?.fields.transactionSaleRequest;
+  if (!transactionSaleRequest) {
     throw new CustomError(500, 'transactionSaleRequest is missing');
   }
-  if (!resource.obj.amountPlanned) {
+  const amountPlanned = payment?.amountPlanned;
+  if (!amountPlanned) {
     throw new CustomError(500, 'amountPlanned is missing');
   }
   let request: TransactionRequest;
   try {
-    request = JSON.parse(
-      resource.obj.custom.fields.transactionSaleRequest
-    ) as TransactionRequest;
+    request = JSON.parse(transactionSaleRequest) as TransactionRequest;
 
     return request;
   } catch (e) {
     request = {
-      paymentMethodNonce: resource.obj.custom.fields.transactionSaleRequest,
+      paymentMethodNonce: transactionSaleRequest,
     } as TransactionRequest;
   }
   request.amount = String(
-    resource.obj.amountPlanned.centAmount *
-      Math.pow(10, -resource.obj.amountPlanned.fractionDigits || 0)
+    amountPlanned.centAmount * Math.pow(10, -amountPlanned.fractionDigits || 0)
   );
   request.options = {
     submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
   };
   return request;
+}
+
+function parseRequest(
+  paymentWithOptionalTransaction: PaymentWithOptionalTransaction,
+  requestField: string,
+  transactionType: TransactionType
+) {
+  const requestJSON =
+    paymentWithOptionalTransaction.payment?.custom?.fields[requestField] ??
+    paymentWithOptionalTransaction?.transaction?.custom?.fields[requestField] ??
+    null;
+  if (!requestJSON) {
+    throw new CustomError(500, `${requestField} is missing`);
+  }
+  let request;
+  try {
+    request = JSON.parse(requestJSON);
+  } catch (e) {
+    request = {
+      transactionId: requestJSON,
+    };
+  }
+  request.transactionId =
+    request.transactionId ??
+    findSuitableTransactionId(paymentWithOptionalTransaction, transactionType);
+  return request;
+}
+
+function findSuitableTransactionId(
+  paymentWithOptionalTransaction: PaymentWithOptionalTransaction,
+  type: TransactionType
+) {
+  if (paymentWithOptionalTransaction?.transaction) {
+    return paymentWithOptionalTransaction?.transaction.interactionId;
+  }
+  const transactions =
+    paymentWithOptionalTransaction?.payment?.transactions.filter(
+      (transaction: CommercetoolsTransaction): boolean =>
+        transaction.type === type
+    );
+  if (!transactions || transactions.length === 0) {
+    throw new CustomError(500, 'The payment has no suitable transaction');
+  }
+  return transactions[transactions.length - 1].interactionId;
 }
 
 function getPaymentMethodHint(response: Transaction): string {
@@ -56,46 +111,221 @@ function getPaymentMethodHint(response: Transaction): string {
       return response?.venmoAccount?.username ?? '';
     case 'android_pay_card':
       return response?.androidPayCard?.sourceDescription ?? '';
+    case 'apple_pay_card':
+      return response?.applePayCard?.sourceDescription ?? '';
     default:
       return '';
+  }
+}
+
+async function refund(
+  paymentWithOptionalTransaction: PaymentWithOptionalTransaction
+) {
+  try {
+    let updateActions: UpdateActions;
+    const request = parseRequest(
+      paymentWithOptionalTransaction,
+      'refundRequest',
+      'Charge'
+    );
+    updateActions = handleRequest('refund', request);
+    const response = await braintreeRefund(
+      request.transactionId,
+      request?.amount
+    );
+    updateActions = updateActions.concat(
+      handlePaymentResponse(
+        'refund',
+        response,
+        paymentWithOptionalTransaction?.transaction?.id
+      )
+    );
+    const amountPlanned = paymentWithOptionalTransaction.payment?.amountPlanned;
+    updateActions.push({
+      action: 'addTransaction',
+      transaction: {
+        type: 'Refund',
+        amount: {
+          centAmount: mapBraintreeMoneyToCommercetoolsMoney(
+            response.amount,
+            amountPlanned?.fractionDigits
+          ),
+          currencyCode: amountPlanned?.currencyCode,
+        },
+        interactionId: response.id,
+        timestamp: response.updatedAt,
+        state: mapBraintreeStatusToCommercetoolsTransactionState(
+          response.status
+        ),
+      },
+    });
+    updateActions = updateActions.concat(updatePaymentFields(response));
+    return updateActions;
+  } catch (e) {
+    return handleError(
+      'refund',
+      e,
+      paymentWithOptionalTransaction?.transaction?.id
+    );
+  }
+}
+
+function updatePaymentFields(response: Transaction): UpdateActions {
+  const updateActions: UpdateActions = [];
+  updateActions.push({
+    action: 'setStatusInterfaceCode',
+    interfaceCode: response.status,
+  });
+  updateActions.push({
+    action: 'setStatusInterfaceText',
+    interfaceText: response.status,
+  });
+  const paymentMethodHint = getPaymentMethodHint(response);
+  updateActions.push({
+    action: 'setMethodInfoMethod',
+    method:
+      response.paymentInstrumentType +
+      (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
+  });
+  return updateActions;
+}
+
+async function submitForSettlement(
+  paymentWithOptionalTransaction: PaymentWithOptionalTransaction
+) {
+  try {
+    let updateActions: UpdateActions;
+    const request = parseRequest(
+      paymentWithOptionalTransaction,
+      'submitForSettlementRequest',
+      'Authorization'
+    );
+    updateActions = handleRequest('submitForSettlement', request);
+    const response = await braintreeSubmitForSettlement(
+      request.transactionId,
+      request?.amount
+    );
+    updateActions = updateActions.concat(
+      handlePaymentResponse(
+        'submitForSettlement',
+        response,
+        paymentWithOptionalTransaction?.transaction?.id
+      )
+    );
+    const amountPlanned = paymentWithOptionalTransaction.payment?.amountPlanned;
+    updateActions.push({
+      action: 'addTransaction',
+      transaction: {
+        type: 'Charge',
+        amount: {
+          centAmount: mapBraintreeMoneyToCommercetoolsMoney(
+            response.amount,
+            amountPlanned?.fractionDigits
+          ),
+          currencyCode: amountPlanned?.currencyCode,
+        },
+        interactionId: response.id,
+        timestamp: response.updatedAt,
+        state: mapBraintreeStatusToCommercetoolsTransactionState(
+          response.status
+        ),
+      },
+    });
+    updateActions = updateActions.concat(updatePaymentFields(response));
+    return updateActions;
+  } catch (e) {
+    return handleError(
+      'submitForSettlement',
+      e,
+      paymentWithOptionalTransaction?.transaction?.id
+    );
+  }
+}
+
+async function voidTransaction(
+  paymentWithOptionalTransaction: PaymentWithOptionalTransaction
+) {
+  try {
+    let updateActions: UpdateActions;
+    const request = parseRequest(
+      paymentWithOptionalTransaction,
+      'voidRequest',
+      'Authorization'
+    );
+    updateActions = handleRequest('void', request);
+    const response = await braintreeVoidTransaction(request.transactionId);
+    updateActions = updateActions.concat(
+      handlePaymentResponse(
+        'void',
+        response,
+        paymentWithOptionalTransaction?.transaction?.id
+      )
+    );
+    const amountPlanned = paymentWithOptionalTransaction.payment?.amountPlanned;
+    updateActions.push({
+      action: 'addTransaction',
+      transaction: {
+        type: 'CancelAuthorization',
+        amount: {
+          centAmount: mapBraintreeMoneyToCommercetoolsMoney(
+            response.amount,
+            amountPlanned?.fractionDigits
+          ),
+          currencyCode: amountPlanned?.currencyCode,
+        },
+        interactionId: response.id,
+        timestamp: response.updatedAt,
+        state: mapBraintreeStatusToCommercetoolsTransactionState(
+          response.status
+        ),
+      },
+    });
+    updateActions = updateActions.concat(updatePaymentFields(response));
+    return updateActions;
+  } catch (e) {
+    return handleError(
+      'void',
+      e,
+      paymentWithOptionalTransaction?.transaction?.id
+    );
   }
 }
 
 /**
  * Handle the update action
  *
- * @param {PaymentReference} resource The resource from the request body
+ * @param {PaymentReference} paymentReference The payment from the request body
  * @returns {object}
  */
-const update = async (resource: PaymentReference) => {
+const update = async (paymentReference: PaymentReference) => {
   try {
-    let updateActions: Array<UpdateAction> = [];
-
-    logger.info('Update payment called', resource);
-    if (resource?.obj?.custom?.fields?.getClientTokenRequest) {
+    let updateActions: UpdateActions = [];
+    const payment = paymentReference.obj;
+    logger.info('Update payment called', payment);
+    if (payment?.custom?.fields?.getClientTokenRequest) {
       const request: ClientTokenRequest = JSON.parse(
-        resource.obj.custom.fields.getClientTokenRequest
+        payment.custom.fields.getClientTokenRequest
       );
       updateActions = handleRequest('getClientToken', request);
       try {
         const response = await getClientToken(request);
         updateActions = updateActions.concat(
-          handleResponse('getClientToken', response)
+          handlePaymentResponse('getClientToken', response)
         );
       } catch (e) {
         logger.error('Call to getClientToken resulted in an error', e);
         updateActions = handleError('getClientToken', e);
       }
     }
-    if (resource?.obj?.custom?.fields?.transactionSaleRequest) {
+    if (payment?.custom?.fields?.transactionSaleRequest) {
       try {
-        const request = parseTransactionSaleRequest(resource);
+        const request = parseTransactionSaleRequest(payment);
         updateActions = handleRequest('transactionSale', request);
-        logger.info('Transaction Sale request', request);
         const response = await transactionSale(request);
         updateActions = updateActions.concat(
-          handleResponse('transactionSale', response)
+          handlePaymentResponse('transactionSale', response)
         );
+        const amountPlanned = payment?.amountPlanned;
         updateActions.push({
           action: 'addTransaction',
           transaction: {
@@ -105,41 +335,70 @@ const update = async (resource: PaymentReference) => {
             amount: {
               centAmount: mapBraintreeMoneyToCommercetoolsMoney(
                 response.amount,
-                resource.obj?.amountPlanned.fractionDigits
+                amountPlanned?.fractionDigits
               ),
-              currencyCode: resource.obj?.amountPlanned.currencyCode,
+              currencyCode: amountPlanned?.currencyCode,
             },
             interactionId: response.id,
-            timestamp: response.createdAt,
+            timestamp: response.updatedAt,
             state: mapBraintreeStatusToCommercetoolsTransactionState(
               response.status
             ),
           },
         });
-        if (!resource?.obj?.interfaceId) {
+        if (!payment?.interfaceId) {
           updateActions.push({
             action: 'setInterfaceId',
             interfaceId: response.id,
           });
         }
-        updateActions.push({
-          action: 'setStatusInterfaceCode',
-          interfaceCode: response.status,
-        });
-        updateActions.push({
-          action: 'setStatusInterfaceText',
-          interfaceText: response.status,
-        });
-        const paymentMethodHint = getPaymentMethodHint(response);
-        updateActions.push({
-          action: 'setMethodInfoMethod',
-          method:
-            response.paymentInstrumentType +
-            (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
-        });
+        updateActions = updateActions.concat(updatePaymentFields(response));
       } catch (e) {
         updateActions = handleError('transactionSale', e);
       }
+    }
+    if (payment?.custom?.fields?.refundRequest) {
+      updateActions = updateActions.concat(
+        await refund({ payment } as PaymentWithOptionalTransaction)
+      );
+    }
+    if (payment?.custom?.fields?.submitForSettlementRequest) {
+      updateActions = updateActions.concat(
+        await submitForSettlement({ payment } as PaymentWithOptionalTransaction)
+      );
+    }
+    if (payment?.custom?.fields?.voidRequest) {
+      updateActions = updateActions.concat(
+        await voidTransaction({ payment } as PaymentWithOptionalTransaction)
+      );
+    }
+    if (payment?.transactions) {
+      const promises = payment.transactions.map(
+        async (
+          transaction: CommercetoolsTransaction
+        ): Promise<UpdateActions> => {
+          if (transaction?.custom?.fields?.refundRequest) {
+            return await refund({
+              payment,
+              transaction,
+            } as PaymentWithOptionalTransaction);
+          }
+          if (transaction?.custom?.fields?.submitForSettlementRequest) {
+            return await submitForSettlement({
+              payment,
+              transaction,
+            } as PaymentWithOptionalTransaction);
+          }
+          if (transaction?.custom?.fields?.voidRequest) {
+            return await voidTransaction({
+              payment,
+              transaction,
+            } as PaymentWithOptionalTransaction);
+          }
+          return [];
+        }
+      );
+      updateActions = updateActions.concat(...(await Promise.all(promises)));
     }
 
     return { statusCode: 200, actions: updateActions };
