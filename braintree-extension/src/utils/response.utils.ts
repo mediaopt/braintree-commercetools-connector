@@ -1,7 +1,8 @@
 import { BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY } from '../connector/actions';
 import { getCurrentTimestamp } from './data.utils';
 import { logger } from './logger.utils';
-import { UpdateActions } from '../types/index.types';
+import { UpdateActions, CustomerResponse } from '../types/index.types';
+import { Customer } from '@commercetools/platform-sdk';
 
 export const handleRequest = (
   requestName: string,
@@ -31,7 +32,7 @@ function stringifyData(data: string | object) {
   return typeof data === 'string' ? data : JSON.stringify(data);
 }
 
-export const handleResponse = (
+export const handlePaymentResponse = (
   requestName: string,
   response: string | object,
   transactionId?: string
@@ -67,6 +68,37 @@ export const handleResponse = (
   return updateActions;
 };
 
+export const handleCustomerResponse = (
+  requestName: string,
+  response: CustomerResponse,
+  customer: Customer
+): UpdateActions => {
+  const updateActions: UpdateActions = [];
+  removeEmptyProperties(response);
+  updateActions.push({
+    action: 'setCustomField',
+    name: `${requestName}Response`,
+    value: stringifyData(response),
+  });
+  updateActions.push({
+    action: 'setCustomField',
+    name: `${requestName}Request`,
+    value: null,
+  });
+  if (
+    !customer?.custom?.fields?.customerId &&
+    'id' in response &&
+    response.id
+  ) {
+    updateActions.push({
+      action: 'setCustomField',
+      name: 'customerId',
+      value: response.id,
+    });
+  }
+  return updateActions;
+};
+
 export const removeEmptyProperties = (response: any) => {
   for (const prop in response) {
     if (response[prop] === null) {
@@ -94,13 +126,13 @@ export const handleError = (
   updateActions.push({
     action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
     transactionId: transactionId,
-    name: requestName + 'Response',
+    name: `${requestName}Response`,
     value: JSON.stringify({ success: false, message: errorMessage }),
   });
   updateActions.push({
     action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
     transactionId: transactionId,
-    name: requestName + 'Request',
+    name: `${requestName}Request`,
     value: null,
   });
   return updateActions;
