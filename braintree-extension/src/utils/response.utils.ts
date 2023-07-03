@@ -126,13 +126,13 @@ export const handleError = (
   updateActions.push({
     action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
     transactionId: transactionId,
-    name: `${requestName} Response`,
+    name: `${requestName}Response`,
     value: JSON.stringify({ success: false, message: errorMessage }),
   });
   updateActions.push({
     action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
     transactionId: transactionId,
-    name: `${requestName} Request`,
+    name: `${requestName}Request`,
     value: null,
   });
   return updateActions;
