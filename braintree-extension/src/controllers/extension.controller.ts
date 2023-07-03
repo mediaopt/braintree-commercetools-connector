@@ -38,26 +38,15 @@ export const post = async (
         }
 
         throw new CustomError(data?.statusCode ?? 400, JSON.stringify(data));
-      } catch (error) {
-        if (error instanceof Error) {
-          throw new CustomError(500, error.message);
-        }
-      }
-
-      break;
-    case 'customer':
-      try {
-        const data = await customerController(action, resource);
+      case 'customer':
+        data = await customerController(action, resource);
 
         if (data && data.statusCode === 200) {
           apiSuccess(200, data.actions, response);
           return;
         }
 
-        throw new CustomError(
-          data ? data.statusCode : 400,
-          JSON.stringify(data)
-        );
+        throw new CustomError(data?.statusCode ?? 400, JSON.stringify(data));
       default:
         return new CustomError(
           500,
