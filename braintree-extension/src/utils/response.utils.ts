@@ -1,12 +1,14 @@
-import { UpdateAction } from '@commercetools/sdk-client-v2';
 import { BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY } from '../connector/actions';
 import { getCurrentTimestamp } from './data.utils';
+import { logger } from './logger.utils';
+import { UpdateActions, CustomerResponse } from '../types/index.types';
+import { Customer } from '@commercetools/platform-sdk';
 
 export const handleRequest = (
   requestName: string,
   request: string | object
-): UpdateAction[] => {
-  const updateActions: Array<UpdateAction> = [];
+): UpdateActions => {
+  const updateActions: UpdateActions = [];
   if (typeof request === 'object') {
     removeEmptyProperties(request);
   }
@@ -22,6 +24,7 @@ export const handleRequest = (
       timestamp: getCurrentTimestamp(),
     },
   });
+  logger.info(`${requestName} request: ${JSON.stringify(request)}`);
   return updateActions;
 };
 
@@ -29,12 +32,12 @@ function stringifyData(data: string | object) {
   return typeof data === 'string' ? data : JSON.stringify(data);
 }
 
-export const handleResponse = (
+export const handlePaymentResponse = (
   requestName: string,
   response: string | object,
   transactionId?: string
-): UpdateAction[] => {
-  const updateActions: Array<UpdateAction> = [];
+): UpdateActions => {
+  const updateActions: UpdateActions = [];
   if (typeof response === 'object') {
     removeEmptyProperties(response);
   }
@@ -65,6 +68,37 @@ export const handleResponse = (
   return updateActions;
 };
 
+export const handleCustomerResponse = (
+  requestName: string,
+  response: CustomerResponse,
+  customer: Customer
+): UpdateActions => {
+  const updateActions: UpdateActions = [];
+  removeEmptyProperties(response);
+  updateActions.push({
+    action: 'setCustomField',
+    name: `${requestName}Response`,
+    value: stringifyData(response),
+  });
+  updateActions.push({
+    action: 'setCustomField',
+    name: `${requestName}Request`,
+    value: null,
+  });
+  if (
+    !customer?.custom?.fields?.customerId &&
+    'id' in response &&
+    response.id
+  ) {
+    updateActions.push({
+      action: 'setCustomField',
+      name: 'customerId',
+      value: response.id,
+    });
+  }
+  return updateActions;
+};
+
 export const removeEmptyProperties = (response: any) => {
   for (const prop in response) {
     if (response[prop] === null) {
@@ -83,22 +117,22 @@ export const handleError = (
   requestName: string,
   error: unknown,
   transactionId?: string
-): UpdateAction[] => {
+): UpdateActions => {
   const errorMessage =
     error instanceof Error && 'message' in error
       ? error.message
       : 'Unknown error';
-  const updateActions: Array<UpdateAction> = [];
+  const updateActions: UpdateActions = [];
   updateActions.push({
     action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
     transactionId: transactionId,
-    name: requestName + 'Response',
+    name: `${requestName}Response`,
     value: JSON.stringify({ success: false, message: errorMessage }),
   });
   updateActions.push({
     action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
     transactionId: transactionId,
-    name: requestName + 'Request',
+    name: `${requestName}Request`,
     value: null,
   });
   return updateActions;

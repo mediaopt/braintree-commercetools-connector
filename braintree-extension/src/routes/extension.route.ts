@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { post } from '../controllers/extension.controller';
 
-const braintreeExtensionRouter = Router();
+const braintreeExtensionRouter: Router = Router();
 
 braintreeExtensionRouter.post('/', post);
 

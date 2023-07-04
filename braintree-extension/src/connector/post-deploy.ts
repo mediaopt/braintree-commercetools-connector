@@ -7,6 +7,7 @@ import { assertError, assertString } from '../utils/assert.utils';
 import {
   createCustomPaymentType,
   createBraintreeExtension,
+  createBraintreeCustomerExtension,
   createCustomPaymentInteractionType,
   createCustomPaymentTransactionType,
   createCustomCustomerType,
@@ -21,6 +22,7 @@ async function postDeploy(properties: Map<string, unknown>): Promise<void> {
 
   const apiRoot = await createApiRoot();
   await createBraintreeExtension(apiRoot, applicationUrl);
+  await createBraintreeCustomerExtension(apiRoot, applicationUrl);
   await createCustomPaymentType(apiRoot);
   await createCustomPaymentInteractionType(apiRoot);
   await createCustomPaymentTransactionType(apiRoot);
