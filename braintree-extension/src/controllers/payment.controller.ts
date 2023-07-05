@@ -38,24 +38,25 @@ function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
   if (!amountPlanned) {
     throw new CustomError(500, 'amountPlanned is missing');
   }
-  let request: TransactionRequest;
+  let request;
   try {
-    request = JSON.parse(transactionSaleRequest) as TransactionRequest;
+    request = JSON.parse(transactionSaleRequest);
   } catch (e) {
     request = {
       paymentMethodNonce: transactionSaleRequest,
-    } as TransactionRequest;
+    };
   }
-  request.amount = String(
-    amountPlanned.centAmount * Math.pow(10, -amountPlanned.fractionDigits || 0)
-  );
-  if (typeof request.options === 'undefined') {
-    request.options = {};
-  }
-  request.options.submitForSettlement =
-    process.env.BRAINTREE_AUTOCAPTURE === 'true';
-  request.options.storeInVaultOnSuccess =
-    !!request?.customerId || !!request.customer?.id;
+  request = {
+    amount: String(
+      amountPlanned.centAmount *
+        Math.pow(10, -amountPlanned.fractionDigits || 0)
+    ),
+    options: {
+      submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
+      storeInVaultOnSuccess: !!request?.customerId || !!request.customer?.id,
+    },
+    ...request,
+  } as TransactionRequest;
   return request;
 }
 
