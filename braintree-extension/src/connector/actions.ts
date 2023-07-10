@@ -251,7 +251,7 @@ export async function createCustomCustomerType(
 ): Promise<void> {
   const fieldDefinitions: FieldDefinition[] = [
     {
-      name: 'customerId',
+      name: 'braintreeCustomerId',
       label: {
         en: 'Braintree customer Id',
       },
