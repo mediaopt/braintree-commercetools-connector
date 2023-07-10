@@ -61,30 +61,34 @@ export const post = async (request: Request, response: Response) => {
         .get()
         .execute();
       // Execute the tasks in need
-      logger.info(customer);
-      if (!customer.body.custom?.fields?.customerId) {
-        await createApiRoot()
-          .customers()
-          .withId({ ID: customerId })
-          .post({
-            body: {
-              version: customer.body.version,
-              actions: [
-                {
-                  action: 'setCustomType',
-                  type: {
-                    typeId: 'type',
-                    key: BRAINTREE_CUSTOMER_TYPE_KEY,
-                  },
-                  fields: {
-                    customerId: customerId,
-                  },
-                } as CustomerUpdateAction,
-              ],
-            } as CustomerUpdate,
-          })
-          .execute();
+      logger.info(JSON.stringify(customer));
+      if (customer.body.custom?.fields?.braintreeCustomerId) {
+        logger.info('braintreeCustomerId already set');
+        response.status(204).send();
+        return;
       }
+      logger.info(`Updating braintreeCustomerId to ${customerId}`);
+      await createApiRoot()
+        .customers()
+        .withId({ ID: customerId })
+        .post({
+          body: {
+            version: customer.body.version,
+            actions: [
+              {
+                action: 'setCustomType',
+                type: {
+                  typeId: 'type',
+                  key: BRAINTREE_CUSTOMER_TYPE_KEY,
+                },
+                fields: {
+                  braintreeCustomerId: customerId,
+                },
+              } as CustomerUpdateAction,
+            ],
+          } as CustomerUpdate,
+        })
+        .execute();
     }
   } catch (error) {
     throw new CustomError(400, `Bad request: ${error}`);
