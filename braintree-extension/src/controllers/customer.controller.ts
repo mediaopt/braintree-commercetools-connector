@@ -15,7 +15,7 @@ import { CustomerResponse } from '../types/index.types';
 function parseVaultRequest(
   customer: Customer
 ): PaymentMethodCreateRequest | CustomerCreateRequest {
-  const { vaultRequest, customerId } = customer?.custom?.fields || {};
+  const { vaultRequest, braintreeCustomerId } = customer?.custom?.fields || {};
   let request: PaymentMethodCreateRequest;
   try {
     request = JSON.parse(vaultRequest) as PaymentMethodCreateRequest;
@@ -24,10 +24,10 @@ function parseVaultRequest(
       paymentMethodNonce: vaultRequest,
     } as PaymentMethodCreateRequest;
   }
-  if (customerId) {
+  if (braintreeCustomerId) {
     request = {
       ...request,
-      customerId,
+      customerId: braintreeCustomerId,
       options: { failOnDuplicatePaymentMethod: true },
     };
     return request;
@@ -60,7 +60,7 @@ const update = async (resource: CustomerReference) => {
       try {
         const customerId =
           request?.customerId ??
-          customer?.custom?.fields?.customerId ??
+          customer?.custom?.fields?.braintreeCustomerId ??
           customer.id;
         logger.info(`findCustomer request: ${customerId}`);
         const response = await findCustomer(customerId);
@@ -96,7 +96,7 @@ const update = async (resource: CustomerReference) => {
       try {
         const request = parseVaultRequest(customer);
         let response: CustomerResponse;
-        if (!customer?.custom?.fields?.customerId) {
+        if (!customer?.custom?.fields?.braintreeCustomerId) {
           logger.info(`createCustomer request: ${JSON.stringify(request)}`);
           response = await createCustomer(request);
         } else {
