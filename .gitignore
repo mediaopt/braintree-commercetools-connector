@@ -9,3 +9,5 @@ coverage
 .vscode
 build/
 .env
+de.env
+us.env
