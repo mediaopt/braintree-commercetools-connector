@@ -86,13 +86,13 @@ export const handleCustomerResponse = (
     value: null,
   });
   if (
-    !customer?.custom?.fields?.customerId &&
+    !customer?.custom?.fields?.braintreeCustomerId &&
     'id' in response &&
     response.id
   ) {
     updateActions.push({
       action: 'setCustomField',
-      name: 'customerId',
+      name: 'braintreeCustomerId',
       value: response.id,
     });
   }
