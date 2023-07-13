@@ -9,8 +9,11 @@ import {
 } from '../service/braintree.service';
 import { logger } from '../utils/logger.utils';
 import { mapCommercetoolsCustomerToBraintreeCustomerCreateRequest } from '../utils/map.utils';
-import { CustomerCreateRequest, PaymentMethodCreateRequest } from 'braintree';
-import { CustomerResponse } from '../types/index.types';
+import { CustomerCreateRequest } from 'braintree';
+import {
+  CustomerResponse,
+  PaymentMethodCreateRequest,
+} from '../types/index.types';
 
 function parseVaultRequest(
   customer: Customer
@@ -28,7 +31,10 @@ function parseVaultRequest(
     request = {
       ...request,
       customerId: braintreeCustomerId,
-      options: { failOnDuplicatePaymentMethod: true },
+      options: {
+        failOnDuplicatePaymentMethod: true,
+        usBankAccountVerificationMethod: 'network_check',
+      },
     };
     return request;
   } else {
