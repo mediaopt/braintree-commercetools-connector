@@ -29,6 +29,8 @@ import {
   UpdateActions,
 } from '../types/index.types';
 
+const CHANNEL_COMMERCETOOLS = 'commercetools';
+
 function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
   const transactionSaleRequest = payment?.custom?.fields.transactionSaleRequest;
   if (!transactionSaleRequest) {
@@ -52,6 +54,7 @@ function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
         Math.pow(10, -amountPlanned.fractionDigits || 0)
     ),
     merchantAccountId: process.env.BRAINTREE_MERCHANT_ACCOUNT || undefined,
+    channel: CHANNEL_COMMERCETOOLS,
     options: {
       submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
       storeInVaultOnSuccess: !!request?.customerId || !!request.customer?.id,
