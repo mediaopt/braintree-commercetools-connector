@@ -34,6 +34,9 @@ function parseVaultRequest(
       options: {
         failOnDuplicatePaymentMethod: true,
         usBankAccountVerificationMethod: 'network_check',
+        verifyCard: process.env.BRAINTREE_VALIDATE_CARD === 'true' || undefined,
+        verificationMerchantAccountId:
+          process.env.BRAINTREE_MERCHANT_ACCOUNT || undefined,
       },
     };
     return request;

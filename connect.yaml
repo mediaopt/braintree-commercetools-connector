@@ -16,9 +16,11 @@ deployAs:
         - key: BRAINTREE_ENVIRONMENT
           description: Braintree environment (Sandbox or Production)
         - key: BRAINTREE_AUTOCAPTURE
-          description: Braintree setting whether transactions should be captured directly
+          description: Braintree setting whether transactions should be captured directly (true OR false)
         - key: BRAINTREE_MERCHANT_ACCOUNT
           description: Default Braintree merchant account (optional). Can be overwritten on request level
+        - key: BRAINTREE_VALIDATE_CARD
+          description: Braintree setting whether to valid a card before vaulting (optional).
       securedConfiguration:
         - key: CTP_PROJECT_KEY
           description: commercetools Composable Commerce project key
