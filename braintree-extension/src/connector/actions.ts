@@ -27,17 +27,17 @@ const BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS = [
   'void',
 ];
 
-export async function createBraintreeExtension(
+async function deleteExtensionIfExist(
   apiRoot: ByProjectKeyRequestBuilder,
-  applicationUrl: string
-): Promise<void> {
+  extensionKey: string
+) {
   const {
     body: { results: extensions },
   } = await apiRoot
     .extensions()
     .get({
       queryArgs: {
-        where: `key = "${BRAINTREE_EXTENSION_KEY}"`,
+        where: `key = "${extensionKey}"`,
       },
     })
     .execute();
@@ -47,7 +47,7 @@ export async function createBraintreeExtension(
 
     await apiRoot
       .extensions()
-      .withKey({ key: BRAINTREE_EXTENSION_KEY })
+      .withKey({ key: extensionKey })
       .delete({
         queryArgs: {
           version: extension.version,
@@ -55,6 +55,13 @@ export async function createBraintreeExtension(
       })
       .execute();
   }
+}
+
+export async function createBraintreeExtension(
+  apiRoot: ByProjectKeyRequestBuilder,
+  applicationUrl: string
+): Promise<void> {
+  await deleteExtensionIfExist(apiRoot, BRAINTREE_EXTENSION_KEY);
 
   await apiRoot
     .extensions()
@@ -81,30 +88,7 @@ export async function createBraintreeCustomerExtension(
   apiRoot: ByProjectKeyRequestBuilder,
   applicationUrl: string
 ): Promise<void> {
-  const {
-    body: { results: extensions },
-  } = await apiRoot
-    .extensions()
-    .get({
-      queryArgs: {
-        where: `key = "${BRAINTREE_CUSTOMER_EXTENSION_KEY}"`,
-      },
-    })
-    .execute();
-
-  if (extensions.length > 0) {
-    const extension = extensions[0];
-
-    await apiRoot
-      .extensions()
-      .withKey({ key: BRAINTREE_CUSTOMER_EXTENSION_KEY })
-      .delete({
-        queryArgs: {
-          version: extension.version,
-        },
-      })
-      .execute();
-  }
+  await deleteExtensionIfExist(apiRoot, BRAINTREE_CUSTOMER_EXTENSION_KEY);
 
   await apiRoot
     .extensions()
@@ -162,30 +146,30 @@ export async function createCustomPaymentType(
 ): Promise<void> {
   const fieldDefinitions: FieldDefinition[] = [];
   BRAINTREE_API_PAYMENT_ENDPOINTS.forEach((element) =>
-    fieldDefinitions.push({
-      name: `${element}Request`,
-      label: {
-        en: `${element}Request`,
+    fieldDefinitions.push(
+      {
+        name: `${element}Request`,
+        label: {
+          en: `${element}Request`,
+        },
+        type: {
+          name: 'String',
+        },
+        inputHint: 'MultiLine',
+        required: false,
       },
-      type: {
-        name: 'String',
-      },
-      inputHint: 'MultiLine',
-      required: false,
-    })
-  );
-  BRAINTREE_API_PAYMENT_ENDPOINTS.forEach((element) =>
-    fieldDefinitions.push({
-      name: `${element}Response`,
-      label: {
-        en: `${element}Response`,
-      },
-      type: {
-        name: 'String',
-      },
-      inputHint: 'MultiLine',
-      required: false,
-    })
+      {
+        name: `${element}Response`,
+        label: {
+          en: `${element}Response`,
+        },
+        type: {
+          name: 'String',
+        },
+        inputHint: 'MultiLine',
+        required: false,
+      }
+    )
   );
   const customType = {
     key: BRAINTREE_PAYMENT_TYPE_KEY,
@@ -264,30 +248,30 @@ export async function createCustomCustomerType(
   ];
 
   BRAINTREE_API_CUSTOMER_ENDPOINTS.forEach((element) =>
-    fieldDefinitions.push({
-      name: `${element}Request`,
-      label: {
-        en: `${element}Request`,
+    fieldDefinitions.push(
+      {
+        name: `${element}Request`,
+        label: {
+          en: `${element}Request`,
+        },
+        type: {
+          name: 'String',
+        },
+        inputHint: 'MultiLine',
+        required: false,
       },
-      type: {
-        name: 'String',
-      },
-      inputHint: 'MultiLine',
-      required: false,
-    })
-  );
-  BRAINTREE_API_CUSTOMER_ENDPOINTS.forEach((element) =>
-    fieldDefinitions.push({
-      name: `${element}Response`,
-      label: {
-        en: `${element}Response`,
-      },
-      type: {
-        name: 'String',
-      },
-      inputHint: 'MultiLine',
-      required: false,
-    })
+      {
+        name: `${element}Response`,
+        label: {
+          en: `${element}Response`,
+        },
+        type: {
+          name: 'String',
+        },
+        inputHint: 'MultiLine',
+        required: false,
+      }
+    )
   );
   const customType = {
     key: BRAINTREE_CUSTOMER_TYPE_KEY,

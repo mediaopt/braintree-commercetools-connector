@@ -11,7 +11,7 @@ import {
 } from './actions';
 
 async function preUndeploy(): Promise<void> {
-  const apiRoot = await createApiRoot();
+  const apiRoot = createApiRoot();
   await deleteCartUpdateExtension(apiRoot, BRAINTREE_EXTENSION_KEY);
   await deleteCartUpdateExtension(apiRoot, BRAINTREE_CUSTOMER_EXTENSION_KEY);
 }
