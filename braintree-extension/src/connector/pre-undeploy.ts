@@ -7,13 +7,13 @@ import { assertError } from '../utils/assert.utils';
 import {
   BRAINTREE_CUSTOMER_EXTENSION_KEY,
   BRAINTREE_EXTENSION_KEY,
-  deleteCartUpdateExtension,
+  deleteExtensionIfExist,
 } from './actions';
 
 async function preUndeploy(): Promise<void> {
   const apiRoot = createApiRoot();
-  await deleteCartUpdateExtension(apiRoot, BRAINTREE_EXTENSION_KEY);
-  await deleteCartUpdateExtension(apiRoot, BRAINTREE_CUSTOMER_EXTENSION_KEY);
+  await deleteExtensionIfExist(apiRoot, BRAINTREE_EXTENSION_KEY);
+  await deleteExtensionIfExist(apiRoot, BRAINTREE_CUSTOMER_EXTENSION_KEY);
 }
 
 async function run(): Promise<void> {

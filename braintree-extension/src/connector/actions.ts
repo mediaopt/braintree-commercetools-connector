@@ -27,7 +27,7 @@ const BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS = [
   'void',
 ];
 
-async function deleteExtensionIfExist(
+export async function deleteExtensionIfExist(
   apiRoot: ByProjectKeyRequestBuilder,
   extensionKey: string
 ) {
@@ -109,36 +109,6 @@ export async function createBraintreeCustomerExtension(
       },
     })
     .execute();
-}
-
-export async function deleteCartUpdateExtension(
-  apiRoot: ByProjectKeyRequestBuilder,
-  extensionKey: string
-): Promise<void> {
-  const {
-    body: { results: extensions },
-  } = await apiRoot
-    .extensions()
-    .get({
-      queryArgs: {
-        where: `key = "${extensionKey}"`,
-      },
-    })
-    .execute();
-
-  if (extensions.length > 0) {
-    const extension = extensions[0];
-
-    await apiRoot
-      .extensions()
-      .withKey({ key: extensionKey })
-      .delete({
-        queryArgs: {
-          version: extension.version,
-        },
-      })
-      .execute();
-  }
 }
 
 export async function createCustomPaymentType(

@@ -9,7 +9,7 @@ eventRouter.post(
   '/',
   async function (req: Request, res: Response, next: NextFunction) {
     try {
-      return await post(req, res);
+      return await post(req, res, next);
     } catch (error) {
       next(error);
     }
