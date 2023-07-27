@@ -37,7 +37,6 @@ deployAs:
     endpoint: /braintree-notifications
     scripts:
       postDeploy: npm install && npm run build && npm run connector:post-deploy
-      preUndeploy: npm install && npm run build && npm run connector:pre-undeploy
     configuration:
       standardConfiguration:
         - key: CTP_REGION

@@ -1,26 +1,18 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { createApiRoot } from '../client/create.client';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
-import { PaymentInteractionAddedMessagePayload } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/message';
+import {
+  MessagePayload,
+  PaymentInteractionAddedMessagePayload,
+} from '@commercetools/platform-sdk/dist/declarations/src/generated/models/message';
 import {
   CustomerUpdate,
   CustomerUpdateAction,
 } from '@commercetools/platform-sdk';
 import { BRAINTREE_CUSTOMER_TYPE_KEY } from '../connector/actions';
 
-/**
- * Exposed event POST endpoint.
- * Receives the Pub/Sub message and works with it
- *
- * @param {Request} request The express request
- * @param {Response} response The express response
- * @returns
- */
-export const post = async (request: Request, response: Response) => {
-  logger.info('Event message received');
-  let interaction: PaymentInteractionAddedMessagePayload | undefined =
-    undefined;
+function parseRequest(request: Request) {
   if (!request.body) {
     logger.error('Missing request body.');
     throw new CustomError(400, 'Bad request: No Pub/Sub message was received');
@@ -34,64 +26,100 @@ export const post = async (request: Request, response: Response) => {
     ? Buffer.from(pubSubMessage.data, 'base64').toString().trim()
     : undefined;
   if (decodedData) {
-    interaction = JSON.parse(decodedData);
+    logger.info(`Payload received: ${decodedData}`);
+    return JSON.parse(decodedData) as MessagePayload;
   }
-  logger.info(`Payload received: ${decodedData}`);
-  if (!interaction) {
-    throw new CustomError(
-      400,
-      'Bad request: No payload in the Pub/Sub message'
-    );
+  throw new CustomError(400, 'Bad request: No payload in the Pub/Sub message');
+}
+
+const setBraintreeCustomerId = async (
+  customerId: string,
+  customerVersion: number
+) => {
+  logger.info(`Updating braintreeCustomerId to ${customerId}`);
+  await createApiRoot()
+    .customers()
+    .withId({ ID: customerId })
+    .post({
+      body: {
+        version: customerVersion,
+        actions: [
+          {
+            action: 'setCustomType',
+            type: {
+              typeId: 'type',
+              key: BRAINTREE_CUSTOMER_TYPE_KEY,
+            },
+            fields: {
+              braintreeCustomerId: customerId,
+            },
+          } as CustomerUpdateAction,
+        ],
+      } as CustomerUpdate,
+    })
+    .execute();
+};
+
+const handlePaymentInteractionAdded = async (
+  messagePayload: PaymentInteractionAddedMessagePayload
+) => {
+  if (
+    messagePayload?.interaction?.fields?.type !== 'transactionSaleResponse' ||
+    !messagePayload?.interaction?.fields?.data
+  ) {
+    return;
   }
+  const data = JSON.parse(messagePayload.interaction.fields.data);
+  const customerId = data?.customer?.id;
+  if (!customerId) {
+    logger.info('transactionSaleResponse has no braintree customer id');
+
+    return;
+  }
+  const customer = await createApiRoot()
+    .customers()
+    .withId({ ID: customerId })
+    .get()
+    .execute();
+  // Execute the tasks in need
+  logger.info(JSON.stringify(customer));
+  if (customer.body.custom?.fields?.braintreeCustomerId) {
+    logger.info('braintreeCustomerId already set');
+    return;
+  }
+  await setBraintreeCustomerId(customerId, customer.body.version);
+};
+
+/**
+ * Exposed event POST endpoint.
+ * Receives the Pub/Sub message and works with it
+ *
+ * @param {Request} request The express request
+ * @param {Response} response The express response
+ * @param {NextFunction} next
+ * @returns
+ */
+export const post = async (
+  request: Request,
+  response: Response,
+  next: NextFunction
+) => {
   try {
-    if (
-      interaction?.interaction?.fields?.type === 'transactionSaleResponse' &&
-      interaction?.interaction?.fields?.data
-    ) {
-      const data = JSON.parse(interaction.interaction.fields.data);
-      const customerId = data?.customer?.id;
-      if (!customerId) {
-        logger.info('transactionSaleResponse has no braintree customer id');
-        response.status(204).send();
-        return;
-      }
-      const customer = await createApiRoot()
-        .customers()
-        .withId({ ID: customerId })
-        .get()
-        .execute();
-      // Execute the tasks in need
-      logger.info(JSON.stringify(customer));
-      if (customer.body.custom?.fields?.braintreeCustomerId) {
-        logger.info('braintreeCustomerId already set');
-        response.status(204).send();
-        return;
-      }
-      logger.info(`Updating braintreeCustomerId to ${customerId}`);
-      await createApiRoot()
-        .customers()
-        .withId({ ID: customerId })
-        .post({
-          body: {
-            version: customer.body.version,
-            actions: [
-              {
-                action: 'setCustomType',
-                type: {
-                  typeId: 'type',
-                  key: BRAINTREE_CUSTOMER_TYPE_KEY,
-                },
-                fields: {
-                  braintreeCustomerId: customerId,
-                },
-              } as CustomerUpdateAction,
-            ],
-          } as CustomerUpdate,
-        })
-        .execute();
+    logger.info('Event message received');
+    const messagePayload = parseRequest(request);
+    switch (messagePayload.type) {
+      case 'PaymentInteractionAdded':
+        handlePaymentInteractionAdded(messagePayload);
+        response.status(200).send();
+        break;
+      default:
+        response.status(200).send();
     }
   } catch (error) {
-    throw new CustomError(400, `Bad request: ${error}`);
+    if (error instanceof Error) {
+      next(new CustomError(400, error.message));
+    } else {
+      next(error);
+    }
   }
-  response.status(204).send();
 };

@@ -27,110 +27,10 @@ const BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS = [
   'void',
 ];
 
-export async function createBraintreeExtension(
-  apiRoot: ByProjectKeyRequestBuilder,
-  applicationUrl: string
-): Promise<void> {
-  const {
-    body: { results: extensions },
-  } = await apiRoot
-    .extensions()
-    .get({
-      queryArgs: {
-        where: `key = "${BRAINTREE_EXTENSION_KEY}"`,
-      },
-    })
-    .execute();
-
-  if (extensions.length > 0) {
-    const extension = extensions[0];
-
-    await apiRoot
-      .extensions()
-      .withKey({ key: BRAINTREE_EXTENSION_KEY })
-      .delete({
-        queryArgs: {
-          version: extension.version,
-        },
-      })
-      .execute();
-  }
-
-  await apiRoot
-    .extensions()
-    .post({
-      body: {
-        key: BRAINTREE_EXTENSION_KEY,
-        destination: {
-          type: 'HTTP',
-          url: applicationUrl,
-        },
-        triggers: [
-          {
-            resourceTypeId: 'payment',
-            actions: ['Update'],
-          },
-        ],
-        timeoutInMs: 10000,
-      },
-    })
-    .execute();
-}
-
-export async function createBraintreeCustomerExtension(
-  apiRoot: ByProjectKeyRequestBuilder,
-  applicationUrl: string
-): Promise<void> {
-  const {
-    body: { results: extensions },
-  } = await apiRoot
-    .extensions()
-    .get({
-      queryArgs: {
-        where: `key = "${BRAINTREE_CUSTOMER_EXTENSION_KEY}"`,
-      },
-    })
-    .execute();
-
-  if (extensions.length > 0) {
-    const extension = extensions[0];
-
-    await apiRoot
-      .extensions()
-      .withKey({ key: BRAINTREE_CUSTOMER_EXTENSION_KEY })
-      .delete({
-        queryArgs: {
-          version: extension.version,
-        },
-      })
-      .execute();
-  }
-
-  await apiRoot
-    .extensions()
-    .post({
-      body: {
-        key: BRAINTREE_CUSTOMER_EXTENSION_KEY,
-        destination: {
-          type: 'HTTP',
-          url: applicationUrl,
-        },
-        triggers: [
-          {
-            resourceTypeId: 'customer',
-            actions: ['Update'],
-          },
-        ],
-        timeoutInMs: 2000,
-      },
-    })
-    .execute();
-}
-
-export async function deleteCartUpdateExtension(
+export async function deleteExtensionIfExist(
   apiRoot: ByProjectKeyRequestBuilder,
   extensionKey: string
-): Promise<void> {
+) {
   const {
     body: { results: extensions },
   } = await apiRoot
@@ -157,35 +57,89 @@ export async function deleteCartUpdateExtension(
   }
 }
 
+export async function createBraintreeExtension(
+  apiRoot: ByProjectKeyRequestBuilder,
+  applicationUrl: string
+): Promise<void> {
+  await deleteExtensionIfExist(apiRoot, BRAINTREE_EXTENSION_KEY);
+
+  await apiRoot
+    .extensions()
+    .post({
+      body: {
+        key: BRAINTREE_EXTENSION_KEY,
+        destination: {
+          type: 'HTTP',
+          url: applicationUrl,
+        },
+        triggers: [
+          {
+            resourceTypeId: 'payment',
+            actions: ['Update'],
+          },
+        ],
+        timeoutInMs: 10000,
+      },
+    })
+    .execute();
+}
+
+export async function createBraintreeCustomerExtension(
+  apiRoot: ByProjectKeyRequestBuilder,
+  applicationUrl: string
+): Promise<void> {
+  await deleteExtensionIfExist(apiRoot, BRAINTREE_CUSTOMER_EXTENSION_KEY);
+
+  await apiRoot
+    .extensions()
+    .post({
+      body: {
+        key: BRAINTREE_CUSTOMER_EXTENSION_KEY,
+        destination: {
+          type: 'HTTP',
+          url: applicationUrl,
+        },
+        triggers: [
+          {
+            resourceTypeId: 'customer',
+            actions: ['Update'],
+          },
+        ],
+        timeoutInMs: 2000,
+      },
+    })
+    .execute();
+}
+
 export async function createCustomPaymentType(
   apiRoot: ByProjectKeyRequestBuilder
 ): Promise<void> {
   const fieldDefinitions: FieldDefinition[] = [];
   BRAINTREE_API_PAYMENT_ENDPOINTS.forEach((element) =>
-    fieldDefinitions.push({
-      name: `${element}Request`,
-      label: {
-        en: `${element}Request`,
+    fieldDefinitions.push(
+      {
+        name: `${element}Request`,
+        label: {
+          en: `${element}Request`,
+        },
+        type: {
+          name: 'String',
+        },
+        inputHint: 'MultiLine',
+        required: false,
       },
-      type: {
-        name: 'String',
-      },
-      inputHint: 'MultiLine',
-      required: false,
-    })
-  );
-  BRAINTREE_API_PAYMENT_ENDPOINTS.forEach((element) =>
-    fieldDefinitions.push({
-      name: `${element}Response`,
-      label: {
-        en: `${element}Response`,
-      },
-      type: {
-        name: 'String',
-      },
-      inputHint: 'MultiLine',
-      required: false,
-    })
+      {
+        name: `${element}Response`,
+        label: {
+          en: `${element}Response`,
+        },
+        type: {
+          name: 'String',
+        },
+        inputHint: 'MultiLine',
+        required: false,
+      }
+    )
   );
   const customType = {
     key: BRAINTREE_PAYMENT_TYPE_KEY,
@@ -264,30 +218,30 @@ export async function createCustomCustomerType(
   ];
 
   BRAINTREE_API_CUSTOMER_ENDPOINTS.forEach((element) =>
-    fieldDefinitions.push({
-      name: `${element}Request`,
-      label: {
-        en: `${element}Request`,
+    fieldDefinitions.push(
+      {
+        name: `${element}Request`,
+        label: {
+          en: `${element}Request`,
+        },
+        type: {
+          name: 'String',
+        },
+        inputHint: 'MultiLine',
+        required: false,
       },
-      type: {
-        name: 'String',
-      },
-      inputHint: 'MultiLine',
-      required: false,
-    })
-  );
-  BRAINTREE_API_CUSTOMER_ENDPOINTS.forEach((element) =>
-    fieldDefinitions.push({
-      name: `${element}Response`,
-      label: {
-        en: `${element}Response`,
-      },
-      type: {
-        name: 'String',
-      },
-      inputHint: 'MultiLine',
-      required: false,
-    })
+      {
+        name: `${element}Response`,
+        label: {
+          en: `${element}Response`,
+        },
+        type: {
+          name: 'String',
+        },
+        inputHint: 'MultiLine',
+        required: false,
+      }
+    )
   );
   const customType = {
     key: BRAINTREE_CUSTOMER_TYPE_KEY,

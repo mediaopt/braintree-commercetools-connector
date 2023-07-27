@@ -3,10 +3,23 @@ import {
   getClientToken,
   transactionSale,
 } from '../src/service/braintree.service';
+import validator from 'validator';
+import isBase64 = validator.isBase64;
 
 describe('Testing Braintree GetClient Token', () => {
   test('create client token', async () => {
-    await expect(getClientToken({})).resolves.toMatch(/.*==/);
+    const token = await getClientToken({});
+    expect(isBase64(token)).toBeTruthy();
+    const data = JSON.parse(Buffer.from(token, 'base64').toString());
+    expect(data).toBeDefined();
+    expect(data).toHaveProperty(
+      'environment',
+      process.env.BRAINTREE_ENVIRONMENT
+    );
+    expect(data).toHaveProperty(
+      'merchantId',
+      process.env.BRAINTREE_MERCHANT_ID
+    );
   });
   test.each([
     {
