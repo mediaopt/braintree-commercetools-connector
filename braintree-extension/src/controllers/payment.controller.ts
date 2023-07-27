@@ -29,6 +29,8 @@ import {
   UpdateActions,
 } from '../types/index.types';
 
+const CHANNEL_COMMERCETOOLS = 'commercetools';
+
 function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
   const transactionSaleRequest = payment?.custom?.fields.transactionSaleRequest;
   if (!transactionSaleRequest) {
@@ -51,6 +53,8 @@ function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
       amountPlanned.centAmount *
         Math.pow(10, -amountPlanned.fractionDigits || 0)
     ),
+    merchantAccountId: process.env.BRAINTREE_MERCHANT_ACCOUNT || undefined,
+    channel: CHANNEL_COMMERCETOOLS,
     options: {
       submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
       storeInVaultOnSuccess: !!request?.customerId || !!request.customer?.id,
@@ -306,9 +310,13 @@ const update = async (paymentReference: PaymentReference) => {
     const payment = paymentReference.obj;
     logger.info('Update payment called', payment);
     if (payment?.custom?.fields?.getClientTokenRequest) {
-      const request: ClientTokenRequest = JSON.parse(
+      let request: ClientTokenRequest = JSON.parse(
         payment.custom.fields.getClientTokenRequest
       );
+      request = {
+        merchantAccountId: process.env.BRAINTREE_MERCHANT_ACCOUNT || undefined,
+        ...request,
+      };
       updateActions = handleRequest('getClientToken', request);
       try {
         const response = await getClientToken(request);
