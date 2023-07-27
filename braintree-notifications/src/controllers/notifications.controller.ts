@@ -2,7 +2,11 @@ import { NextFunction, Request, Response } from 'express';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
 import { parseNotification } from '../service/braintree.service';
-import { WebhookNotificationKind } from 'braintree';
+import { WebhookNotificationKind, BaseWebhookNotification } from 'braintree';
+
+type LocalPaymentCompleted = BaseWebhookNotification & {
+  localPaymentCompleted: any;
+};
 
 /**
  * Exposed braintree-commercetools-event POST endpoint.
@@ -36,6 +40,14 @@ export const post = async (
     const kind: WebhookNotificationKind = notification.kind;
     switch (kind) {
       case 'check':
+        response.status(200).send();
+        return;
+      case 'local_payment_completed':
+        console.log(notification);
+        const localPaymentCompleted = notification as LocalPaymentCompleted;
+        const { paymentMethodNonce, paymentId } =
+          localPaymentCompleted.localPaymentCompleted;
+        console.log({ paymentMethodNonce, paymentId });
         response.status(200).send();
         return;
       default:

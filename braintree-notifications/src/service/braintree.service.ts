@@ -1,6 +1,10 @@
 import { logger } from '../utils/logger.utils';
 import { Request } from 'express';
-import braintree, { BaseWebhookNotification, Environment } from 'braintree';
+import braintree, {
+  BaseWebhookNotification,
+  Environment,
+  TransactionRequest,
+} from 'braintree';
 import CustomError from '../errors/custom.error';
 const getBraintreeGateway = () => {
   const braintreeEnv = process.env;
@@ -37,4 +41,14 @@ export const parseNotification = async (
     `[Webhook Received ${response.timestamp} ] | Kind: ${response.kind}`
   );
   return response;
+};
+
+export const transactionSale = async (request: TransactionRequest) => {
+  const gateway = getBraintreeGateway();
+  const response = await gateway.transaction.sale(request);
+  logger.info(`transactionSale`, response);
+  if (!response.success) {
+    throw new CustomError(500, response.message);
+  }
+  return response.transaction;
 };
