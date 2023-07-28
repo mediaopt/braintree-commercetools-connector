@@ -1,4 +1,7 @@
 import {
+  LocalPayment,
+  LocalPaymentTransaction,
+  PaymentInstrumentType,
   PaymentWithOptionalTransaction,
   UpdateActions,
 } from '../types/index.types';
@@ -127,7 +130,7 @@ function getPaymentMethodHint(response: Transaction): string {
 export async function refund(
   paymentWithOptionalTransaction: PaymentWithOptionalTransaction
 ) {
-  if (paymentWithOptionalTransaction.payment?.custom?.fields?.refundRequest) {
+  if (!paymentWithOptionalTransaction.payment?.custom?.fields?.refundRequest) {
     return [];
   }
   try {
@@ -309,6 +312,26 @@ export async function voidTransaction(
   }
 }
 
+function handleLocalPaymentMethodTransactionResponse(
+  payment: Payment,
+  response: LocalPaymentTransaction
+) {
+  const localPayment: LocalPayment = response.localPayment;
+  if (
+    !payment?.custom?.fields?.LocalPaymentMethodsPaymentId &&
+    localPayment.paymentId
+  ) {
+    return [
+      {
+        action: 'setCustomField',
+        name: 'LocalPaymentMethodsPaymentId',
+        value: localPayment.paymentId,
+      },
+    ];
+  }
+  return [];
+}
+
 export async function handleTransactionSaleRequest(
   payment: Payment | undefined
 ) {
@@ -341,6 +364,17 @@ export async function handleTransactionSaleRequest(
         ),
       },
     });
+    if (
+      (response.paymentInstrumentType as PaymentInstrumentType) ===
+      'local_payment'
+    ) {
+      updateActions = updateActions.concat(
+        handleLocalPaymentMethodTransactionResponse(
+          payment,
+          response as LocalPaymentTransaction
+        )
+      );
+    }
     if (!payment?.interfaceId) {
       updateActions.push({
         action: 'setInterfaceId',

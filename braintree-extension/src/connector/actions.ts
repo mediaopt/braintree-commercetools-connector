@@ -114,7 +114,19 @@ export async function createBraintreeCustomerExtension(
 export async function createCustomPaymentType(
   apiRoot: ByProjectKeyRequestBuilder
 ): Promise<void> {
-  const fieldDefinitions: FieldDefinition[] = [];
+  const fieldDefinitions: FieldDefinition[] = [
+    {
+      name: `LocalPaymentMethodsPaymentId`,
+      label: {
+        en: `Payment Id of a local payment method (Bancontact, iDEAL, ...)`,
+        de: `Payment Id einer lokalen Zahlungsart (Bancontact, iDEAL, ...)`,
+      },
+      type: {
+        name: 'String',
+      },
+      required: false,
+    },
+  ];
   BRAINTREE_API_PAYMENT_ENDPOINTS.forEach((element) =>
     fieldDefinitions.push(
       {
