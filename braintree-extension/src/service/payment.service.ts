@@ -127,7 +127,7 @@ function getPaymentMethodHint(response: Transaction): string {
 export async function refund(
   paymentWithOptionalTransaction: PaymentWithOptionalTransaction
 ) {
-  if (paymentWithOptionalTransaction.payment?.custom?.fields?.refundRequest) {
+  if (!paymentWithOptionalTransaction.payment?.custom?.fields?.refundRequest) {
     return [];
   }
   try {

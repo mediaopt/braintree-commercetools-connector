@@ -8,11 +8,11 @@ import {
 export const BRAINTREE_EXTENSION_KEY = 'braintree-extension';
 export const BRAINTREE_CUSTOMER_EXTENSION_KEY = 'braintree-customer-extension';
 const BRAINTREE_CUSTOMER_TYPE_KEY = 'braintree-customer-type';
-const BRAINTREE_API_CUSTOMER_ENDPOINTS = ['find', 'create', 'vault'];
+export const BRAINTREE_API_CUSTOMER_ENDPOINTS = ['find', 'create', 'vault'];
 const BRAINTREE_PAYMENT_TYPE_KEY = 'braintree-payment-type';
 export const BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY =
   'braintree-payment-interaction-type';
-const BRAINTREE_API_PAYMENT_ENDPOINTS = [
+export const BRAINTREE_API_PAYMENT_ENDPOINTS = [
   'getClientToken',
   'transactionSale',
   'refund',
@@ -21,7 +21,7 @@ const BRAINTREE_API_PAYMENT_ENDPOINTS = [
 ];
 export const BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY =
   'braintree-payment-transaction-type';
-const BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS = [
+export const BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS = [
   'refund',
   'submitForSettlement',
   'void',

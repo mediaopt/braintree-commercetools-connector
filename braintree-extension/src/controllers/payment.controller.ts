@@ -71,6 +71,7 @@ const update = async (paymentReference: PaymentReference) => {
         `Internal server error on PaymentController: ${error.stack}`
       );
     }
+    throw new CustomError(400, JSON.stringify(error));
   }
 };
 
