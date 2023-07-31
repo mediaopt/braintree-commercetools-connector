@@ -3,7 +3,7 @@ import { describe, expect } from '@jest/globals';
 import { CustomerReference } from '@commercetools/platform-sdk';
 import { deleteCustomer } from '../src/service/braintree.service';
 import { UpdateAction } from '@commercetools/sdk-client-v2';
-import { Customer, PaymentMethod } from 'braintree';
+import { Customer } from 'braintree';
 
 function expectCustomerNotFound(
   findResponse:
@@ -36,9 +36,12 @@ export const getRandomId = (): string => {
 };
 
 function expectSuccessfulCreation(
-  createResponse: { actions: Array<UpdateAction>; statusCode: number },
+  createResponse:
+    | { actions: Array<UpdateAction>; statusCode: number }
+    | undefined,
   customerId: string
 ) {
+  expect(createResponse).toBeDefined();
   expect(createResponse?.statusCode).toBe(200);
   expect(createResponse?.actions[0].name).toBe('createResponse');
   expect(createResponse?.actions[0].value).toContain(`"id":"${customerId}"`);

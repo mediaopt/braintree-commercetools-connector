@@ -51,6 +51,9 @@ export async function handleFindRequest(
   findRequest: string,
   customer: Customer
 ) {
+  if (!findRequest) {
+    return [];
+  }
   const request = JSON.parse(findRequest);
 
   try {
@@ -71,6 +74,9 @@ export async function handleCreateRequest(
   customer: Customer,
   createRequest: string
 ) {
+  if (!createRequest) {
+    return [];
+  }
   try {
     const request = mapCommercetoolsCustomerToBraintreeCustomerCreateRequest(
       customer,
@@ -89,6 +95,9 @@ export async function handleCreateRequest(
 }
 
 export async function handleVaultRequest(customer: Customer) {
+  if (!customer?.custom?.fields?.vaultRequest) {
+    return [];
+  }
   try {
     const request = parseVaultRequest(customer);
     let response: CustomerResponse;

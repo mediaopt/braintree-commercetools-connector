@@ -4,6 +4,7 @@ import validator from 'validator';
 import isBase64 = validator.isBase64;
 import { PaymentReference } from '@commercetools/platform-sdk';
 import { Transaction } from 'braintree';
+import { UpdateActions } from '../src/types/index.types';
 
 describe('Testing Braintree GetClient Token', () => {
   test('create client token', async () => {
@@ -124,13 +125,7 @@ describe('Testing Braintree Transaction Sale', () => {
         },
       } as unknown as PaymentReference;
       const paymentResponse = await paymentController('Update', paymentRequest);
-      expect(paymentResponse).toBeDefined();
-      expect(paymentResponse).toHaveProperty('statusCode', 200);
-      const transactionSaleResponse = paymentResponse?.actions.find(
-        (action) => action.name === 'transactionSaleResponse'
-      );
-      expect(transactionSaleResponse).toBeDefined();
-      const payment = JSON.parse(transactionSaleResponse?.value);
+      const payment = expectSuccessfulTransaction(paymentResponse);
       expect(payment).toHaveProperty('status', 'authorized');
       expect(payment).toHaveProperty(
         'paymentInstrumentType',
@@ -140,6 +135,23 @@ describe('Testing Braintree Transaction Sale', () => {
     20000
   );
 });
+
+function expectSuccessfulTransaction(
+  paymentResponse:
+    | {
+        actions: UpdateActions;
+        statusCode: number;
+      }
+    | undefined
+) {
+  expect(paymentResponse).toBeDefined();
+  expect(paymentResponse).toHaveProperty('statusCode', 200);
+  const transactionSaleResponse = paymentResponse?.actions.find(
+    (action) => action.name === 'transactionSaleResponse'
+  );
+  expect(transactionSaleResponse).toBeDefined();
+  return JSON.parse(transactionSaleResponse?.value) as Transaction;
+}
 
 describe('Testing Braintree aftersales', () => {
   test('Void an authorization', async () => {
@@ -157,12 +169,7 @@ describe('Testing Braintree aftersales', () => {
       },
     } as unknown as PaymentReference;
     let paymentResponse = await paymentController('Update', paymentRequest);
-    expect(paymentResponse).toHaveProperty('statusCode', 200);
-    const transactionSaleResponse = paymentResponse?.actions.find(
-      (action) => action.name === 'transactionSaleResponse'
-    );
-    expect(transactionSaleResponse).toBeDefined();
-    let payment = JSON.parse(transactionSaleResponse?.value) as Transaction;
+    let payment = expectSuccessfulTransaction(paymentResponse);
     expect(payment).toHaveProperty('status', 'authorized');
 
     const voidRequest = {
@@ -210,12 +217,7 @@ describe('Testing Braintree aftersales', () => {
       },
     } as unknown as PaymentReference;
     let paymentResponse = await paymentController('Update', paymentRequest);
-    expect(paymentResponse).toHaveProperty('statusCode', 200);
-    const transactionSaleResponse = paymentResponse?.actions.find(
-      (action) => action.name === 'transactionSaleResponse'
-    );
-    expect(transactionSaleResponse).toBeDefined();
-    let payment = JSON.parse(transactionSaleResponse?.value) as Transaction;
+    let payment = expectSuccessfulTransaction(paymentResponse);
     expect(payment).toHaveProperty('status', 'authorized');
 
     const settlementRequest = {
@@ -265,12 +267,7 @@ describe('Testing Braintree aftersales', () => {
     } as unknown as PaymentReference;
 
     let paymentResponse = await paymentController('Update', paymentRequest);
-    expect(paymentResponse).toHaveProperty('statusCode', 200);
-    const transactionSaleResponse = paymentResponse?.actions.find(
-      (action) => action.name === 'transactionSaleResponse'
-    );
-    expect(transactionSaleResponse).toBeDefined();
-    let payment = JSON.parse(transactionSaleResponse?.value) as Transaction;
+    let payment = expectSuccessfulTransaction(paymentResponse);
     expect(payment.status).toBe('settling');
     const interfaceId = payment.id;
     const refundRequest = {
@@ -294,7 +291,6 @@ describe('Testing Braintree aftersales', () => {
       },
     } as unknown as PaymentReference;
     paymentResponse = await paymentController('Update', refundRequest);
-    expect(paymentResponse).toBeDefined();
     expect(paymentResponse).toHaveProperty('statusCode', 200);
     const refundResponse = paymentResponse?.actions.find(
       (action) => action.name === 'refundResponse'
