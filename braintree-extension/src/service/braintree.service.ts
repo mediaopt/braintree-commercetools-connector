@@ -8,8 +8,10 @@ import braintree, {
   ValidatedResponse,
   PaymentMethodCreateRequest,
   PaymentMethod,
+  Transaction,
 } from 'braintree';
 import CustomError from '../errors/custom.error';
+import { Stream } from 'stream';
 const getBraintreeGateway = () => {
   if (
     !process.env.BRAINTREE_MERCHANT_ID ||
@@ -36,7 +38,7 @@ const getBraintreeGateway = () => {
 
 function logResponse(
   requestName: string,
-  response: ValidatedResponse<any> | Customer
+  response: ValidatedResponse<any> | Customer | Transaction
 ) {
   logger.info(`${requestName} response: ${JSON.stringify(response)}`);
 }
@@ -134,3 +136,27 @@ export const deleteCustomer = async (customerId: string): Promise<void> => {
   const gateway = getBraintreeGateway();
   await gateway.customer.delete(customerId);
 };
+
+export const findTransaction = async (orderId: string) => {
+  const gateway = getBraintreeGateway();
+  const stream = gateway.transaction.search((search) => {
+    search.orderId().is(orderId);
+  });
+  const transaction = await streamToTransaction(stream);
+  if (!transaction) {
+    throw new CustomError(
+      500,
+      `could not find transaction with orderId ${orderId}`
+    );
+  }
+  logResponse('findTransaction', transaction);
+  return transaction;
+};
+
+function streamToTransaction(stream: Stream): Promise<Transaction | undefined> {
+  return new Promise((resolve, reject) => {
+    stream.on('data', (transaction: Transaction) => resolve(transaction));
+    stream.on('error', (err) => reject(err));
+    stream.on('end', () => resolve(undefined));
+  });
+}
