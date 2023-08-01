@@ -1,8 +1,16 @@
 import { NextFunction, Request, Response } from 'express';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
-import { parseNotification } from '../service/braintree.service';
-import { WebhookNotificationKind, BaseWebhookNotification } from 'braintree';
+import {
+  parseNotification,
+  transactionSale,
+} from '../service/braintree.service';
+import {
+  WebhookNotificationKind,
+  BaseWebhookNotification,
+  TransactionRequest,
+} from 'braintree';
+import { createApiRoot } from '../client/create.client';
 
 type LocalPaymentCompleted = BaseWebhookNotification & {
   localPaymentCompleted: any;
@@ -48,11 +56,48 @@ export const post = async (
         response.status(200).send();
         return;
       case 'local_payment_completed':
-        console.log(notification);
         const localPaymentCompleted = notification as LocalPaymentCompleted;
         const { paymentMethodNonce, paymentId } =
           localPaymentCompleted.localPaymentCompleted;
-        console.log({ paymentMethodNonce, paymentId });
+
+        if (!paymentId || !paymentMethodNonce) {
+          logger.error('Missing request body.');
+          throw new CustomError(400, 'Bad request: Missing body');
+        }
+
+        const payments = await createApiRoot()
+          .payments()
+          .get({
+            queryArgs: {
+              where: `custom(fields(LocalPaymentMethodsPaymentId="${paymentId}"))`,
+            },
+          })
+          .execute();
+
+        const results = payments.body.results;
+
+        if (results.length !== 1) {
+          logger.error('There is not any assigned payment');
+          throw new CustomError(
+            400,
+            'Bad request: There is not any assigned payment'
+          );
+        }
+
+        const payment = results[0];
+
+        const request: TransactionRequest = {
+          amount: (payment.amountPlanned.centAmount / 100).toString(),
+          paymentMethodNonce: paymentMethodNonce,
+          options: {
+            submitForSettlement: true,
+          },
+        };
+
+        const transactionSaleResponse = await transactionSale(request);
+
+        console.log(transactionSaleResponse);
+
         response.status(200).send();
         return;
       default:
