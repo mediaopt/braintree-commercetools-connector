@@ -8,6 +8,22 @@ type LocalPaymentCompleted = BaseWebhookNotification & {
   localPaymentCompleted: any;
 };
 
+const validateRequest = (request: Request) => {
+  if (!request.body) {
+    logger.error('Missing request body.');
+    throw new CustomError(400, 'Bad request: Missing body');
+  }
+  logger.info(JSON.stringify(request.body));
+  if (!request.body['bt_signature']) {
+    logger.error('Missing body signature');
+    throw new CustomError(400, 'Bad request: Missing signature');
+  }
+  if (!request.body['bt_payload']) {
+    logger.error('Missing body payload');
+    throw new CustomError(400, 'Bad request: Missing payload');
+  }
+};
+
 /**
  * Exposed braintree-commercetools-event POST endpoint.
  * Receives the Pub/Sub message and works with it
@@ -23,19 +39,8 @@ export const post = async (
   next: NextFunction
 ) => {
   try {
-    if (!request.body) {
-      logger.error('Missing request body.');
-      throw new CustomError(400, 'Bad request: Missing body');
-    }
-    logger.info(JSON.stringify(request.body));
-    if (!request.body['bt_signature']) {
-      logger.error('Missing body signature');
-      throw new CustomError(400, 'Bad request: Missing signature');
-    }
-    if (!request.body['bt_payload']) {
-      logger.error('Missing body payload');
-      throw new CustomError(400, 'Bad request: Missing payload');
-    }
+    logger.info('Webhook called');
+    validateRequest(request);
     const notification = await parseNotification(request);
     const kind: WebhookNotificationKind = notification.kind;
     switch (kind) {

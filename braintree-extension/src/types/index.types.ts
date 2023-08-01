@@ -4,6 +4,8 @@ import {
   Customer,
   PaymentMethod,
   PaymentMethodCreateRequest as BraintreePaymentMethodCreateRequest,
+  PaymentInstrumentType as BraintreePaymentInstrumentType,
+  Transaction as BraintreeTransaction,
 } from 'braintree';
 
 export type Message = {
@@ -41,4 +43,22 @@ export type PaymentMethodCreateRequest = BraintreePaymentMethodCreateRequest & {
       | 'network_check'
       | 'tokenized_check';
   };
+};
+
+export type PaymentInstrumentType =
+  | BraintreePaymentInstrumentType
+  | 'local_payment';
+
+export type LocalPayment = {
+  fundingSource: string;
+  payerId: string;
+  paymentId: string;
+  transactionFeeAmount: string;
+  transactionFeeCurrencyIsoCode: string;
+  captureId: string;
+  debugId: string;
+};
+
+export type LocalPaymentTransaction = BraintreeTransaction & {
+  localPayment: LocalPayment;
 };

@@ -20,7 +20,7 @@ async function postDeploy(properties: Map<string, unknown>): Promise<void> {
 
   assertString(applicationUrl, CONNECT_APPLICATION_URL_KEY);
 
-  const apiRoot = await createApiRoot();
+  const apiRoot = createApiRoot();
   await createBraintreeExtension(apiRoot, applicationUrl);
   await createBraintreeCustomerExtension(apiRoot, applicationUrl);
   await createCustomPaymentType(apiRoot);
