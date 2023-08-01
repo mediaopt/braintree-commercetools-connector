@@ -20,31 +20,21 @@ const update = async (resource: CustomerReference) => {
       throw new CustomError(400, 'customer obj is missing');
     }
     const customer: Customer = resource.obj;
-    const { findRequest, createRequest, vaultRequest } =
-      customer?.custom?.fields || {};
-    if (findRequest) {
-      updateActions = updateActions.concat(
-        await handleFindRequest(findRequest, customer)
-      );
-    }
-    if (createRequest) {
-      updateActions = updateActions.concat(
-        await handleCreateRequest(customer, createRequest)
-      );
-    }
-    if (vaultRequest) {
-      updateActions = updateActions.concat(await handleVaultRequest(customer));
-    }
+    const { findRequest, createRequest } = customer?.custom?.fields || {};
+    updateActions = updateActions.concat(
+      await handleFindRequest(findRequest, customer),
+      await handleCreateRequest(customer, createRequest),
+      await handleVaultRequest(customer)
+    );
     return { statusCode: 200, actions: updateActions };
   } catch (error) {
-    // Retry or handle the error
-    // Create an error object
     if (error instanceof Error) {
       throw new CustomError(
         400,
         `Internal server error on CustomerController: ${error.stack}`
       );
     }
+    throw new CustomError(400, JSON.stringify(error));
   }
 };
 

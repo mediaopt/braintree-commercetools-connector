@@ -129,3 +129,8 @@ export const createPaymentMethod = async (
   }
   return response.paymentMethod;
 };
+
+export const deleteCustomer = async (customerId: string): Promise<void> => {
+  const gateway = getBraintreeGateway();
+  await gateway.customer.delete(customerId);
+};
