@@ -13,8 +13,7 @@
     "prettier": "prettier --write '**/*.{js,ts}'",
     "test": "jest --config jest.config.cjs",
     "test:watch": "jest --watch",
-    "connector:post-deploy": "node build/connector/post-deploy.js",
-    "connector:pre-undeploy": "node build/connector/pre-undeploy.js"
+    "connector:post-deploy": "node build/connector/post-deploy.js"
   },
   "devDependencies": {
     "@tsconfig/recommended": "^1.0.2",

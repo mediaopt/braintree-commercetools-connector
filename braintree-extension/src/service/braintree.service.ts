@@ -21,7 +21,7 @@ const getBraintreeGateway = () => {
       'Internal Server Error - braintree config is missing'
     );
   }
-  return new braintree.BraintreeGateway({
+  const gateway = new braintree.BraintreeGateway({
     environment:
       process.env.BRAINTREE_ENVIRONMENT === 'Production'
         ? Environment.Production
@@ -30,6 +30,8 @@ const getBraintreeGateway = () => {
     publicKey: process.env.BRAINTREE_PUBLIC_KEY,
     privateKey: process.env.BRAINTREE_PRIVATE_KEY,
   });
+  gateway.config.timeout = 9500;
+  return gateway;
 };
 
 function logResponse(
@@ -126,4 +128,9 @@ export const createPaymentMethod = async (
     throw new CustomError(500, response.message);
   }
   return response.paymentMethod;
+};
+
+export const deleteCustomer = async (customerId: string): Promise<void> => {
+  const gateway = getBraintreeGateway();
+  await gateway.customer.delete(customerId);
 };
