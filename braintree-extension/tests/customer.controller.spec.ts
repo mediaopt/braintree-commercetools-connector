@@ -32,7 +32,7 @@ function expectCustomerFound(
 }
 
 export const getRandomId = (): string => {
-  return 'test_' + Math.floor(Math.random() * Math.pow(2, 10));
+  return `test_${Math.floor(Math.random() * Math.pow(2, 10))}`;
 };
 
 function expectSuccessfulCreation(
@@ -83,7 +83,7 @@ describe('find customer', () => {
         firstName: 'firstName',
         lastName: 'lastName',
         companyName: 'company',
-        email: 'test@test.de',
+        email: `${customerId}@test.de`,
         custom: {
           fields: {
             createRequest: '{}',
