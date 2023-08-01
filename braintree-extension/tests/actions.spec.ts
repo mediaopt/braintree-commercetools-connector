@@ -62,7 +62,7 @@ describe('Testing actions', () => {
     },
     {
       method: createCustomPaymentType,
-      expectedLength: BRAINTREE_API_PAYMENT_ENDPOINTS.length * 2,
+      expectedLength: BRAINTREE_API_PAYMENT_ENDPOINTS.length * 2 + 1,
     },
     {
       method: createCustomCustomerType,
