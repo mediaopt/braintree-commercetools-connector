@@ -124,7 +124,7 @@ describe('vaulting', () => {
         firstName: 'firstName',
         lastName: 'lastName',
         companyName: 'company',
-        email: 'test@test.de',
+        email: `${customerId}@test.de`,
         custom: {
           fields: {
             vaultRequest: 'fake-valid-nonce',
@@ -166,7 +166,7 @@ describe('vaulting', () => {
         firstName: 'firstName',
         lastName: 'lastName',
         companyName: 'company',
-        email: 'test@test.de',
+        email: `${customerId}@test.de`,
         custom: {
           fields: {
             createRequest: '{}',
