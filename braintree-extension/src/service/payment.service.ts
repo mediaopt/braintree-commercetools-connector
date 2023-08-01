@@ -337,7 +337,10 @@ function handleTransactionResponse(payment: Payment, response: Transaction) {
   let updateActions: UpdateActions = [];
   const amountPlanned = payment?.amountPlanned;
   const transaction = payment?.transactions?.find(
-    (transaction) => transaction.interactionId === response.id
+    (transaction) =>
+      transaction.interactionId === response.id &&
+      transaction.type ===
+        mapBraintreeStatusToCommercetoolsTransactionType(response.status)
   );
   if (transaction) {
     if (
