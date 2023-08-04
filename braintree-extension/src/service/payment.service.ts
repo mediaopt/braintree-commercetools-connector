@@ -58,6 +58,7 @@ function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
     ),
     merchantAccountId: process.env.BRAINTREE_MERCHANT_ACCOUNT || undefined,
     channel: CHANNEL_COMMERCETOOLS,
+    orderId: payment?.custom?.fields?.BraintreeOrderId ?? undefined,
     options: {
       submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
       storeInVaultOnSuccess: !!request?.customerId || !!request.customer?.id,

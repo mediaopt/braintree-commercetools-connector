@@ -31,7 +31,7 @@ function expectCustomerFound(
   expect(findResponse?.actions[0].value).toContain(`"id":"${customerId}"`);
 }
 
-export const getRandomId = (): string => {
+const getRandomId = (): string => {
   return `test_${Math.floor(Math.random() * Math.pow(2, 10))}`;
 };
 
