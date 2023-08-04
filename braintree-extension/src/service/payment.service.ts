@@ -402,9 +402,7 @@ function handleTransactionResponse(payment: Payment, response: Transaction) {
   return updateActions.concat(updatePaymentFields(response));
 }
 
-export async function handleTransactionSaleRequest(
-  payment: Payment | undefined
-) {
+export async function handleTransactionSaleRequest(payment?: Payment) {
   if (!payment?.custom?.fields?.transactionSaleRequest) {
     return [];
   }
@@ -422,9 +420,7 @@ export async function handleTransactionSaleRequest(
   }
 }
 
-export async function handleGetClientTokenRequest(
-  payment: Payment | undefined
-) {
+export async function handleGetClientTokenRequest(payment?: Payment) {
   if (!payment?.custom?.fields?.getClientTokenRequest) {
     return [];
   }
@@ -447,13 +443,15 @@ export async function handleGetClientTokenRequest(
   }
 }
 
-export async function findTransaction(payment: Payment | undefined) {
-  if (!payment?.custom?.fields?.findTransactionRequest) {
+export async function findTransaction(payment?: Payment) {
+  const { findTransactionRequest, BraintreeOrderId } =
+    payment?.custom?.fields ?? {};
+  if (!payment || !findTransactionRequest) {
     return [];
   }
   try {
     const request = {
-      orderId: payment?.custom?.fields?.BraintreeOrderId,
+      orderId: BraintreeOrderId,
     };
     if (!request?.orderId) {
       throw new CustomError(500, 'orderId is missing');
