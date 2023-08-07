@@ -22,6 +22,7 @@ import {
   submitForSettlement as braintreeSubmitForSettlement,
   transactionSale,
   voidTransaction as braintreeVoidTransaction,
+  findTransaction as braintreeFindTransaction,
 } from './braintree.service';
 import {
   mapBraintreeMoneyToCommercetoolsMoney,
@@ -333,20 +334,29 @@ function handleLocalPaymentMethodTransactionResponse(
   return [];
 }
 
-export async function handleTransactionSaleRequest(
-  payment: Payment | undefined
-) {
-  if (!payment?.custom?.fields?.transactionSaleRequest) {
-    return [];
-  }
-  try {
-    const request = parseTransactionSaleRequest(payment);
-    let updateActions = handleRequest('transactionSale', request);
-    const response = await transactionSale(request);
-    updateActions = updateActions.concat(
-      handlePaymentResponse('transactionSale', response)
-    );
-    const amountPlanned = payment?.amountPlanned;
+function handleTransactionResponse(payment: Payment, response: Transaction) {
+  let updateActions: UpdateActions = [];
+  const amountPlanned = payment?.amountPlanned;
+  const transaction = payment?.transactions?.find(
+    (transaction) =>
+      transaction.interactionId === response.id &&
+      transaction.type ===
+        mapBraintreeStatusToCommercetoolsTransactionType(response.status)
+  );
+  if (transaction) {
+    if (
+      transaction.state !==
+      mapBraintreeStatusToCommercetoolsTransactionState(response.status)
+    ) {
+      updateActions.push({
+        action: 'changeTransactionState',
+        transactionId: transaction.id,
+        state: mapBraintreeStatusToCommercetoolsTransactionState(
+          response.status
+        ),
+      });
+    }
+  } else {
     updateActions.push({
       action: 'addTransaction',
       transaction: {
@@ -365,32 +375,53 @@ export async function handleTransactionSaleRequest(
         ),
       },
     });
-    if (
-      (response.paymentInstrumentType as PaymentInstrumentType) ===
-      'local_payment'
-    ) {
-      updateActions = updateActions.concat(
-        handleLocalPaymentMethodTransactionResponse(
-          payment,
-          response as LocalPaymentTransaction
-        )
-      );
-    }
-    if (!payment?.interfaceId) {
-      updateActions.push({
-        action: 'setInterfaceId',
-        interfaceId: response.id,
-      });
-    }
-    return updateActions.concat(updatePaymentFields(response));
+  }
+  if (
+    (response.paymentInstrumentType as PaymentInstrumentType) ===
+    'local_payment'
+  ) {
+    updateActions = updateActions.concat(
+      handleLocalPaymentMethodTransactionResponse(
+        payment,
+        response as LocalPaymentTransaction
+      )
+    );
+  }
+  if (!payment?.interfaceId) {
+    updateActions.push({
+      action: 'setInterfaceId',
+      interfaceId: response.id,
+    });
+  }
+  if (!payment?.custom?.fields?.BraintreeOrderId && response?.orderId) {
+    updateActions.push({
+      action: 'setCustomField',
+      name: 'BraintreeOrderId',
+      value: response.orderId,
+    });
+  }
+  return updateActions.concat(updatePaymentFields(response));
+}
+
+export async function handleTransactionSaleRequest(payment?: Payment) {
+  if (!payment?.custom?.fields?.transactionSaleRequest) {
+    return [];
+  }
+  try {
+    const request = parseTransactionSaleRequest(payment);
+    let updateActions = handleRequest('transactionSale', request);
+    const response = await transactionSale(request);
+    updateActions = updateActions.concat(
+      handlePaymentResponse('transactionSale', response),
+      handleTransactionResponse(payment, response)
+    );
+    return updateActions;
   } catch (e) {
     return handleError('transactionSale', e);
   }
 }
 
-export async function handleGetClientTokenRequest(
-  payment: Payment | undefined
-) {
+export async function handleGetClientTokenRequest(payment?: Payment) {
   if (!payment?.custom?.fields?.getClientTokenRequest) {
     return [];
   }
@@ -410,5 +441,30 @@ export async function handleGetClientTokenRequest(
   } catch (e) {
     logger.error('Call to getClientToken resulted in an error', e);
     return handleError('getClientToken', e);
+  }
+}
+
+export async function findTransaction(payment?: Payment) {
+  const { findTransactionRequest, BraintreeOrderId } =
+    payment?.custom?.fields ?? {};
+  if (!payment || !findTransactionRequest) {
+    return [];
+  }
+  try {
+    const request = {
+      orderId: BraintreeOrderId,
+    };
+    if (!request?.orderId) {
+      throw new CustomError(500, 'orderId is missing');
+    }
+    const updateActions = handleRequest('findTransaction', request);
+    const response = await braintreeFindTransaction(request.orderId);
+    return updateActions.concat(
+      handlePaymentResponse('findTransaction', response),
+      handleTransactionResponse(payment, response)
+    );
+  } catch (e) {
+    logger.error('Call to findTransaction resulted in an error', e);
+    return handleError('findTransaction', e);
   }
 }

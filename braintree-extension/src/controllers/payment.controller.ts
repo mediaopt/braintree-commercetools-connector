@@ -9,6 +9,7 @@ import {
   UpdateActions,
 } from '../types/index.types';
 import {
+  findTransaction,
   handleGetClientTokenRequest,
   handleTransactionSaleRequest,
   refund,
@@ -32,6 +33,7 @@ const update = async (paymentReference: PaymentReference) => {
       await handleTransactionSaleRequest(payment),
       await refund({ payment } as PaymentWithOptionalTransaction),
       await submitForSettlement({ payment } as PaymentWithOptionalTransaction),
+      await findTransaction(payment),
       await voidTransaction({ payment } as PaymentWithOptionalTransaction)
     );
     if (payment?.transactions) {
