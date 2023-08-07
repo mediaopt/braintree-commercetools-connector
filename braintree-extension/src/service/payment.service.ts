@@ -62,6 +62,11 @@ function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
     options: {
       submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
       storeInVaultOnSuccess: !!request?.customerId || !!request.customer?.id,
+      storeShippingAddressInVault:
+        (!!request?.storeInVaultOnSuccess ||
+          !!request?.customerId ||
+          !!request.customer?.id) &&
+        !!request.shipping,
     },
     ...request,
   } as TransactionRequest;
