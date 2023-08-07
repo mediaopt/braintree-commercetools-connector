@@ -21,6 +21,8 @@ deployAs:
           description: Default Braintree merchant account (optional). Can be overwritten on request level
         - key: BRAINTREE_VALIDATE_CARD
           description: Braintree setting whether to valid a card before vaulting (optional).
+        - key: BRAINTREE_PAYPAL_DESCRIPTION
+          description: Description of the transaction that is displayed to customers in PayPal email receipts.
       securedConfiguration:
         - key: CTP_PROJECT_KEY
           description: commercetools Composable Commerce project key
