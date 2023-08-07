@@ -77,12 +77,19 @@ export async function createBraintreeExtension(
           {
             resourceTypeId: 'payment',
             actions: ['Update'],
+            condition: mapEndpointsToCondition(BRAINTREE_API_PAYMENT_ENDPOINTS),
           },
         ],
         timeoutInMs: 10000,
       },
     })
     .execute();
+}
+
+function mapEndpointsToCondition(endpoints: string[]) {
+  return endpoints
+    .map((endpoint) => `custom(fields(${endpoint}Request is defined))`)
+    .join(' or ');
 }
 
 export async function createBraintreeCustomerExtension(
@@ -104,6 +111,9 @@ export async function createBraintreeCustomerExtension(
           {
             resourceTypeId: 'customer',
             actions: ['Update'],
+            condition: mapEndpointsToCondition(
+              BRAINTREE_API_CUSTOMER_ENDPOINTS
+            ),
           },
         ],
         timeoutInMs: 2000,

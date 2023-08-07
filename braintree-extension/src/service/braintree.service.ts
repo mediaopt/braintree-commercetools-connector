@@ -12,7 +12,11 @@ import braintree, {
 } from 'braintree';
 import CustomError from '../errors/custom.error';
 import { Stream } from 'stream';
-const getBraintreeGateway = () => {
+
+const BRAINTREE_TIMEOUT_PAYMENT = 9500;
+const BRAINTREE_TIMEOUT_CUSTOMER = 1500;
+
+const getBraintreeGateway = (timeout: number = BRAINTREE_TIMEOUT_PAYMENT) => {
   if (
     !process.env.BRAINTREE_MERCHANT_ID ||
     !process.env.BRAINTREE_PUBLIC_KEY ||
@@ -32,7 +36,7 @@ const getBraintreeGateway = () => {
     publicKey: process.env.BRAINTREE_PUBLIC_KEY,
     privateKey: process.env.BRAINTREE_PRIVATE_KEY,
   });
-  gateway.config.timeout = 9500;
+  gateway.config.timeout = timeout;
   return gateway;
 };
 
@@ -102,7 +106,7 @@ export const submitForSettlement = async (
 };
 
 export const findCustomer = async (customerId: string): Promise<Customer> => {
-  const gateway = getBraintreeGateway();
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   const response = await gateway.customer.find(customerId);
   logResponse('findCustomer', response);
   return response;
@@ -111,7 +115,7 @@ export const findCustomer = async (customerId: string): Promise<Customer> => {
 export const createCustomer = async (
   request: CustomerCreateRequest
 ): Promise<Customer> => {
-  const gateway = getBraintreeGateway();
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   const response = await gateway.customer.create(request);
   logResponse('createCustomer', response);
   if (!response.success) {
@@ -123,7 +127,7 @@ export const createCustomer = async (
 export const createPaymentMethod = async (
   request: PaymentMethodCreateRequest
 ): Promise<PaymentMethod> => {
-  const gateway = getBraintreeGateway();
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   const response = await gateway.paymentMethod.create(request);
   logResponse('createPaymentMethod', response);
   if (!response.success) {
@@ -133,7 +137,7 @@ export const createPaymentMethod = async (
 };
 
 export const deleteCustomer = async (customerId: string): Promise<void> => {
-  const gateway = getBraintreeGateway();
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   await gateway.customer.delete(customerId);
 };
 
