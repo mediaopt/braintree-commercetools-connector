@@ -3,6 +3,7 @@ import { describe, expect, test, jest } from '@jest/globals';
 
 import { post } from '../src/controllers/notifications.controller';
 import { getBraintreeGateway } from '../src/service/braintree.service';
+import { WebhookNotificationKind } from 'braintree';
 
 let api: any;
 jest.mock('../src/client/create.client', () => ({
@@ -14,8 +15,6 @@ jest.mock('../src/service/commercetools.service', () => ({
     return;
   }),
 }));
-
-type WebhookNotificationKind = 'check' | 'local_payment_completed';
 
 const getRequest = async (kind: WebhookNotificationKind): Promise<Request> => {
   const gateway = getBraintreeGateway();
