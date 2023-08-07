@@ -6,7 +6,7 @@ import braintree, {
   TransactionRequest,
 } from 'braintree';
 import CustomError from '../errors/custom.error';
-const getBraintreeGateway = () => {
+export const getBraintreeGateway = () => {
   const braintreeEnv = process.env;
   if (
     !braintreeEnv.BRAINTREE_MERCHANT_ID ||

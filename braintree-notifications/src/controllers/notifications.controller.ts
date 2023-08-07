@@ -1,16 +1,9 @@
 import { NextFunction, Request, Response } from 'express';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
-import {
-  parseNotification,
-  transactionSale,
-} from '../service/braintree.service';
-import {
-  WebhookNotificationKind,
-  BaseWebhookNotification,
-  TransactionRequest,
-} from 'braintree';
-import { createApiRoot } from '../client/create.client';
+import { parseNotification } from '../service/braintree.service';
+import { handleLocalPaymentCompleted } from '../service/commercetools.service';
+import { WebhookNotificationKind, BaseWebhookNotification } from 'braintree';
 
 type LocalPaymentCompleted = BaseWebhookNotification & {
   localPaymentCompleted: any;
@@ -51,6 +44,7 @@ export const post = async (
     validateRequest(request);
     const notification = await parseNotification(request);
     const kind: WebhookNotificationKind = notification.kind;
+    logger.info(`notification ${JSON.stringify(notification)}`);
     switch (kind) {
       case 'check':
         response.status(200).send();
@@ -64,40 +58,14 @@ export const post = async (
           logger.error('Missing request body.');
           throw new CustomError(400, 'Bad request: Missing body');
         }
-
-        const payments = await createApiRoot()
-          .payments()
-          .get({
-            queryArgs: {
-              where: `custom(fields(LocalPaymentMethodsPaymentId="${paymentId}"))`,
-            },
-          })
-          .execute();
-
-        const results = payments.body.results;
-
-        if (results.length !== 1) {
-          logger.error('There is not any assigned payment');
+        try {
+          await handleLocalPaymentCompleted(paymentMethodNonce, paymentId);
+        } catch (error) {
           throw new CustomError(
-            400,
-            'Bad request: There is not any assigned payment'
+            500,
+            'Error in handling local payment completed process'
           );
         }
-
-        const payment = results[0];
-
-        const request: TransactionRequest = {
-          amount: (payment.amountPlanned.centAmount / 100).toString(),
-          paymentMethodNonce: paymentMethodNonce,
-          options: {
-            submitForSettlement: true,
-          },
-        };
-
-        const transactionSaleResponse = await transactionSale(request);
-
-        console.log(transactionSaleResponse);
-
         response.status(200).send();
         return;
       default:
