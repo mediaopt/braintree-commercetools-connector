@@ -6,6 +6,10 @@ import { PaymentReference } from '@commercetools/platform-sdk';
 import { Transaction } from 'braintree';
 import { UpdateActions } from '../src/types/index.types';
 
+const getRandomId = (): string => {
+  return `test_${Math.floor(Math.random() * Math.pow(2, 10))}`;
+};
+
 describe('Testing Braintree GetClient Token', () => {
   test('create client token', async () => {
     const paymentRequest = {
@@ -134,6 +138,55 @@ describe('Testing Braintree Transaction Sale', () => {
     },
     20000
   );
+});
+
+describe('Testing Braintree Find Transaction', () => {
+  test('find transaction by BraintreeOrderId', async () => {
+    const orderId = getRandomId();
+    const transactionSaleRequest = {
+      obj: {
+        amountPlanned: {
+          centAmount: 100,
+          fractionDigits: 0,
+        },
+        custom: {
+          fields: {
+            BraintreeOrderId: orderId,
+            transactionSaleRequest: 'fake-visa-checkout-mastercard-nonce',
+          },
+        },
+      },
+    } as unknown as PaymentReference;
+    const findTransactionRequest = {
+      obj: {
+        amountPlanned: {
+          centAmount: 100,
+          fractionDigits: 0,
+        },
+        custom: {
+          fields: {
+            BraintreeOrderId: orderId,
+            findTransactionRequest: '{}',
+          },
+        },
+      },
+    } as unknown as PaymentReference;
+    let paymentResponse = await paymentController(
+      'Update',
+      transactionSaleRequest
+    );
+    let transaction = expectSuccessfulTransaction(paymentResponse);
+    expect(transaction).toHaveProperty('orderId', orderId);
+    paymentResponse = await paymentController('Update', findTransactionRequest);
+    expect(paymentResponse).toBeDefined();
+    expect(paymentResponse).toHaveProperty('statusCode', 200);
+    const transactionSaleResponse = paymentResponse?.actions.find(
+      (action) => action.name === 'findTransactionResponse'
+    );
+    expect(transactionSaleResponse).toBeDefined();
+    transaction = JSON.parse(transactionSaleResponse?.value) as Transaction;
+    expect(transaction).toHaveProperty('orderId', orderId);
+  }, 20000);
 });
 
 function expectSuccessfulTransaction(
