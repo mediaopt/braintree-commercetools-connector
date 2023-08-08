@@ -1,6 +1,5 @@
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
-import { transactionSale } from '../service/braintree.service';
 import { TransactionRequest } from 'braintree';
 import { createApiRoot } from '../client/create.client';
 import {
@@ -33,18 +32,32 @@ const getPaymentByLocalPaymentMethodsPaymentId = async (paymentId: string) => {
 };
 
 const handleTransactionSale = async (
-  centAmount: number,
+  paymentId: string,
+  paymentVersion: number,
   paymentMethodNonce: string
-) => {
-  const request: TransactionRequest = {
-    amount: (centAmount / 100).toString(),
-    paymentMethodNonce: paymentMethodNonce,
-    options: {
-      submitForSettlement: true,
-    },
-  };
+): Promise<number> => {
+  const transactionSaleResponse = await createApiRoot()
+    .payments()
+    .withId({ ID: paymentId })
+    .post({
+      body: {
+        version: paymentVersion,
+        actions: [
+          {
+            action: 'setCustomField',
+            name: 'transactionSaleRequest',
+            value: JSON.stringify({ paymentMethodNonce }),
+          },
+        ],
+      },
+    })
+    .execute();
 
-  return await transactionSale(request);
+  logger.info(
+    `transactionSaleResponse ${JSON.stringify(transactionSaleResponse)}`
+  );
+
+  return transactionSaleResponse.body.version;
 };
 
 const handleUpdatePayment = async (
@@ -89,13 +102,6 @@ const handleCheckout = async (paymentId: string) => {
     const order = await createApiRoot()
       .orders()
       .post({
-        queryArgs: {
-          expand: [
-            'lineItems[*].discountedPrice.includedDiscounts[*].discount',
-            'discountCodes[*].discountCode',
-            'paymentInfo.payments[*]',
-          ],
-        },
         body: orderFromCartDraft,
       })
       .execute();
@@ -120,46 +126,24 @@ export const handleLocalPaymentCompleted = async (
     );
   }
 
-  const updateActions: PaymentUpdateAction[] = [];
-
   let runCheckout = false;
+  let { version: paymentVersion, id: paymentActualId } = payment;
 
-  let valuePayload: {} = { paymentMethodNonce };
-
-  logger.info(`valuePayload ${JSON.stringify(valuePayload)}`);
-
-  //if (payment.transactions.length === 0) {
-
-  /*const transactionSaleResponse = await handleTransactionSale(
-      payment.amountPlanned.centAmount,
+  if (payment.transactions.length === 0) {
+    paymentVersion = await handleTransactionSale(
+      paymentActualId,
+      paymentVersion,
       paymentMethodNonce
     );
 
-    const amountPlanned = payment.amountPlanned;
+    if (!paymentVersion) {
+      logger.error('Error in sale transaction');
+      throw new CustomError(400, 'Error in sale transaction');
+    }
+    runCheckout = true;
+  }
 
-    updateActions.push({
-      action: 'addTransaction',
-      transaction: {
-        type: mapBraintreeStatusToCommercetoolsTransactionType(
-          transactionSaleResponse.status
-        ),
-        amount: {
-          centAmount: mapBraintreeMoneyToCommercetoolsMoney(
-            transactionSaleResponse.amount,
-            amountPlanned?.fractionDigits
-          ),
-          currencyCode: amountPlanned?.currencyCode,
-        },
-        interactionId: transactionSaleResponse.id,
-        timestamp: transactionSaleResponse.updatedAt,
-        state: mapBraintreeStatusToCommercetoolsTransactionState(
-          transactionSaleResponse.status
-        ),
-      },
-    });*/
-
-  //runCheckout = true;
-  //}
+  const updateActions: PaymentUpdateAction[] = [];
 
   updateActions.push({
     action: 'setStatusInterfaceCode',
@@ -173,8 +157,8 @@ export const handleLocalPaymentCompleted = async (
   logger.info(`updateActions ${JSON.stringify(updateActions)}`);
 
   const updatePaymentResult = await handleUpdatePayment(
-    payment.id,
-    payment.version,
+    paymentActualId,
+    paymentVersion,
     updateActions
   );
 
@@ -187,7 +171,7 @@ export const handleLocalPaymentCompleted = async (
 
   if (runCheckout) {
     try {
-      await handleCheckout(payment.id);
+      await handleCheckout(paymentActualId);
     } catch (error) {
       logger.error('Error in checkout');
       throw new CustomError(400, 'Error in checkout');
