@@ -6,6 +6,7 @@ import {
   PaymentMethodCreateRequest as BraintreePaymentMethodCreateRequest,
   PaymentInstrumentType as BraintreePaymentInstrumentType,
   Transaction as BraintreeTransaction,
+  PaymentMethodNonce,
 } from 'braintree';
 
 export type Message = {
@@ -33,7 +34,7 @@ export type PaymentWithOptionalTransaction = {
 
 export type UpdateActions = Array<UpdateAction>;
 
-export type CustomerResponse = PaymentMethod | Customer;
+export type CustomerResponse = PaymentMethod | Customer | PaymentMethodNonce;
 
 export type PaymentMethodCreateRequest = BraintreePaymentMethodCreateRequest & {
   options: {

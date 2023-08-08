@@ -9,6 +9,7 @@ import braintree, {
   PaymentMethodCreateRequest,
   PaymentMethod,
   Transaction,
+  PaymentMethodNonce,
 } from 'braintree';
 import CustomError from '../errors/custom.error';
 import { Stream } from 'stream';
@@ -110,6 +111,18 @@ export const findCustomer = async (customerId: string): Promise<Customer> => {
   const response = await gateway.customer.find(customerId);
   logResponse('findCustomer', response);
   return response;
+};
+
+export const createPaymentMethodNonce = async (
+  paymentMethodToken: string
+): Promise<PaymentMethodNonce> => {
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
+  const response = await gateway.paymentMethodNonce.create(paymentMethodToken);
+  logResponse('createPaymentMethodNonce', response);
+  if (!response.success) {
+    throw new CustomError(500, response.message);
+  }
+  return response.paymentMethodNonce;
 };
 
 export const createCustomer = async (

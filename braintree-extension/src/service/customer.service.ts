@@ -5,6 +5,7 @@ import CustomError from '../errors/custom.error';
 import {
   createCustomer,
   createPaymentMethod,
+  createPaymentMethodNonce,
   findCustomer,
 } from './braintree.service';
 import { handleCustomerResponse, handleError } from '../utils/response.utils';
@@ -67,6 +68,31 @@ export async function handleFindRequest(
   } catch (e) {
     logger.error('Call to find customer resulted in an error', e);
     return handleError('find', e);
+  }
+}
+
+export async function handleCreatePaymentMethodNonceRequest(
+  customer: Customer,
+  createPaymentMethodNonceRequest: string
+) {
+  if (!createPaymentMethodNonceRequest) {
+    return [];
+  }
+  try {
+    logger.info(
+      `createPaymentMethodNonce request: ${createPaymentMethodNonceRequest}`
+    );
+    const response = await createPaymentMethodNonce(
+      createPaymentMethodNonceRequest
+    );
+    return handleCustomerResponse(
+      'createPaymentMethodNonce',
+      response,
+      customer
+    );
+  } catch (e) {
+    logger.error('Call to create payment method nonce resulted in an error', e);
+    return handleError('createPaymentMethodNonce', e);
   }
 }
 
