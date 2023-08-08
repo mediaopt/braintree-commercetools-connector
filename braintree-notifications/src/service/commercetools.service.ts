@@ -124,8 +124,13 @@ export const handleLocalPaymentCompleted = async (
 
   let runCheckout = false;
 
-  if (payment.transactions.length === 0) {
-    const transactionSaleResponse = await handleTransactionSale(
+  let valuePayload: {} = { paymentMethodNonce };
+
+  logger.info(`valuePayload ${JSON.stringify(valuePayload)}`);
+
+  //if (payment.transactions.length === 0) {
+
+  /*const transactionSaleResponse = await handleTransactionSale(
       payment.amountPlanned.centAmount,
       paymentMethodNonce
     );
@@ -151,10 +156,10 @@ export const handleLocalPaymentCompleted = async (
           transactionSaleResponse.status
         ),
       },
-    });
+    });*/
 
-    runCheckout = true;
-  }
+  //runCheckout = true;
+  //}
 
   updateActions.push({
     action: 'setStatusInterfaceCode',
@@ -173,9 +178,19 @@ export const handleLocalPaymentCompleted = async (
     updateActions
   );
 
+  if (!updatePaymentResult) {
+    logger.error('Error in updating payment status');
+    throw new CustomError(400, 'Error in updating payment status');
+  }
+
   logger.info(`updatePaymentResult ${JSON.stringify(updatePaymentResult)}`);
 
   if (runCheckout) {
-    await handleCheckout(payment.id);
+    try {
+      await handleCheckout(payment.id);
+    } catch (error) {
+      logger.error('Error in checkout');
+      throw new CustomError(400, 'Error in checkout');
+    }
   }
 };
