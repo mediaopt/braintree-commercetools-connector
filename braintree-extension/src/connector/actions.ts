@@ -18,6 +18,7 @@ export const BRAINTREE_API_PAYMENT_ENDPOINTS = [
   'refund',
   'submitForSettlement',
   'void',
+  'findTransaction',
 ];
 export const BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY =
   'braintree-payment-transaction-type';
@@ -130,6 +131,17 @@ export async function createCustomPaymentType(
       label: {
         en: `Payment Id of a local payment method (Bancontact, iDEAL, ...)`,
         de: `Payment Id einer lokalen Zahlungsart (Bancontact, iDEAL, ...)`,
+      },
+      type: {
+        name: 'String',
+      },
+      required: false,
+    },
+    {
+      name: `BraintreeOrderId`,
+      label: {
+        en: `Order Id`,
+        de: 'Bestellnummer',
       },
       type: {
         name: 'String',
