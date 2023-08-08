@@ -18,6 +18,7 @@ export const BRAINTREE_API_PAYMENT_ENDPOINTS = [
   'refund',
   'submitForSettlement',
   'void',
+  'findTransaction',
 ];
 export const BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY =
   'braintree-payment-transaction-type';
@@ -76,12 +77,19 @@ export async function createBraintreeExtension(
           {
             resourceTypeId: 'payment',
             actions: ['Update'],
+            condition: mapEndpointsToCondition(BRAINTREE_API_PAYMENT_ENDPOINTS),
           },
         ],
         timeoutInMs: 10000,
       },
     })
     .execute();
+}
+
+function mapEndpointsToCondition(endpoints: string[]) {
+  return endpoints
+    .map((endpoint) => `custom(fields(${endpoint}Request is defined))`)
+    .join(' or ');
 }
 
 export async function createBraintreeCustomerExtension(
@@ -103,6 +111,9 @@ export async function createBraintreeCustomerExtension(
           {
             resourceTypeId: 'customer',
             actions: ['Update'],
+            condition: mapEndpointsToCondition(
+              BRAINTREE_API_CUSTOMER_ENDPOINTS
+            ),
           },
         ],
         timeoutInMs: 2000,
@@ -120,6 +131,17 @@ export async function createCustomPaymentType(
       label: {
         en: `Payment Id of a local payment method (Bancontact, iDEAL, ...)`,
         de: `Payment Id einer lokalen Zahlungsart (Bancontact, iDEAL, ...)`,
+      },
+      type: {
+        name: 'String',
+      },
+      required: false,
+    },
+    {
+      name: `BraintreeOrderId`,
+      label: {
+        en: `Order Id`,
+        de: 'Bestellnummer',
       },
       type: {
         name: 'String',

@@ -8,9 +8,15 @@ import braintree, {
   ValidatedResponse,
   PaymentMethodCreateRequest,
   PaymentMethod,
+  Transaction,
 } from 'braintree';
 import CustomError from '../errors/custom.error';
-const getBraintreeGateway = () => {
+import { Stream } from 'stream';
+
+const BRAINTREE_TIMEOUT_PAYMENT = 9500;
+const BRAINTREE_TIMEOUT_CUSTOMER = 1500;
+
+const getBraintreeGateway = (timeout: number = BRAINTREE_TIMEOUT_PAYMENT) => {
   if (
     !process.env.BRAINTREE_MERCHANT_ID ||
     !process.env.BRAINTREE_PUBLIC_KEY ||
@@ -30,13 +36,13 @@ const getBraintreeGateway = () => {
     publicKey: process.env.BRAINTREE_PUBLIC_KEY,
     privateKey: process.env.BRAINTREE_PRIVATE_KEY,
   });
-  gateway.config.timeout = 9500;
+  gateway.config.timeout = timeout;
   return gateway;
 };
 
 function logResponse(
   requestName: string,
-  response: ValidatedResponse<any> | Customer
+  response: ValidatedResponse<any> | Customer | Transaction
 ) {
   logger.info(`${requestName} response: ${JSON.stringify(response)}`);
 }
@@ -100,7 +106,7 @@ export const submitForSettlement = async (
 };
 
 export const findCustomer = async (customerId: string): Promise<Customer> => {
-  const gateway = getBraintreeGateway();
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   const response = await gateway.customer.find(customerId);
   logResponse('findCustomer', response);
   return response;
@@ -109,7 +115,7 @@ export const findCustomer = async (customerId: string): Promise<Customer> => {
 export const createCustomer = async (
   request: CustomerCreateRequest
 ): Promise<Customer> => {
-  const gateway = getBraintreeGateway();
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   const response = await gateway.customer.create(request);
   logResponse('createCustomer', response);
   if (!response.success) {
@@ -121,7 +127,7 @@ export const createCustomer = async (
 export const createPaymentMethod = async (
   request: PaymentMethodCreateRequest
 ): Promise<PaymentMethod> => {
-  const gateway = getBraintreeGateway();
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   const response = await gateway.paymentMethod.create(request);
   logResponse('createPaymentMethod', response);
   if (!response.success) {
@@ -131,6 +137,30 @@ export const createPaymentMethod = async (
 };
 
 export const deleteCustomer = async (customerId: string): Promise<void> => {
-  const gateway = getBraintreeGateway();
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   await gateway.customer.delete(customerId);
 };
+
+export const findTransaction = async (orderId: string) => {
+  const gateway = getBraintreeGateway();
+  const stream = gateway.transaction.search((search) => {
+    search.orderId().is(orderId);
+  });
+  const transaction = await streamToTransaction(stream);
+  if (!transaction) {
+    throw new CustomError(
+      500,
+      `could not find transaction with orderId ${orderId}`
+    );
+  }
+  logResponse('findTransaction', transaction);
+  return transaction;
+};
+
+function streamToTransaction(stream: Stream): Promise<Transaction | undefined> {
+  return new Promise((resolve, reject) => {
+    stream.on('data', (transaction: Transaction) => resolve(transaction));
+    stream.on('error', (err) => reject(err));
+    stream.on('end', () => resolve(undefined));
+  });
+}
