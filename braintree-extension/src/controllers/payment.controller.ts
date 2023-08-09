@@ -15,6 +15,7 @@ import {
   refund,
   submitForSettlement,
   voidTransaction,
+  handlePayPalOrderRequest,
 } from '../service/payment.service';
 
 /**
@@ -31,6 +32,7 @@ const update = async (paymentReference: PaymentReference) => {
     updateActions = updateActions.concat(
       await handleGetClientTokenRequest(payment),
       await handleTransactionSaleRequest(payment),
+      await handlePayPalOrderRequest(payment),
       await refund({ payment } as PaymentWithOptionalTransaction),
       await submitForSettlement({ payment } as PaymentWithOptionalTransaction),
       await findTransaction(payment),

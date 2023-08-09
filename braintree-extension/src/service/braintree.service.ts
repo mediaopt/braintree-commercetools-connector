@@ -63,7 +63,7 @@ export const transactionSale = async (request: TransactionRequest) => {
   logResponse('transactionSale', response);
   if (!response.success) {
     const prefix = ['soft_declined', 'hard_declined'].includes(
-      response.transaction.processorResponseType
+      response?.transaction?.processorResponseType
     )
       ? `[${response.transaction.processorResponseType}] `
       : '';
@@ -169,3 +169,8 @@ function streamToTransaction(stream: Stream): Promise<Transaction | undefined> {
     stream.on('end', () => resolve(undefined));
   });
 }
+
+export const deletePayment = async (paymentMethodToken: string) => {
+  const gateway = getBraintreeGateway();
+  await gateway.paymentMethod.delete(paymentMethodToken);
+};

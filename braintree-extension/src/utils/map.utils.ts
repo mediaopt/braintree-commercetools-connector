@@ -4,6 +4,7 @@ import {
   TransactionState,
   TransactionType,
 } from '@commercetools/platform-sdk';
+import { TypedMoney } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/common';
 
 export const mapBraintreeStatusToCommercetoolsTransactionState = (
   status: TransactionStatus
@@ -49,6 +50,14 @@ export const mapBraintreeMoneyToCommercetoolsMoney = (
   fractionDigits: number | undefined
 ): number => {
   return parseFloat(amount) * Math.pow(10, fractionDigits ?? 0);
+};
+
+export const mapCommercetoolsMoneyToBraintreeMoney = (
+  amountPlanned: TypedMoney
+): string => {
+  return String(
+    amountPlanned.centAmount * Math.pow(10, -amountPlanned.fractionDigits || 0)
+  );
 };
 
 export const mapCommercetoolsCustomerToBraintreeCustomerCreateRequest = (
