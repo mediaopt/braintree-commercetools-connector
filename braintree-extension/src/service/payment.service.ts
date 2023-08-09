@@ -51,6 +51,10 @@ function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
       paymentMethodNonce: transactionSaleRequest,
     };
   }
+  const storeInVaultOnSuccess =
+    !!request?.storeInVaultOnSuccess ||
+    !!request?.customerId ||
+    !!request.customer?.id;
   request = {
     amount: String(
       amountPlanned.centAmount *
@@ -61,12 +65,8 @@ function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
     orderId: payment?.custom?.fields?.BraintreeOrderId ?? undefined,
     options: {
       submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
-      storeInVaultOnSuccess: !!request?.customerId || !!request.customer?.id,
-      storeShippingAddressInVault:
-        (!!request?.storeInVaultOnSuccess ||
-          !!request?.customerId ||
-          !!request.customer?.id) &&
-        !!request.shipping,
+      storeInVaultOnSuccess: storeInVaultOnSuccess,
+      storeShippingAddressInVault: storeInVaultOnSuccess && !!request.shipping,
     },
     ...request,
   } as TransactionRequest;
