@@ -43,7 +43,7 @@ import {
 import { logger } from '../utils/logger.utils';
 import { getCurrentTimestamp } from '../utils/data.utils';
 
-const CHANNEL_COMMERCETOOLS = 'commercetools';
+const CHANNEL_COMMERCETOOLS = 'commercetoolsGmbH_SP_BT';
 
 const getPayPalOrderPaymentToken = (payment: Payment) => {
   return findSuitableTransactionId({ payment }, 'Authorization', 'Initial');
