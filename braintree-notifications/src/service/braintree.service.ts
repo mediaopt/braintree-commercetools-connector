@@ -2,7 +2,7 @@ import { logger } from '../utils/logger.utils';
 import { Request } from 'express';
 import braintree, { BaseWebhookNotification, Environment } from 'braintree';
 import CustomError from '../errors/custom.error';
-const getBraintreeGateway = () => {
+export const getBraintreeGateway = () => {
   const braintreeEnv = process.env;
   if (
     !braintreeEnv.BRAINTREE_MERCHANT_ID ||
