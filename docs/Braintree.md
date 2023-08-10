@@ -5,7 +5,7 @@ This Postman collection contains examples of requests and responses for most end
 
 ## Disclaimer
 
-This is not the official Braintree documentation. Please see [here](http://docs.commercetools.com/)  
+This is not the official Braintree documentation. Please see [here](http://docs.commercetools.com/)
 for a complete and approved documentation of the Braintree.
 
 ## How to use
@@ -18,15 +18,15 @@ To use this collection in Postman please perform the following steps:
 2. Import the collection.json and [template.json](https://github.com/commercetools/commercetools-postman-collection/blob/master/api/template.json) in your postman application
 3. In the Merchant Center, create a new API Client and fill in the client credentials in your environment
 4. Obtain an access token by sending the "Authorization/Obtain access token" request at the bottom of the request list. Now you can use all other endpoints
-    
+
 
 Feel free to clone and modify this collection to your needs.
 
-To automate frequent tasks the collection automatically manages commonly required values and parameters such  
+To automate frequent tasks the collection automatically manages commonly required values and parameters such
 as resource ids, keys and versions in Postman environment variables for you.
 
 Please see [http://docs.commercetools.com/](http://docs.commercetools.com/) for further information about the commercetools Plattform.
-# 📁 Collection: Authorization 
+# 📁 Collection: Authorization
 
 
 ## End-point: Obtain access token
@@ -156,8 +156,199 @@ Token introspection allows to determine the active state of an OAuth 2.0 access 
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-# 📁 Collection: Braintree 
+# 📁 Collection: Braintree
 
+
+## End-point: SetCustomerId
+Set the braintree customer id of a customer. This is only for testing. The braintree customer id is normally set when using the findCustomerRequest or createCustomerRequest.
+### Method: POST
+>```
+>{{host}}/{{project-key}}/customers/{{customer-id}}
+>```
+### Headers
+
+|Content-Type|Value|
+|---|---|
+|Content-Type|application/json|
+
+
+### Body (**raw**)
+
+```json
+{
+    "version": {{customer-version}},
+    "actions": [
+        {
+            "action" : "setCustomType",
+            "type" : {
+              "key" : "braintree-customer-type",
+              "typeId" : "type"
+            },
+            "fields" : {
+              "braintreeCustomerId" : "{{customer-id}}"
+            }
+          }
+    ]
+}
+```
+
+### Query Params
+
+|Param|value|
+|---|---|
+|expand||
+
+
+### 🔑 Authentication oauth2
+
+|Param|value|Type|
+|---|---|---|
+
+
+
+⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
+
+## End-point: findCustomer
+Find a customer in Braintree. To find the customer the customers braintreeCustomerId custom field is used or otherwise the customers id.
+### Method: POST
+>```
+>{{host}}/{{project-key}}/customers/{{customer-id}}
+>```
+### Headers
+
+|Content-Type|Value|
+|---|---|
+|Content-Type|application/json|
+
+
+### Body (**raw**)
+
+```json
+{
+    "version": {{customer-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "findRequest",
+            "value" : "{}"
+          }
+    ]
+}
+```
+
+### Query Params
+
+|Param|value|
+|---|---|
+|expand||
+
+
+### 🔑 Authentication oauth2
+
+|Param|value|Type|
+|---|---|---|
+
+
+
+⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
+
+## End-point: vaultCustomer
+Vault a payment method for a customer. If the customer does not exist as a Braintree customer yet, the customer will be created.
+### Method: POST
+>```
+>{{host}}/{{project-key}}/customers/{{customer-id}}
+>```
+### Headers
+
+|Content-Type|Value|
+|---|---|
+|Content-Type|application/json|
+
+
+### Body (**raw**)
+
+```json
+{
+    "version": {{customer-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "vaultRequest",
+            "value" : "fake-valid-nonce"
+          }
+    ]
+}
+```
+
+### Query Params
+
+|Param|value|
+|---|---|
+|expand||
+
+
+### 🔑 Authentication oauth2
+
+|Param|value|Type|
+|---|---|---|
+
+
+### Response: undefined
+```json
+
+```
+
+
+⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
+
+## End-point: createCustomer
+Create a customer in Braintree. The commercetools customer id serves as the Braintree customer id.
+### Method: POST
+>```
+>{{host}}/{{project-key}}/customers/{{customer-id}}
+>```
+### Headers
+
+|Content-Type|Value|
+|---|---|
+|Content-Type|application/json|
+
+
+### Body (**raw**)
+
+```json
+{
+    "version": {{customer-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "createRequest",
+            "value" : "{}"
+          }
+    ]
+}
+```
+
+### Query Params
+
+|Param|value|
+|---|---|
+|expand||
+
+
+### 🔑 Authentication oauth2
+
+|Param|value|Type|
+|---|---|---|
+
+
+### Response: undefined
+```json
+
+```
+
+
+⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
 
 ## End-point: Refund
 Refund a transaction.
@@ -281,7 +472,103 @@ The payment needs at least one authorized transaction. If there are multiple tra
         {
             "action" : "setCustomField",
             "name" : "submitForSettlementRequest",
-            "value" : "{\"transactionId\": \"a5q49fs3\", \"amount\": 10}"
+            "value" : "{}"
+          }
+    ]
+}
+```
+
+### Query Params
+
+|Param|value|
+|---|---|
+|expand||
+
+
+### 🔑 Authentication oauth2
+
+|Param|value|Type|
+|---|---|---|
+
+
+
+⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
+
+## End-point: Void
+Void a transaction.
+
+You can void transactions that have a status of authorized, submitted for settlement, or - for PayPal - settlement pending. When the transaction is voided, we will perform an authorization reversal, if possible, to remove the pending charge from the customer's card.
+
+The payment needs at least one authorized transaction. If there are multiple transactions, the newest one will be voided. If you want to void a specific transaction, provide the optional parameter transactionId (see Transaction Void).
+### Method: POST
+>```
+>{{host}}/{{project-key}}/payments/{{payment-id}}
+>```
+### Headers
+
+|Content-Type|Value|
+|---|---|
+|Content-Type|application/json|
+
+
+### Body (**raw**)
+
+```json
+{
+    "version": {{payment-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "voidRequest",
+            "value" : "{}"
+          }
+    ]
+}
+```
+
+### Query Params
+
+|Param|value|
+|---|---|
+|expand||
+
+
+### 🔑 Authentication oauth2
+
+|Param|value|Type|
+|---|---|---|
+
+
+
+⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
+
+## End-point: Partial SubmitForSettlement
+Submit a transaction for settlement.
+
+You can only submit transactions that have a status of authorized for settlement.
+
+The payment needs at least one authorized transaction. If there are multiple transactions, the newest one will be submitted for settlement. If you want to submit a specific transaction, provide the optional parameter transactionId (see Transaction SubmitForSettlement).
+### Method: POST
+>```
+>{{host}}/{{project-key}}/payments/{{payment-id}}
+>```
+### Headers
+
+|Content-Type|Value|
+|---|---|
+|Content-Type|application/json|
+
+
+### Body (**raw**)
+
+```json
+{
+    "version": {{payment-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "submitForSettlementRequest",
+            "value" : "{\"amount\": 1}"
           }
     ]
 }
@@ -408,7 +695,9 @@ You can only submit transactions that have a status of authorized for settlement
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
 
 ## End-point: TransactionSale
-post Payments
+Make a transaction sale request.
+
+The value of the transactionSaleRequest can be the paymentMethodNonce or a JSON containing at least the paymentMethodNonce.
 ### Method: POST
 >```
 >{{host}}/{{project-key}}/payments/{{payment-id}}
@@ -448,14 +737,19 @@ post Payments
 |---|---|---|
 
 
+### Response: undefined
+```json
+
+```
+
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
 
 ## End-point: GetClientToken
 Get Client Token.
 
-Returns a string which contains all authorization and configuration  
-information your client needs to initialize the client SDK to  
+Returns a string which contains all authorization and configuration
+information your client needs to initialize the client SDK to
 communicate with Braintree.
 ### Method: POST
 >```
@@ -496,10 +790,63 @@ communicate with Braintree.
 |---|---|---|
 
 
+### Response: undefined
+```json
+
+```
+
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
 
-## End-point: SetCustomType
+## End-point: FindTransaction
+Find a transaction by the payments orderId.
+
+Searchs for a transaction which has the orderId that is set in the custom field BraintreeOrderId of the payment.
+
+The custom field needs to be set manually or by calling a transactionSaleRequest with the property orderId set.
+### Method: POST
+>```
+>{{host}}/{{project-key}}/payments/{{payment-id}}
+>```
+### Headers
+
+|Content-Type|Value|
+|---|---|
+|Content-Type|application/json|
+
+
+### Body (**raw**)
+
+```json
+{
+    "version": {{payment-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "findTransactionRequest",
+            "value" : "{}"
+          }
+    ]
+}
+```
+
+### Query Params
+
+|Param|value|
+|---|---|
+|expand||
+
+
+### 🔑 Authentication oauth2
+
+|Param|value|Type|
+|---|---|---|
+
+
+
+⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
+
+## End-point: SetCustomType For Payment
 Set the custom type of a payment to braintree-payment-type so that custom fields like getClientTokenRequest can be set.
 ### Method: POST
 >```
@@ -521,7 +868,53 @@ Set the custom type of a payment to braintree-payment-type so that custom fields
         {
             "action" : "setCustomType",
             "type" : {
-              "id" : "braintree-payment-type",
+              "key" : "braintree-payment-type",
+              "typeId" : "type"
+            }
+          }
+    ]
+}
+```
+
+### Query Params
+
+|Param|value|
+|---|---|
+|expand||
+
+
+### 🔑 Authentication oauth2
+
+|Param|value|Type|
+|---|---|---|
+
+
+
+⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
+
+## End-point: SetCustomType For Customer
+Set the custom type of a payment to braintree-payment-type so that custom fields like getClientTokenRequest can be set.
+### Method: POST
+>```
+>{{host}}/{{project-key}}/customers/{{customer-id}}
+>```
+### Headers
+
+|Content-Type|Value|
+|---|---|
+|Content-Type|application/json|
+
+
+### Body (**raw**)
+
+```json
+{
+    "version": {{customer-version}},
+    "actions": [
+        {
+            "action" : "setCustomType",
+            "type" : {
+              "key" : "braintree-customer-type",
               "typeId" : "type"
             }
           }

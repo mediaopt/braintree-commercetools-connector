@@ -19,6 +19,7 @@ export const BRAINTREE_API_PAYMENT_ENDPOINTS = [
   'submitForSettlement',
   'void',
   'findTransaction',
+  'payPalOrder',
 ];
 export const BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY =
   'braintree-payment-transaction-type';

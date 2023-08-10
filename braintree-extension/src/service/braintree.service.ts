@@ -62,7 +62,12 @@ export const transactionSale = async (request: TransactionRequest) => {
   const response = await gateway.transaction.sale(request);
   logResponse('transactionSale', response);
   if (!response.success) {
-    throw new CustomError(500, response.message);
+    const prefix = ['soft_declined', 'hard_declined'].includes(
+      response?.transaction?.processorResponseType
+    )
+      ? `[${response.transaction.processorResponseType}] `
+      : '';
+    throw new CustomError(500, `${prefix}${response.message}`);
   }
   return response.transaction;
 };
@@ -164,3 +169,8 @@ function streamToTransaction(stream: Stream): Promise<Transaction | undefined> {
     stream.on('end', () => resolve(undefined));
   });
 }
+
+export const deletePayment = async (paymentMethodToken: string) => {
+  const gateway = getBraintreeGateway();
+  await gateway.paymentMethod.delete(paymentMethodToken);
+};
