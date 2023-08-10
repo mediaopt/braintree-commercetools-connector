@@ -150,11 +150,12 @@ function getPaymentMethodHint(response: Transaction): string {
 
 function parsePayPalOrderRequest(payment: Payment) {
   let request;
+  const payPalOrderRequest = payment?.custom?.fields?.payPalOrderRequest;
   try {
-    request = JSON.parse(payment?.custom?.fields?.payPalOrderRequest);
+    request = JSON.parse(payPalOrderRequest);
   } catch (e) {
     request = {
-      paymentMethodNonce: payment?.custom?.fields?.payPalOrderRequest,
+      paymentMethodNonce: payPalOrderRequest,
     };
   }
   return {
