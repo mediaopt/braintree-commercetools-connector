@@ -2,6 +2,7 @@ import {
   LocalPayment,
   LocalPaymentTransaction,
   PaymentInstrumentType,
+  PaymentMethodCreateRequest,
   PaymentWithOptionalTransaction,
   UpdateActions,
 } from '../types/index.types';
@@ -9,6 +10,7 @@ import {
   Payment,
   Transaction as CommercetoolsTransaction,
   TransactionType,
+  TransactionState,
 } from '@commercetools/platform-sdk';
 import CustomError from '../errors/custom.error';
 import {
@@ -23,16 +25,29 @@ import {
   transactionSale,
   voidTransaction as braintreeVoidTransaction,
   findTransaction as braintreeFindTransaction,
+  createPaymentMethod,
+  deletePayment as braintreeDeletePayment,
 } from './braintree.service';
 import {
   mapBraintreeMoneyToCommercetoolsMoney,
   mapBraintreeStatusToCommercetoolsTransactionState,
   mapBraintreeStatusToCommercetoolsTransactionType,
+  mapCommercetoolsMoneyToBraintreeMoney,
 } from '../utils/map.utils';
-import { ClientTokenRequest, Transaction, TransactionRequest } from 'braintree';
+import {
+  ClientTokenRequest,
+  Transaction,
+  TransactionRequest,
+  TransactionStatus,
+} from 'braintree';
 import { logger } from '../utils/logger.utils';
+import { getCurrentTimestamp } from '../utils/data.utils';
 
 const CHANNEL_COMMERCETOOLS = 'commercetools';
+
+const getPayPalOrderPaymentToken = (payment: Payment) => {
+  return findSuitableTransactionId({ payment }, 'Authorization', 'Initial');
+};
 
 function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
   const transactionSaleRequest = payment?.custom?.fields.transactionSaleRequest;
@@ -56,10 +71,7 @@ function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
     !!request?.customerId ||
     !!request.customer?.id;
   request = {
-    amount: String(
-      amountPlanned.centAmount *
-        Math.pow(10, -amountPlanned.fractionDigits || 0)
-    ),
+    amount: mapCommercetoolsMoneyToBraintreeMoney(amountPlanned),
     merchantAccountId: process.env.BRAINTREE_MERCHANT_ACCOUNT || undefined,
     channel: CHANNEL_COMMERCETOOLS,
     orderId: payment?.custom?.fields?.BraintreeOrderId ?? undefined,
@@ -73,6 +85,9 @@ function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
     },
     ...request,
   } as TransactionRequest;
+  if (!request?.paymentMethodNonce && !request?.paymentMethodToken) {
+    request.paymentMethodToken = getPayPalOrderPaymentToken(payment);
+  }
   return request;
 }
 
@@ -104,7 +119,8 @@ function parseRequest(
 
 function findSuitableTransactionId(
   paymentWithOptionalTransaction: PaymentWithOptionalTransaction,
-  type: TransactionType
+  type: TransactionType,
+  status?: TransactionState
 ) {
   if (paymentWithOptionalTransaction?.transaction) {
     return paymentWithOptionalTransaction?.transaction.interactionId;
@@ -112,7 +128,7 @@ function findSuitableTransactionId(
   const transactions =
     paymentWithOptionalTransaction?.payment?.transactions.filter(
       (transaction: CommercetoolsTransaction): boolean =>
-        transaction.type === type
+        transaction.type === type && (!status || status === transaction.state)
     );
   if (!transactions || transactions.length === 0) {
     throw new CustomError(500, 'The payment has no suitable transaction');
@@ -134,6 +150,62 @@ function getPaymentMethodHint(response: Transaction): string {
       return response?.applePayCard?.sourceDescription ?? '';
     default:
       return '';
+  }
+}
+
+function parsePayPalOrderRequest(payment: Payment) {
+  let request;
+  const payPalOrderRequest = payment?.custom?.fields?.payPalOrderRequest;
+  try {
+    request = JSON.parse(payPalOrderRequest);
+  } catch (e) {
+    request = {
+      paymentMethodNonce: payPalOrderRequest,
+    };
+  }
+  return {
+    customerId: payment?.customer?.id ?? undefined,
+    ...request,
+  } as PaymentMethodCreateRequest;
+}
+
+export async function handlePayPalOrderRequest(payment?: Payment) {
+  if (!payment?.custom?.fields?.payPalOrderRequest) {
+    return [];
+  }
+  try {
+    const request = parsePayPalOrderRequest(payment);
+    let updateActions: UpdateActions = handleRequest('payPalOrder', request);
+    const response = await createPaymentMethod(request);
+    updateActions = updateActions.concat(
+      handlePaymentResponse('payPalOrder', response)
+    );
+    const amountPlanned = payment?.amountPlanned;
+    updateActions.push({
+      action: 'addTransaction',
+      transaction: {
+        type: 'Authorization',
+        amount: amountPlanned,
+        interactionId: response.token,
+        timestamp: response.updatedAt,
+        state: 'Initial',
+      },
+    });
+    updateActions.push({
+      action: 'setStatusInterfaceCode',
+      interfaceCode: 'Initial',
+    });
+    updateActions.push({
+      action: 'setStatusInterfaceText',
+      interfaceText: 'Initial',
+    });
+    updateActions.push({
+      action: 'setMethodInfoMethod',
+      method: 'paypal_account',
+    });
+    return updateActions;
+  } catch (e) {
+    return handleError('payPalOrder', e);
   }
 }
 
@@ -270,6 +342,19 @@ export async function submitForSettlement(
   }
 }
 
+async function deletePayment(
+  paymentMethodToken: string,
+  transaction: CommercetoolsTransaction
+) {
+  await braintreeDeletePayment(paymentMethodToken);
+  return {
+    amount: mapCommercetoolsMoneyToBraintreeMoney(transaction.amount),
+    id: transaction.interactionId,
+    status: 'voided' as TransactionStatus,
+    updatedAt: getCurrentTimestamp(),
+  } as Transaction;
+}
+
 export async function voidTransaction(
   paymentWithOptionalTransaction: PaymentWithOptionalTransaction
 ) {
@@ -284,7 +369,16 @@ export async function voidTransaction(
       'Authorization'
     );
     updateActions = handleRequest('void', request);
-    const response = await braintreeVoidTransaction(request.transactionId);
+    const transaction =
+      paymentWithOptionalTransaction?.payment?.transactions?.find(
+        (transaction) =>
+          transaction.interactionId === request.transactionId &&
+          transaction.type === 'Authorization'
+      );
+    const response =
+      transaction?.state === 'Initial'
+        ? await deletePayment(request.transactionId, transaction)
+        : await braintreeVoidTransaction(request.transactionId);
     updateActions = updateActions.concat(
       handlePaymentResponse(
         'void',
