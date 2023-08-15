@@ -439,11 +439,14 @@ function handleLocalPaymentMethodTransactionResponse(
 function handleTransactionResponse(payment: Payment, response: Transaction) {
   let updateActions: UpdateActions = [];
   const amountPlanned = payment?.amountPlanned;
+  const transactionType =
+    response.type === 'credit'
+      ? 'Refund'
+      : mapBraintreeStatusToCommercetoolsTransactionType(response.status);
   const transaction = payment?.transactions?.find(
     (transaction) =>
       transaction.interactionId === response.id &&
-      transaction.type ===
-        mapBraintreeStatusToCommercetoolsTransactionType(response.status)
+      transaction.type === transactionType
   );
   if (transaction) {
     if (
@@ -462,7 +465,7 @@ function handleTransactionResponse(payment: Payment, response: Transaction) {
     updateActions.push({
       action: 'addTransaction',
       transaction: {
-        type: mapBraintreeStatusToCommercetoolsTransactionType(response.status),
+        type: transactionType,
         amount: {
           centAmount: mapBraintreeMoneyToCommercetoolsMoney(
             response.amount,
@@ -563,7 +566,9 @@ export async function findTransaction(payment?: Payment) {
     const response = await braintreeFindTransaction(request.orderId);
     return updateActions.concat(
       handlePaymentResponse('findTransaction', response),
-      handleTransactionResponse(payment, response)
+      ...response.map((transaction) =>
+        handleTransactionResponse(payment, transaction)
+      )
     );
   } catch (e) {
     logger.error('Call to findTransaction resulted in an error', e);
