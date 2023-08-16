@@ -42,7 +42,7 @@ const getBraintreeGateway = (timeout: number = BRAINTREE_TIMEOUT_PAYMENT) => {
 
 function logResponse(
   requestName: string,
-  response: ValidatedResponse<any> | Customer | Transaction
+  response: ValidatedResponse<any> | Customer | Array<Transaction>
 ) {
   logger.info(`${requestName} response: ${JSON.stringify(response)}`);
 }
@@ -151,22 +151,25 @@ export const findTransaction = async (orderId: string) => {
   const stream = gateway.transaction.search((search) => {
     search.orderId().is(orderId);
   });
-  const transaction = await streamToTransaction(stream);
-  if (!transaction) {
+  const transactions = await streamToTransaction(stream);
+  if (transactions.length === 0) {
     throw new CustomError(
       500,
       `could not find transaction with orderId ${orderId}`
     );
   }
-  logResponse('findTransaction', transaction);
-  return transaction;
+  logResponse('findTransaction', transactions);
+  return transactions;
 };
 
-function streamToTransaction(stream: Stream): Promise<Transaction | undefined> {
+function streamToTransaction(stream: Stream): Promise<Array<Transaction>> {
+  const transactions: Transaction[] = [];
   return new Promise((resolve, reject) => {
-    stream.on('data', (transaction: Transaction) => resolve(transaction));
+    stream.on('data', (transaction: Transaction) =>
+      transactions.push(transaction)
+    );
     stream.on('error', (err) => reject(err));
-    stream.on('end', () => resolve(undefined));
+    stream.on('end', () => resolve(transactions));
   });
 }
 
