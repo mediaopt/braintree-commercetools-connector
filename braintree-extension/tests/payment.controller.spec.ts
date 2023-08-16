@@ -184,7 +184,7 @@ describe('Testing Braintree Find Transaction', () => {
       (action) => action.name === 'findTransactionResponse'
     );
     expect(transactionSaleResponse).toBeDefined();
-    transaction = JSON.parse(transactionSaleResponse?.value) as Transaction;
+    transaction = JSON.parse(transactionSaleResponse?.value)[0] as Transaction;
     expect(transaction).toHaveProperty('orderId', orderId);
   }, 20000);
 });

@@ -70,11 +70,13 @@ export const handlePaymentResponse = (
 
 export const handleCustomerResponse = (
   requestName: string,
-  response: CustomerResponse,
+  response: CustomerResponse | string,
   customer: Customer
 ): UpdateActions => {
   const updateActions: UpdateActions = [];
-  removeEmptyProperties(response);
+  if (typeof response === 'object') {
+    removeEmptyProperties(response);
+  }
   updateActions.push({
     action: 'setCustomField',
     name: `${requestName}Response`,
@@ -87,6 +89,7 @@ export const handleCustomerResponse = (
   });
   if (
     !customer?.custom?.fields?.braintreeCustomerId &&
+    typeof response === 'object' &&
     'id' in response &&
     response.id
   ) {
