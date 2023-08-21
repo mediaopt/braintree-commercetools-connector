@@ -9,6 +9,7 @@ import braintree, {
   PaymentMethodCreateRequest,
   PaymentMethod,
   Transaction,
+  PaymentMethodUpdateRequest,
 } from 'braintree';
 import CustomError from '../errors/custom.error';
 import { Stream } from 'stream';
@@ -174,6 +175,22 @@ function streamToTransaction(stream: Stream): Promise<Array<Transaction>> {
 }
 
 export const deletePayment = async (paymentMethodToken: string) => {
-  const gateway = getBraintreeGateway();
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   await gateway.paymentMethod.delete(paymentMethodToken);
+};
+
+export const updatePayment = async (
+  paymentMethodToken: string,
+  updateRequest: PaymentMethodUpdateRequest
+) => {
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
+  const response = await gateway.paymentMethod.update(
+    paymentMethodToken,
+    updateRequest
+  );
+  logResponse('updatePaymentMethod', response);
+  if (!response.success) {
+    throw new CustomError(500, response.message);
+  }
+  return response.paymentMethod;
 };

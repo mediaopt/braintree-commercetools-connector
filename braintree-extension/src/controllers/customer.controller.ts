@@ -5,6 +5,8 @@ import {
   handleCreateRequest,
   handleFindRequest,
   handleVaultRequest,
+  handleUpdatePaymentRequest,
+  handleDeletePaymentRequest,
 } from '../service/customer.service';
 
 /**
@@ -20,8 +22,15 @@ const update = async (resource: CustomerReference) => {
       throw new CustomError(400, 'customer obj is missing');
     }
     const customer: Customer = resource.obj;
-    const { findRequest, createRequest } = customer?.custom?.fields || {};
+    const {
+      findRequest,
+      createRequest,
+      updatePaymentRequest,
+      deletePaymentRequest,
+    } = customer?.custom?.fields || {};
     updateActions = updateActions.concat(
+      await handleUpdatePaymentRequest(updatePaymentRequest, customer),
+      await handleDeletePaymentRequest(deletePaymentRequest, customer),
       await handleFindRequest(findRequest, customer),
       await handleCreateRequest(customer, createRequest),
       await handleVaultRequest(customer)

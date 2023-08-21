@@ -6,6 +6,8 @@ import {
   createCustomer,
   createPaymentMethod,
   findCustomer,
+  deletePayment,
+  updatePayment,
 } from './braintree.service';
 import { handleCustomerResponse, handleError } from '../utils/response.utils';
 import {
@@ -114,3 +116,46 @@ export async function handleVaultRequest(customer: Customer) {
     return handleError('vault', e);
   }
 }
+
+export async function handleDeletePaymentRequest(
+  deletePaymentRequest: string,
+  customer: Customer
+) {
+  if (!deletePaymentRequest) {
+    return [];
+  }
+
+  try {
+    logger.info(`deletePayment request: ${deletePaymentRequest}`);
+    await deletePayment(deletePaymentRequest);
+    return handleCustomerResponse('deletePayment', 'success', customer);
+  } catch (e) {
+    logger.error('Call to delete payment resulted in an error', e);
+    return handleError('deletePayment', e);
+  }
+}
+
+export const handleUpdatePaymentRequest = async (
+  updatePaymentMethodRequest: string,
+  customer: Customer
+) => {
+  if (!updatePaymentMethodRequest) {
+    return [];
+  }
+  try {
+    const request = JSON.parse(
+      updatePaymentMethodRequest
+    ) as PaymentMethodCreateRequest & { paymentMethodToken?: string };
+    logger.info(`updatePayment request: ${request}`);
+    const paymentMethodToken = request.paymentMethodToken;
+    if (!paymentMethodToken) {
+      throw new CustomError(500, 'parameter paymentMethodToken is missing');
+    }
+    request.paymentMethodToken = undefined;
+    const response = await updatePayment(paymentMethodToken, request);
+    return handleCustomerResponse('updatePayment', response, customer);
+  } catch (e) {
+    logger.error('Call to update payment resulted in an error', e);
+    return handleError('updatePayment', e);
+  }
+};
