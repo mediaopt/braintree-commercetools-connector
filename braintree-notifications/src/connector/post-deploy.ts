@@ -1,4 +1,5 @@
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
+
 dotenv.config();
 
 import { assertError, assertString } from '../utils/assert.utils';
@@ -17,7 +18,7 @@ async function run(): Promise<void> {
     await postDeploy(properties);
   } catch (error) {
     assertError(error);
-    process.stderr.write(`Post-deploy failed: ${error.message}\n`);
+    process.stderr.write(`Post-deploy failed: ${error.message}`);
     process.exitCode = 1;
   }
 }
