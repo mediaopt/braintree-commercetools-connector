@@ -2,7 +2,12 @@ import { NextFunction, Request, Response } from 'express';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
 import { parseNotification } from '../service/braintree.service';
-import { WebhookNotificationKind } from 'braintree';
+import { handleLocalPaymentCompleted } from '../service/commercetools.service';
+import { WebhookNotificationKind, BaseWebhookNotification } from 'braintree';
+
+type LocalPaymentCompleted = BaseWebhookNotification & {
+  localPaymentCompleted: any;
+};
 
 const validateRequest = (request: Request) => {
   if (!request.body) {
@@ -39,8 +44,28 @@ export const post = async (
     validateRequest(request);
     const notification = await parseNotification(request);
     const kind: WebhookNotificationKind = notification.kind;
+    logger.info(`notification ${JSON.stringify(notification)}`);
     switch (kind) {
       case 'check':
+        response.status(200).send();
+        return;
+      case 'local_payment_completed':
+        const localPaymentCompleted = notification as LocalPaymentCompleted;
+        const { paymentMethodNonce, paymentId } =
+          localPaymentCompleted.localPaymentCompleted;
+
+        if (!paymentId || !paymentMethodNonce) {
+          logger.error('Missing request body.');
+          throw new CustomError(400, 'Bad request: Missing body');
+        }
+        try {
+          await handleLocalPaymentCompleted(paymentMethodNonce, paymentId);
+        } catch (error) {
+          throw new CustomError(
+            500,
+            'Error in handling local payment completed process'
+          );
+        }
         response.status(200).send();
         return;
       default:
