@@ -1,17 +1,15 @@
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
+
 dotenv.config();
 
 import { assertError, assertString } from '../utils/assert.utils';
 
-const CONNECT_GCP_TOPIC_NAME_KEY = 'CONNECT_GCP_TOPIC_NAME';
-const CONNECT_GCP_PROJECT_ID_KEY = 'CONNECT_GCP_PROJECT_ID';
+const CONNECT_APPLICATION_URL_KEY = 'CONNECT_SERVICE_URL';
 
 async function postDeploy(properties: Map<string, unknown>): Promise<void> {
-  const topicName = properties.get(CONNECT_GCP_TOPIC_NAME_KEY);
-  const projectId = properties.get(CONNECT_GCP_PROJECT_ID_KEY);
+  const applicationUrl = properties.get(CONNECT_APPLICATION_URL_KEY);
 
-  assertString(topicName, CONNECT_GCP_TOPIC_NAME_KEY);
-  assertString(projectId, CONNECT_GCP_PROJECT_ID_KEY);
+  assertString(applicationUrl, CONNECT_APPLICATION_URL_KEY);
 }
 
 async function run(): Promise<void> {
@@ -20,7 +18,7 @@ async function run(): Promise<void> {
     await postDeploy(properties);
   } catch (error) {
     assertError(error);
-    process.stderr.write(`Post-deploy failed: ${error.message}\n`);
+    process.stderr.write(`Post-deploy failed: ${error.message}`);
     process.exitCode = 1;
   }
 }
