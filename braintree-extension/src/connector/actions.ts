@@ -94,9 +94,13 @@ export async function createBraintreeExtension(
 }
 
 function mapEndpointsToCondition(endpoints: string[]) {
-  return endpoints
-    .map((endpoint) => `custom(fields(${endpoint}Request is defined))`)
-    .join(' or ');
+  return (
+    'custom is defined AND custom(fields is defined) AND (' +
+    endpoints
+      .map((endpoint) => `custom(fields(${endpoint}Request is defined))`)
+      .join(' or ') +
+    ')'
+  );
 }
 
 export async function createBraintreeCustomerExtension(
