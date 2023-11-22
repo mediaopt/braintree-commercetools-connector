@@ -55,9 +55,9 @@ export const mapBraintreeMoneyToCommercetoolsMoney = (
 export const mapCommercetoolsMoneyToBraintreeMoney = (
   amountPlanned: TypedMoney
 ): string => {
-  return String(
+  return (
     amountPlanned.centAmount * Math.pow(10, -amountPlanned.fractionDigits || 0)
-  );
+  ).toFixed(amountPlanned.fractionDigits || 0);
 };
 
 export const mapCommercetoolsCustomerToBraintreeCustomerCreateRequest = (
