@@ -49,7 +49,7 @@ export const mapBraintreeMoneyToCommercetoolsMoney = (
   amount: string,
   fractionDigits: number | undefined
 ): number => {
-  return parseFloat(amount) * Math.pow(10, fractionDigits ?? 0);
+  return Math.round(parseFloat(amount) * Math.pow(10, fractionDigits ?? 0));
 };
 
 export const mapCommercetoolsMoneyToBraintreeMoney = (
