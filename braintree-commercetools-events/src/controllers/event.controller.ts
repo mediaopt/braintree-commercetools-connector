@@ -107,14 +107,10 @@ export const post = async (
   try {
     logger.info('Event message received');
     const messagePayload = parseRequest(request);
-    switch (messagePayload.type) {
-      case 'PaymentInteractionAdded':
-        handlePaymentInteractionAdded(messagePayload);
-        response.status(200).send();
-        break;
-      default:
-        response.status(200).send();
+    if (messagePayload.type === 'PaymentInteractionAdded') {
+      handlePaymentInteractionAdded(messagePayload);
     }
+    response.status(200).send();
   } catch (error) {
     if (error instanceof Error) {
       next(new CustomError(400, error.message));

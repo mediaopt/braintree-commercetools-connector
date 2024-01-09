@@ -1,5 +1,4 @@
-import { Router } from 'express';
-import { NextFunction, Request, Response } from 'express';
+import { Router, NextFunction, Request, Response } from 'express';
 
 import { post } from '../controllers/event.controller';
 
