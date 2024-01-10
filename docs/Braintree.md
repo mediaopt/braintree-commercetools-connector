@@ -52,7 +52,8 @@ Use this request to obtain an access token for your commercetools platform proje
 
 |Param|value|Type|
 |---|---|---|
-
+|username|{{client_id}}|string|
+|password|{{client_secret}}|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -89,7 +90,8 @@ Use this request to obtain an access token for your commercetools platform proje
 
 |Param|value|Type|
 |---|---|---|
-
+|username|{{client_id}}|string|
+|password|{{client_secret}}|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -117,7 +119,8 @@ Use this request to obtain an access token for a anonymous session. As a prerequ
 
 |Param|value|Type|
 |---|---|---|
-
+|username|{{client_id}}|string|
+|password|{{client_secret}}|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -152,7 +155,8 @@ Token introspection allows to determine the active state of an OAuth 2.0 access 
 
 |Param|value|Type|
 |---|---|---|
-
+|username|{{client_id}}|string|
+|password|{{client_secret}}|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -203,7 +207,9 @@ Set the braintree customer id of a customer. This is only for testing. The brain
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -247,7 +253,9 @@ Find a customer in Braintree. To find the customer the customers braintreeCustom
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -291,7 +299,9 @@ Vault a payment method for a customer. If the customer does not exist as a Brain
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 ### Response: undefined
 ```json
@@ -340,7 +350,9 @@ Create a customer in Braintree. The commercetools customer id serves as the Brai
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 ### Response: undefined
 ```json
@@ -393,7 +405,9 @@ The payment needs at least one settled sale transaction. If there are multiple t
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -441,7 +455,9 @@ The payment needs at least one settled sale transaction. If there are multiple t
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -489,7 +505,9 @@ The payment needs at least one authorized transaction. If there are multiple tra
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -537,7 +555,9 @@ The payment needs at least one authorized transaction. If there are multiple tra
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -585,7 +605,9 @@ The payment needs at least one authorized transaction. If there are multiple tra
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -637,7 +659,9 @@ You can refund transactions that have a status of settled or settling. If the tr
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -689,7 +713,9 @@ You can only submit transactions that have a status of authorized for settlement
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -735,7 +761,9 @@ The value of the transactionSaleRequest can be the paymentMethodNonce or a JSON 
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 ### Response: undefined
 ```json
@@ -788,7 +816,9 @@ communicate with Braintree.
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 ### Response: undefined
 ```json
@@ -841,7 +871,9 @@ The custom field needs to be set manually or by calling a transactionSaleRequest
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -887,7 +919,9 @@ Set the custom type of a payment to braintree-payment-type so that custom fields
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 
 
 ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
@@ -933,5 +967,7 @@ Set the custom type of a payment to braintree-payment-type so that custom fields
 
 |Param|value|Type|
 |---|---|---|
-
+|accessToken|{{ctp_access_token}}|string|
+|addTokenTo|header|string|
+|tokenType|Bearer|string|
 _________________________________________________
