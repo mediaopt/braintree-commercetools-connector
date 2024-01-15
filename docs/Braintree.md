@@ -1,16 +1,16 @@
-# Project: Commercetools
+# Commercetools
+
 # Braintree Commercetools API Postman collection
 
 This Postman collection contains examples of requests and responses for most endpoints and commands of the Braintree extension for Commercetools. For every command the smallest possible payload is given. Please find optional fields in the related official documentation.
 
 ## Disclaimer
 
-This is not the official Braintree documentation. Please see [here](http://docs.commercetools.com/)
-for a complete and approved documentation of the Braintree.
+This is not the official Braintree documentation. Please see [here](http://docs.commercetools.com/) for a complete and approved documentation of the Braintree.
 
 ## How to use
 
-**:warning: Be aware that postman automatically synchronizes environment variables (including your API client credentials) to your workspace if logged in.****Use this collection only for development purposes and non-production projects.**
+**:warning: Be aware that postman automatically synchronizes environment variables (including your API client credentials) to your workspace if logged in.** **Use this collection only for development purposes and non-production projects.**
 
 To use this collection in Postman please perform the following steps:
 
@@ -19,162 +19,194 @@ To use this collection in Postman please perform the following steps:
 3. In the Merchant Center, create a new API Client and fill in the client credentials in your environment
 4. Obtain an access token by sending the "Authorization/Obtain access token" request at the bottom of the request list. Now you can use all other endpoints
 
-
 Feel free to clone and modify this collection to your needs.
 
-To automate frequent tasks the collection automatically manages commonly required values and parameters such
-as resource ids, keys and versions in Postman environment variables for you.
+To automate frequent tasks the collection automatically manages commonly required values and parameters such as resource ids, keys and versions in Postman environment variables for you.
 
-Please see [http://docs.commercetools.com/](http://docs.commercetools.com/) for further information about the commercetools Plattform.
-# 📁 Collection: Authorization
+Please see [http://docs.commercetools.com/](http://docs.commercetools.com/) for further information about the commercetools Platform.
 
+## Endpoints
 
-## End-point: Obtain access token
+- [Authorization](#authorization)
+  1. [Obtain access token](#1-obtain-access-token)
+  2. [Obtain access token through password flow](#2-obtain-access-token-through-password-flow)
+  3. [Token for Anonymous Sessions](#3-token-for-anonymous-sessions)
+  4. [Token Introspection](#4-token-introspection)
+- [Braintree](#braintree)
+  1. [SetCustomerId](#1-setcustomerid)
+  2. [findCustomer](#2-findcustomer)
+  3. [vaultCustomer](#3-vaultcustomer)
+     - [Processor declined](#i-example-request-processor-declined)
+     - [Valid Visa Nonce](#ii-example-request-valid-visa-nonce)
+  4. [createCustomer](#4-createcustomer)
+     - [Validation Error](#i-example-request-validation-error)
+  5. [Refund](#5-refund)
+  6. [Partial Refund](#6-partial-refund)
+  7. [SubmitForSettlement](#7-submitforsettlement)
+  8. [Void](#8-void)
+  9. [Partial SubmitForSettlement](#9-partial-submitforsettlement)
+  10. [Transaction Refund](#10-transaction-refund)
+  11. [Transaction SubmitForSettlement](#11-transaction-submitforsettlement)
+  12. [TransactionSale](#12-transactionsale)
+      - [TransactionSale US Merchant](#i-example-request-transactionsale-us-merchant)
+      - [Gateway Declined](#ii-example-request-gateway-declined)
+      - [SoftDecline](#iii-example-request-softdecline)
+      - [VaultedCard](#iv-example-request-vaultedcard)
+      - [Authorizaton](#v-example-request-authorizaton)
+  13. [GetClientToken](#13-getclienttoken)
+      - [GetClientToken US Merchant](#i-example-request-getclienttoken-us-merchant)
+  14. [FindTransaction](#14-findtransaction)
+  15. [SetCustomType For Payment](#15-setcustomtype-for-payment)
+  16. [SetCustomType For Customer](#16-setcustomtype-for-customer)
+
+---
+
+## Authorization
+
+### 1. Obtain access token
+
 Use this request to obtain an access token for your commercetools platform project via Client Credentials Flow. As a prerequisite you must have filled out environment variables in Postman for projectKey, client_id and client_secret to use this.
-### Method: POST
->```
->{{auth_url}}/oauth/token?grant_type=client_credentials
->```
-### Body (**raw**)
 
-```json
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{auth_url}}/oauth/token
 ```
 
-### Query Params
+**_Query params:_**
 
-|Param|value|
-|---|---|
-|grant_type|client_credentials|
-
-
-### 🔑 Authentication basic
-
-|Param|value|Type|
-|---|---|---|
+| Key        | Value              |
+| ---------- | ------------------ |
+| grant_type | client_credentials |
 
 
+**_🔑 Authentication basic_**
 
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
+| Key      | Value             |
+|----------|-------------------|
+| username | {{client_id}}     |
+| password | {{client_secret}} |
 
-## End-point: Obtain access token through password flow
+<br>
+
+### 2. Obtain access token through password flow
+
 Use this request to obtain an access token for your commercetools platform project via Password Flow. As a prerequisite you must have filled out environment variables in Postman for projectKey, client_id, client_secret, user_email and user_password to use this.
-### Method: POST
->```
->{{auth_url}}/oauth/{{project-key}}/customers/token?grant_type=password&username=&password=
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|||
+**_Endpoint:_**
 
-
-### Body (**raw**)
-
-```json
-
+```bash
+Method: POST
+Type: RAW
+URL: {{auth_url}}/oauth/{{project-key}}/customers/token
 ```
 
-### Query Params
+**_Query params:_**
 
-|Param|value|
-|---|---|
-|grant_type|password|
-|username||
-|password||
+| Key        | Value    |
+| ---------- | -------- |
+| grant_type | password |
+| username   |          |
+| password   |          |
 
+**_🔑 Authentication basic_**
 
-### 🔑 Authentication basic
+| Key      | Value             |
+|----------|-------------------|
+| username | {{client_id}}     |
+| password | {{client_secret}} |
 
-|Param|value|Type|
-|---|---|---|
+<br>
 
+### 3. Token for Anonymous Sessions
 
-
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: Token for Anonymous Sessions
 Use this request to obtain an access token for a anonymous session. As a prerequisite you must have filled out environment variables in Postman for projectKey, client_id and client_secret to use this.
-### Method: POST
->```
->{{auth_url}}/oauth/{{project-key}}/anonymous/token?grant_type=client_credentials
->```
-### Body (**raw**)
 
-```json
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{auth_url}}/oauth/{{project-key}}/anonymous/token
 ```
 
-### Query Params
+**_Query params:_**
 
-|Param|value|
-|---|---|
-|grant_type|client_credentials|
+| Key        | Value              |
+| ---------- | ------------------ |
+| grant_type | client_credentials |
 
+**_🔑 Authentication basic_**
 
-### 🔑 Authentication basic
+| Key      | Value             |
+|----------|-------------------|
+| username | {{client_id}}     |
+| password | {{client_secret}} |
 
-|Param|value|Type|
-|---|---|---|
+<br>
 
+### 4. Token Introspection
 
-
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: Token Introspection
 Token introspection allows to determine the active state of an OAuth 2.0 access token and to determine meta-information about this accces token, such as the `scope`.
-### Method: POST
->```
->{{auth_url}}/oauth/introspect?token={{ctp_access_token}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
-
-### Body (**raw**)
-
-```json
-
+```bash
+Method: POST
+Type: RAW
+URL: {{auth_url}}/oauth/introspect
 ```
 
-### Query Params
+**_Headers:_**
 
-|Param|value|
-|---|---|
-|token|{{ctp_access_token}}|
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
 
+**_Query params:_**
 
-### 🔑 Authentication basic
+| Key   | Value                |
+| ----- | -------------------- |
+| token | {{ctp_access_token}} |
 
-|Param|value|Type|
-|---|---|---|
+**_🔑 Authentication basic_**
 
+| Key      | Value             |
+|----------|-------------------|
+| username | {{client_id}}     |
+| password | {{client_secret}} |
 
+<br>
 
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-# 📁 Collection: Braintree
+## Braintree
 
+The Braintree endpoint gives examples how to trigger certain Braintree events using the connect application. When a payment has the custom type with the key "braintree-payment-type", there are custom fields to set (e.g. getClientTokenRequest, transactionSaleRequest, ...) so that the extension will call the Braintree API and return the response in a corresponding custom field (e.g. getClientTokenResponse, ...). Additionally the request and response is stored in the payment interactions of that payment and for certain calls a transaction is created in the payment object (e.g. transactionSale, refund, submitForSettlement, ...).
 
-## End-point: SetCustomerId
+The request data needs to be provided as an json encoded string.
+
+### 1. SetCustomerId
+
 Set the braintree customer id of a customer. This is only for testing. The braintree customer id is normally set when using the findCustomerRequest or createCustomerRequest.
-### Method: POST
->```
->{{host}}/{{project-key}}/customers/{{customer-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/customers/{{customer-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{customer-version}},
     "actions": [
@@ -192,38 +224,37 @@ Set the braintree customer id of a customer. This is only for testing. The brain
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+<br>
 
-### 🔑 Authentication oauth2
+### 2. findCustomer
 
-|Param|value|Type|
-|---|---|---|
-
-
-
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: findCustomer
 Find a customer in Braintree. To find the customer the customers braintreeCustomerId custom field is used or otherwise the customers id.
-### Method: POST
->```
->{{host}}/{{project-key}}/customers/{{customer-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/customers/{{customer-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{customer-version}},
     "actions": [
@@ -236,38 +267,37 @@ Find a customer in Braintree. To find the customer the customers braintreeCustom
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+<br>
 
-### 🔑 Authentication oauth2
+### 3. vaultCustomer
 
-|Param|value|Type|
-|---|---|---|
-
-
-
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: vaultCustomer
 Vault a payment method for a customer. If the customer does not exist as a Braintree customer yet, the customer will be created.
-### Method: POST
->```
->{{host}}/{{project-key}}/customers/{{customer-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/customers/{{customer-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{customer-version}},
     "actions": [
@@ -280,43 +310,109 @@ Vault a payment method for a customer. If the customer does not exist as a Brain
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+<br>
 
-### 🔑 Authentication oauth2
+**_More example Requests/Responses:_**
 
-|Param|value|Type|
-|---|---|---|
+#### I. Example Request: Processor declined
 
+**_Headers:_**
 
-### Response: undefined
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
 
+**_Body:_**
+
+```js
+{
+    "version": {{customer-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "vaultRequest",
+            "value" : "fake-processor-declined-mastercard-nonce"
+          }
+    ]
+}
 ```
 
+**_🔑 Authentication oauth2_**
 
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
-## End-point: createCustomer
+**_Status Code:_** 0
+
+<br>
+
+#### II. Example Request: Valid Visa Nonce
+
+**_Headers:_**
+
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
+{
+    "version": {{customer-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "vaultRequest",
+            "value" : "fake-valid-nonce"
+          }
+    ]
+}
+```
+
+**_🔑 Authentication oauth2_**
+
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
+
+**_Status Code:_** 0
+
+<br>
+
+### 4. createCustomer
+
 Create a customer in Braintree. The commercetools customer id serves as the Braintree customer id.
-### Method: POST
->```
->{{host}}/{{project-key}}/customers/{{customer-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/customers/{{customer-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{customer-version}},
     "actions": [
@@ -329,47 +425,80 @@ Create a customer in Braintree. The commercetools customer id serves as the Brai
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
-
-### 🔑 Authentication oauth2
-
-|Param|value|Type|
-|---|---|---|
+<br>
 
 
-### Response: undefined
-```json
+**_More example Requests/Responses:_**
 
+#### I. Example Request: Validation Error
+
+**_Headers:_**
+
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
+{
+    "version": {{customer-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "createRequest",
+            "value" : "{\"email\": \"invalidEmail\",\"creditCard\": {\"number\": \"notNumeric\",\"billingAddress\": {\"countryName\": \"notAValidCountry\"}}}"
+          }
+    ]
+}
 ```
 
+**_🔑 Authentication oauth2_**
 
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
-## End-point: Refund
+
+**_Status Code:_** 0
+
+<br>
+
+### 5. Refund
+
 Refund a transaction.
 
 You can refund transactions that have a status of settled or settling. If the transaction has not yet begun settlement, use Void instead. If you do not specify an amount to refund, the entire transaction amount will be refunded.
 
 The payment needs at least one settled sale transaction. If there are multiple transactions, the newest one will be refunded. If you want to refund a specific transaction, provide the optional parameter transactionId (see Transaction Refund).
-### Method: POST
->```
->{{host}}/{{project-key}}/payments/{{payment-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/payments/{{payment-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{payment-version}},
     "actions": [
@@ -382,42 +511,41 @@ The payment needs at least one settled sale transaction. If there are multiple t
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+<br>
 
-### 🔑 Authentication oauth2
+### 6. Partial Refund
 
-|Param|value|Type|
-|---|---|---|
-
-
-
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: Partial Refund
 Refund a transaction.
 
 You can refund transactions that have a status of settled or settling. If the transaction has not yet begun settlement, use Void instead. If you do not specify an amount to refund, the entire transaction amount will be refunded.
 
 The payment needs at least one settled sale transaction. If there are multiple transactions, the newest one will be refunded. If you want to refund a specific transaction, provide the optional parameter transactionId (see Transaction Refund).
-### Method: POST
->```
->{{host}}/{{project-key}}/payments/{{payment-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/payments/{{payment-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{payment-version}},
     "actions": [
@@ -430,42 +558,42 @@ The payment needs at least one settled sale transaction. If there are multiple t
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
-
-### 🔑 Authentication oauth2
-
-|Param|value|Type|
-|---|---|---|
+<br>
 
 
+### 7. SubmitForSettlement
 
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: SubmitForSettlement
 Submit a transaction for settlement.
 
 You can only submit transactions that have a status of authorized for settlement.
 
 The payment needs at least one authorized transaction. If there are multiple transactions, the newest one will be submitted for settlement. If you want to submit a specific transaction, provide the optional parameter transactionId (see Transaction SubmitForSettlement).
-### Method: POST
->```
->{{host}}/{{project-key}}/payments/{{payment-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/payments/{{payment-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{payment-version}},
     "actions": [
@@ -478,42 +606,41 @@ The payment needs at least one authorized transaction. If there are multiple tra
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+<br>
 
-### 🔑 Authentication oauth2
+### 8. Void
 
-|Param|value|Type|
-|---|---|---|
-
-
-
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: Void
 Void a transaction.
 
 You can void transactions that have a status of authorized, submitted for settlement, or - for PayPal - settlement pending. When the transaction is voided, we will perform an authorization reversal, if possible, to remove the pending charge from the customer's card.
 
 The payment needs at least one authorized transaction. If there are multiple transactions, the newest one will be voided. If you want to void a specific transaction, provide the optional parameter transactionId (see Transaction Void).
-### Method: POST
->```
->{{host}}/{{project-key}}/payments/{{payment-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/payments/{{payment-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{payment-version}},
     "actions": [
@@ -526,42 +653,41 @@ The payment needs at least one authorized transaction. If there are multiple tra
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+<br>
 
-### 🔑 Authentication oauth2
+### 9. Partial SubmitForSettlement
 
-|Param|value|Type|
-|---|---|---|
-
-
-
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: Partial SubmitForSettlement
 Submit a transaction for settlement.
 
 You can only submit transactions that have a status of authorized for settlement.
 
 The payment needs at least one authorized transaction. If there are multiple transactions, the newest one will be submitted for settlement. If you want to submit a specific transaction, provide the optional parameter transactionId (see Transaction SubmitForSettlement).
-### Method: POST
->```
->{{host}}/{{project-key}}/payments/{{payment-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/payments/{{payment-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{payment-version}},
     "actions": [
@@ -574,40 +700,39 @@ The payment needs at least one authorized transaction. If there are multiple tra
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+<br>
 
-### 🔑 Authentication oauth2
+### 10. Transaction Refund
 
-|Param|value|Type|
-|---|---|---|
-
-
-
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: Transaction Refund
 Refund a transaction.
 
 You can refund transactions that have a status of settled or settling. If the transaction has not yet begun settlement, use Void instead. If you do not specify an amount to refund, the entire transaction amount will be refunded.
-### Method: POST
->```
->{{host}}/{{project-key}}/payments/{{payment-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/payments/{{payment-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{payment-version}},
     "actions": [
@@ -626,40 +751,39 @@ You can refund transactions that have a status of settled or settling. If the tr
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+<br>
 
-### 🔑 Authentication oauth2
+### 11. Transaction SubmitForSettlement
 
-|Param|value|Type|
-|---|---|---|
-
-
-
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: Transaction SubmitForSettlement
 Submit a transaction for settlement.
 
 You can only submit transactions that have a status of authorized for settlement.
-### Method: POST
->```
->{{host}}/{{project-key}}/payments/{{payment-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/payments/{{payment-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{payment-version}},
     "actions": [
@@ -678,40 +802,39 @@ You can only submit transactions that have a status of authorized for settlement
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+<br>
 
-### 🔑 Authentication oauth2
+### 12. TransactionSale
 
-|Param|value|Type|
-|---|---|---|
-
-
-
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: TransactionSale
 Make a transaction sale request.
 
 The value of the transactionSaleRequest can be the paymentMethodNonce or a JSON containing at least the paymentMethodNonce.
-### Method: POST
->```
->{{host}}/{{project-key}}/payments/{{payment-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/payments/{{payment-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{payment-version}},
     "actions": [
@@ -724,47 +847,218 @@ The value of the transactionSaleRequest can be the paymentMethodNonce or a JSON 
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+<br>
 
-### 🔑 Authentication oauth2
+**_More example Requests/Responses:_**
 
-|Param|value|Type|
-|---|---|---|
+#### I. Example Request: TransactionSale US Merchant
 
+**_Headers:_**
 
-### Response: undefined
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
 
+**_Body:_**
+
+```js
+{
+    "version": {{payment-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "transactionSaleRequest",
+            "value" : "{\"amount\": 1497, \"paymentMethodNonce\": \"fake-valid-nonce\", \"merchantAccountId\": \"us-merchant\"}"
+          }
+    ]
+}
 ```
 
+**_🔑 Authentication oauth2_**
 
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
-## End-point: GetClientToken
+**_Status Code:_** 0
+
+<br>
+
+#### II. Example Request: Gateway Declined
+
+**_Headers:_**
+
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
+{
+    "version": {{payment-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "transactionSaleRequest",
+            "value" : "{\"amount\": 497, \"paymentMethodNonce\": \"fake-consumed-nonce\"}"
+          }
+    ]
+}
+```
+
+**_🔑 Authentication oauth2_**
+
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
+
+**_Status Code:_** 0
+
+<br>
+
+#### III. Example Request: SoftDecline
+
+**_Headers:_**
+
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
+{
+    "version": {{payment-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "transactionSaleRequest",
+            "value" : "{\"amount\": 2001, \"paymentMethodNonce\": \"fake-valid-nonce\"}"
+          }
+    ]
+}
+```
+
+**_🔑 Authentication oauth2_**
+
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
+
+**_Status Code:_** 0
+
+<br>
+
+#### IV. Example Request: VaultedCard
+
+**_Headers:_**
+
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
+{
+    "version": {{payment-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "transactionSaleRequest",
+            "value" : "{\"amount\": 1497, \"paymentMethodToken\": \"1353sahg\"}"
+          }
+    ]
+}
+```
+
+**_🔑 Authentication oauth2_**
+
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
+
+**_Status Code:_** 0
+
+<br>
+
+#### V. Example Request: Authorizaton
+
+**_Headers:_**
+
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
+{
+    "version": {{payment-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "transactionSaleRequest",
+            "value" : "{\"amount\": 1497, \"paymentMethodNonce\": \"fake-valid-nonce\", \"options\":{\"submitForSettlement\": false}}"
+          }
+    ]
+}
+```
+
+**_🔑 Authentication oauth2_**
+
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
+
+**_Status Code:_** 0
+
+<br>
+
+### 13. GetClientToken
+
 Get Client Token.
 
-Returns a string which contains all authorization and configuration
-information your client needs to initialize the client SDK to
+Returns a string which contains all authorization and configuration  
+information your client needs to initialize the client SDK to  
 communicate with Braintree.
-### Method: POST
->```
->{{host}}/{{project-key}}/payments/{{payment-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/payments/{{payment-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{payment-version}},
     "actions": [
@@ -777,47 +1071,76 @@ communicate with Braintree.
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+**_More example Requests/Responses:_**
 
-### 🔑 Authentication oauth2
+#### I. Example Request: GetClientToken US Merchant
 
-|Param|value|Type|
-|---|---|---|
+**_Headers:_**
 
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
 
-### Response: undefined
-```json
+**_Body:_**
 
+```js
+{
+    "version": {{payment-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "getClientTokenRequest",
+            "value" : "{\"merchantAccountId\": \"us-merchant\"}"
+          }
+    ]
+}
 ```
 
+**_🔑 Authentication oauth2_**
 
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
-## End-point: FindTransaction
+**_Status Code:_** 0
+
+<br>
+
+### 14. FindTransaction
+
 Find a transaction by the payments orderId.
 
 Searchs for a transaction which has the orderId that is set in the custom field BraintreeOrderId of the payment.
 
 The custom field needs to be set manually or by calling a transactionSaleRequest with the property orderId set.
-### Method: POST
->```
->{{host}}/{{project-key}}/payments/{{payment-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/payments/{{payment-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{payment-version}},
     "actions": [
@@ -830,38 +1153,37 @@ The custom field needs to be set manually or by calling a transactionSaleRequest
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+<br>
 
-### 🔑 Authentication oauth2
+### 15. SetCustomType For Payment
 
-|Param|value|Type|
-|---|---|---|
-
-
-
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: SetCustomType For Payment
 Set the custom type of a payment to braintree-payment-type so that custom fields like getClientTokenRequest can be set.
-### Method: POST
->```
->{{host}}/{{project-key}}/payments/{{payment-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/payments/{{payment-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{payment-version}},
     "actions": [
@@ -876,38 +1198,37 @@ Set the custom type of a payment to braintree-payment-type so that custom fields
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+<br>
 
-### 🔑 Authentication oauth2
+### 16. SetCustomType For Customer
 
-|Param|value|Type|
-|---|---|---|
-
-
-
-⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃ ⁃
-
-## End-point: SetCustomType For Customer
 Set the custom type of a payment to braintree-payment-type so that custom fields like getClientTokenRequest can be set.
-### Method: POST
->```
->{{host}}/{{project-key}}/customers/{{customer-id}}
->```
-### Headers
 
-|Content-Type|Value|
-|---|---|
-|Content-Type|application/json|
+**_Endpoint:_**
 
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/customers/{{customer-id}}
+```
 
-### Body (**raw**)
+**_Headers:_**
 
-```json
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
 {
     "version": {{customer-version}},
     "actions": [
@@ -922,16 +1243,14 @@ Set the custom type of a payment to braintree-payment-type so that custom fields
 }
 ```
 
-### Query Params
+**_🔑 Authentication oauth2_**
 
-|Param|value|
-|---|---|
-|expand||
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
 
+---
 
-### 🔑 Authentication oauth2
-
-|Param|value|Type|
-|---|---|---|
-
-_________________________________________________
+[Back to top](#commercetools)
