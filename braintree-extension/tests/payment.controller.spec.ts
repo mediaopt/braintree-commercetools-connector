@@ -1,7 +1,6 @@
 import { describe, expect, test } from '@jest/globals';
 import { paymentController } from '../src/controllers/payment.controller';
-import validator from 'validator';
-import isBase64 = validator.isBase64;
+import isBase64 from 'validator/lib/isBase64';
 import { PaymentReference } from '@commercetools/platform-sdk';
 import { Transaction } from 'braintree';
 import { UpdateActions } from '../src/types/index.types';
