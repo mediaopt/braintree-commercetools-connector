@@ -49,7 +49,7 @@ function expectSuccessfulCreation(
 
 describe('find customer', () => {
   test('find unknown user', async () => {
-    const customer = {
+    const customer = ({
       obj: {
         id: getRandomId(),
         custom: {
@@ -58,7 +58,7 @@ describe('find customer', () => {
           },
         },
       },
-    } as unknown as CustomerReference;
+    } as unknown) as CustomerReference;
     const response = await customerController('Update', customer);
     expect(response?.statusCode).toBe(200);
     expect(response?.actions[0].name).toBe('findResponse');
@@ -67,7 +67,7 @@ describe('find customer', () => {
 
   test('find existing user', async () => {
     const customerId = getRandomId();
-    const findCustomer = {
+    const findCustomer = ({
       obj: {
         id: customerId,
         custom: {
@@ -76,8 +76,8 @@ describe('find customer', () => {
           },
         },
       },
-    } as unknown as CustomerReference;
-    const createCustomer = {
+    } as unknown) as CustomerReference;
+    const createCustomer = ({
       obj: {
         id: customerId,
         firstName: 'firstName',
@@ -90,7 +90,7 @@ describe('find customer', () => {
           },
         },
       },
-    } as unknown as CustomerReference;
+    } as unknown) as CustomerReference;
     const initialFindResponse = await customerController(
       'Update',
       findCustomer
@@ -108,7 +108,7 @@ describe('find customer', () => {
 describe('vaulting', () => {
   test('vault new customer', async () => {
     const customerId = getRandomId();
-    const findCustomer = {
+    const findCustomer = ({
       obj: {
         id: customerId,
         custom: {
@@ -117,8 +117,8 @@ describe('vaulting', () => {
           },
         },
       },
-    } as unknown as CustomerReference;
-    const createCustomer = {
+    } as unknown) as CustomerReference;
+    const createCustomer = ({
       obj: {
         id: customerId,
         firstName: 'firstName',
@@ -131,7 +131,7 @@ describe('vaulting', () => {
           },
         },
       },
-    } as unknown as CustomerReference;
+    } as unknown) as CustomerReference;
     const initialFindResponse = await customerController(
       'Update',
       findCustomer
@@ -150,7 +150,7 @@ describe('vaulting', () => {
 
   test('vault new customer', async () => {
     const customerId = getRandomId();
-    const findCustomer = {
+    const findCustomer = ({
       obj: {
         id: customerId,
         custom: {
@@ -159,8 +159,8 @@ describe('vaulting', () => {
           },
         },
       },
-    } as unknown as CustomerReference;
-    const createCustomer = {
+    } as unknown) as CustomerReference;
+    const createCustomer = ({
       obj: {
         id: customerId,
         firstName: 'firstName',
@@ -173,8 +173,8 @@ describe('vaulting', () => {
           },
         },
       },
-    } as unknown as CustomerReference;
-    const vaultCustomer = {
+    } as unknown) as CustomerReference;
+    const vaultCustomer = ({
       obj: {
         id: customerId,
         custom: {
@@ -184,7 +184,7 @@ describe('vaulting', () => {
           },
         },
       },
-    } as unknown as CustomerReference;
+    } as unknown) as CustomerReference;
     const initialFindResponse = await customerController(
       'Update',
       findCustomer

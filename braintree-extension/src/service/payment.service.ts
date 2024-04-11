@@ -27,6 +27,7 @@ import {
   findTransaction as braintreeFindTransaction,
   createPaymentMethod,
   deletePayment as braintreeDeletePayment,
+  addPackageTracking as braintreeAddPackageTracking,
 } from './braintree.service';
 import {
   mapBraintreeMoneyToCommercetoolsMoney,
@@ -94,7 +95,7 @@ function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
 function parseRequest(
   paymentWithOptionalTransaction: PaymentWithOptionalTransaction,
   requestField: string,
-  transactionType: TransactionType
+  transactionType?: TransactionType
 ) {
   const requestJSON =
     paymentWithOptionalTransaction.payment?.custom?.fields[requestField] ??
@@ -119,7 +120,7 @@ function parseRequest(
 
 function findSuitableTransactionId(
   paymentWithOptionalTransaction: PaymentWithOptionalTransaction,
-  type: TransactionType,
+  type?: TransactionType,
   status?: TransactionState
 ) {
   if (paymentWithOptionalTransaction?.transaction) {
@@ -128,7 +129,8 @@ function findSuitableTransactionId(
   const transactions =
     paymentWithOptionalTransaction?.payment?.transactions.filter(
       (transaction: CommercetoolsTransaction): boolean =>
-        transaction.type === type && (!status || status === transaction.state)
+        (!type || transaction.type === type) &&
+        (!status || status === transaction.state)
     );
   if (!transactions || transactions.length === 0) {
     throw new CustomError(500, 'The payment has no suitable transaction');
@@ -206,6 +208,44 @@ export async function handlePayPalOrderRequest(payment?: Payment) {
     return updateActions;
   } catch (e) {
     return handleError('payPalOrder', e);
+  }
+}
+
+export async function addPackageTracking(
+  paymentWithOptionalTransaction: PaymentWithOptionalTransaction
+) {
+  if (
+    !paymentWithOptionalTransaction.payment?.custom?.fields
+      ?.addPackageTrackingRequest
+  ) {
+    return [];
+  }
+  try {
+    let updateActions: UpdateActions;
+    const request = parseRequest(
+      paymentWithOptionalTransaction,
+      'addPackageTrackingRequest'
+    );
+    updateActions = handleRequest('addPackageTracking', request);
+    const transactionId = request.transactionId;
+    delete request.transactionId;
+    const response = await braintreeAddPackageTracking(transactionId, request);
+    updateActions = updateActions.concat(
+      handlePaymentResponse(
+        'addPackageTracking',
+        response,
+        paymentWithOptionalTransaction?.transaction?.id
+      )
+    );
+    updateActions = updateActions.concat(updatePaymentFields(response));
+    return updateActions;
+  } catch (e) {
+    logger.error(e);
+    return handleError(
+      'addPackageTracking',
+      e,
+      paymentWithOptionalTransaction?.transaction?.id
+    );
   }
 }
 

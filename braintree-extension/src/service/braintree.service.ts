@@ -13,6 +13,8 @@ import braintree, {
 } from 'braintree';
 import CustomError from '../errors/custom.error';
 import { Stream } from 'stream';
+import { TransactionGateway } from '../interfaces/transaction.interface';
+import { Package } from '../types/index.types';
 
 const BRAINTREE_TIMEOUT_PAYMENT = 9500;
 const BRAINTREE_TIMEOUT_CUSTOMER = 1500;
@@ -87,6 +89,23 @@ export const voidTransaction = async (transactionId: string) => {
   const gateway = getBraintreeGateway();
   const response = await gateway.transaction.void(transactionId);
   logResponse('void', response);
+  if (!response.success) {
+    throw new CustomError(500, response.message);
+  }
+  return response.transaction;
+};
+
+export const addPackageTracking = async (
+  transactionId: string,
+  packageParam: Package
+) => {
+  const gateway = getBraintreeGateway();
+  const transactionGateway = gateway.transaction as TransactionGateway;
+  const response = await transactionGateway.packageTracking(
+    transactionId,
+    packageParam
+  );
+  logResponse('packageTracking', response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }

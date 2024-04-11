@@ -26,6 +26,7 @@ export const BRAINTREE_API_PAYMENT_ENDPOINTS = [
   'void',
   'findTransaction',
   'payPalOrder',
+  'addPackageTracking',
 ];
 export const BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY =
   'braintree-payment-transaction-type';
@@ -364,12 +365,14 @@ async function addOrUpdateCustomType(
               newFieldDefinition.name === existingFieldDefinition.name
           )
       )
-      .map((fieldDefinition: FieldDefinition): TypeAddFieldDefinitionAction => {
-        return {
-          action: 'addFieldDefinition',
-          fieldDefinition: fieldDefinition,
-        };
-      });
+      .map(
+        (fieldDefinition: FieldDefinition): TypeAddFieldDefinitionAction => {
+          return {
+            action: 'addFieldDefinition',
+            fieldDefinition: fieldDefinition,
+          };
+        }
+      );
     if (updates.length === 0) {
       return;
     }

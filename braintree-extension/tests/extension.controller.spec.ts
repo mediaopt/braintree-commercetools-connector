@@ -17,15 +17,15 @@ describe('test controller with wrong requests', () => {
       type: 'order',
     },
   ])('call $action $type', async ({ action, type }) => {
-    const request = {
+    const request = ({
       body: {
         action: action,
         resource: {
           typeId: type,
         },
       },
-    } as unknown as Request;
-    const response = {} as unknown as Response;
+    } as unknown) as Request;
+    const response = ({} as unknown) as Response;
     const next = jest.fn();
     await post(request, response, next);
     expect(next).toBeCalledTimes(1);

@@ -16,6 +16,7 @@ import {
   submitForSettlement,
   voidTransaction,
   handlePayPalOrderRequest,
+  addPackageTracking,
 } from '../service/payment.service';
 
 /**
@@ -36,7 +37,8 @@ const update = async (paymentReference: PaymentReference) => {
       await refund({ payment } as PaymentWithOptionalTransaction),
       await submitForSettlement({ payment } as PaymentWithOptionalTransaction),
       await findTransaction(payment),
-      await voidTransaction({ payment } as PaymentWithOptionalTransaction)
+      await voidTransaction({ payment } as PaymentWithOptionalTransaction),
+      await addPackageTracking({ payment } as PaymentWithOptionalTransaction)
     );
     if (payment?.transactions) {
       const promises = payment.transactions.map(
