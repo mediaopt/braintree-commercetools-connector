@@ -11,7 +11,7 @@ const getRandomId = (): string => {
 
 describe('Testing Braintree GetClient Token', () => {
   test('create client token', async () => {
-    const paymentRequest = {
+    const paymentRequest = ({
       obj: {
         custom: {
           fields: {
@@ -19,7 +19,7 @@ describe('Testing Braintree GetClient Token', () => {
           },
         },
       },
-    } as unknown as PaymentReference;
+    } as unknown) as PaymentReference;
     const paymentResponse = await paymentController('Update', paymentRequest);
     expect(paymentResponse).toBeDefined();
     expect(paymentResponse).toHaveProperty('statusCode', 200);
@@ -61,7 +61,7 @@ describe('Testing Braintree GetClient Token', () => {
   ])(
     'create client token with $name',
     async ({ option }) => {
-      const paymentRequest = {
+      const paymentRequest = ({
         obj: {
           custom: {
             fields: {
@@ -69,7 +69,7 @@ describe('Testing Braintree GetClient Token', () => {
             },
           },
         },
-      } as unknown as PaymentReference;
+      } as unknown) as PaymentReference;
       const paymentResponse = await paymentController('Update', paymentRequest);
       expect(paymentResponse).toBeDefined();
       expect(paymentResponse).toHaveProperty('statusCode', 200);
@@ -114,7 +114,7 @@ describe('Testing Braintree Transaction Sale', () => {
   ])(
     '$name transaction',
     async ({ nonce, expectedPaymentInstrumentType }) => {
-      const paymentRequest = {
+      const paymentRequest = ({
         obj: {
           amountPlanned: {
             centAmount: 100,
@@ -126,7 +126,7 @@ describe('Testing Braintree Transaction Sale', () => {
             },
           },
         },
-      } as unknown as PaymentReference;
+      } as unknown) as PaymentReference;
       const paymentResponse = await paymentController('Update', paymentRequest);
       const payment = expectSuccessfulTransaction(paymentResponse);
       expect(payment).toHaveProperty('status', 'authorized');
@@ -142,7 +142,7 @@ describe('Testing Braintree Transaction Sale', () => {
 describe('Testing Braintree Find Transaction', () => {
   test('find transaction by BraintreeOrderId', async () => {
     const orderId = getRandomId();
-    const transactionSaleRequest = {
+    const transactionSaleRequest = ({
       obj: {
         amountPlanned: {
           centAmount: 100,
@@ -155,8 +155,8 @@ describe('Testing Braintree Find Transaction', () => {
           },
         },
       },
-    } as unknown as PaymentReference;
-    const findTransactionRequest = {
+    } as unknown) as PaymentReference;
+    const findTransactionRequest = ({
       obj: {
         amountPlanned: {
           centAmount: 100,
@@ -169,7 +169,7 @@ describe('Testing Braintree Find Transaction', () => {
           },
         },
       },
-    } as unknown as PaymentReference;
+    } as unknown) as PaymentReference;
     let paymentResponse = await paymentController(
       'Update',
       transactionSaleRequest
@@ -207,7 +207,7 @@ function expectSuccessfulTransaction(
 
 describe('Testing Braintree aftersales', () => {
   test('Void an authorization', async () => {
-    const paymentRequest = {
+    const paymentRequest = ({
       obj: {
         amountPlanned: {
           centAmount: 100,
@@ -219,12 +219,12 @@ describe('Testing Braintree aftersales', () => {
           },
         },
       },
-    } as unknown as PaymentReference;
+    } as unknown) as PaymentReference;
     let paymentResponse = await paymentController('Update', paymentRequest);
     let payment = expectSuccessfulTransaction(paymentResponse);
     expect(payment).toHaveProperty('status', 'authorized');
 
-    const voidRequest = {
+    const voidRequest = ({
       obj: {
         amountPlanned: {
           centAmount: 100,
@@ -243,7 +243,7 @@ describe('Testing Braintree aftersales', () => {
           },
         },
       },
-    } as unknown as PaymentReference;
+    } as unknown) as PaymentReference;
     paymentResponse = await paymentController('Update', voidRequest);
     expect(paymentResponse).toHaveProperty('statusCode', 200);
     const voidResponse = paymentResponse?.actions.find(
@@ -255,7 +255,7 @@ describe('Testing Braintree aftersales', () => {
   }, 20000);
 
   test('Settle an authorization', async () => {
-    const paymentRequest = {
+    const paymentRequest = ({
       obj: {
         amountPlanned: {
           centAmount: 100,
@@ -267,12 +267,12 @@ describe('Testing Braintree aftersales', () => {
           },
         },
       },
-    } as unknown as PaymentReference;
+    } as unknown) as PaymentReference;
     let paymentResponse = await paymentController('Update', paymentRequest);
     let payment = expectSuccessfulTransaction(paymentResponse);
     expect(payment).toHaveProperty('status', 'authorized');
 
-    const settlementRequest = {
+    const settlementRequest = ({
       obj: {
         amountPlanned: {
           centAmount: 100,
@@ -291,7 +291,7 @@ describe('Testing Braintree aftersales', () => {
           },
         },
       },
-    } as unknown as PaymentReference;
+    } as unknown) as PaymentReference;
     paymentResponse = await paymentController('Update', settlementRequest);
     expect(paymentResponse).toHaveProperty('statusCode', 200);
     const settlementResponse = paymentResponse?.actions.find(
@@ -304,7 +304,7 @@ describe('Testing Braintree aftersales', () => {
 
   test('Refund a settlement', async () => {
     process.env.BRAINTREE_AUTOCAPTURE = 'true';
-    const paymentRequest = {
+    const paymentRequest = ({
       obj: {
         amountPlanned: {
           centAmount: 100,
@@ -316,13 +316,13 @@ describe('Testing Braintree aftersales', () => {
           },
         },
       },
-    } as unknown as PaymentReference;
+    } as unknown) as PaymentReference;
 
     let paymentResponse = await paymentController('Update', paymentRequest);
     let payment = expectSuccessfulTransaction(paymentResponse);
     expect(payment.status).toBe('settling');
     const interfaceId = payment.id;
-    const refundRequest = {
+    const refundRequest = ({
       obj: {
         amountPlanned: {
           centAmount: 100,
@@ -341,7 +341,7 @@ describe('Testing Braintree aftersales', () => {
           },
         },
       },
-    } as unknown as PaymentReference;
+    } as unknown) as PaymentReference;
     paymentResponse = await paymentController('Update', refundRequest);
     expect(paymentResponse).toHaveProperty('statusCode', 200);
     const refundResponse = paymentResponse?.actions.find(

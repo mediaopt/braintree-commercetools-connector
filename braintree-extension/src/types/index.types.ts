@@ -62,3 +62,21 @@ export type LocalPayment = {
 export type LocalPaymentTransaction = BraintreeTransaction & {
   localPayment: LocalPayment;
 };
+
+export type Package = {
+  carrier: string;
+  trackingNumber: string;
+  notifyPayer?: boolean;
+  items?: LineItem[];
+};
+
+type LineItem = {
+  upc_code?: string;
+  upc_type?: string;
+  image_url?: string;
+  quantity?: number;
+  name?: string;
+  description?: string;
+  productCode?: string;
+  url?: string | undefined;
+};
