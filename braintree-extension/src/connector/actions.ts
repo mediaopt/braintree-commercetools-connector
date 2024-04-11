@@ -66,7 +66,7 @@ export async function deleteExtensionIfExist(
   }
 }
 
-export async function createBraintreeExtension(
+export async function createBraintreePaymentExtension(
   apiRoot: ByProjectKeyRequestBuilder,
   applicationUrl: string
 ): Promise<void> {
@@ -365,14 +365,12 @@ async function addOrUpdateCustomType(
               newFieldDefinition.name === existingFieldDefinition.name
           )
       )
-      .map(
-        (fieldDefinition: FieldDefinition): TypeAddFieldDefinitionAction => {
-          return {
-            action: 'addFieldDefinition',
-            fieldDefinition: fieldDefinition,
-          };
-        }
-      );
+      .map((fieldDefinition: FieldDefinition): TypeAddFieldDefinitionAction => {
+        return {
+          action: 'addFieldDefinition',
+          fieldDefinition: fieldDefinition,
+        };
+      });
     if (updates.length === 0) {
       return;
     }

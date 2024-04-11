@@ -6,6 +6,7 @@ import {
   PaymentMethodCreateRequest as BraintreePaymentMethodCreateRequest,
   PaymentInstrumentType as BraintreePaymentInstrumentType,
   Transaction as BraintreeTransaction,
+  TransactionLineItem,
 } from 'braintree';
 
 export type Message = {
@@ -70,13 +71,8 @@ export type Package = {
   items?: LineItem[];
 };
 
-type LineItem = {
+type LineItem = TransactionLineItem & {
   upc_code?: string;
   upc_type?: string;
   image_url?: string;
-  quantity?: number;
-  name?: string;
-  description?: string;
-  productCode?: string;
-  url?: string | undefined;
 };

@@ -11,6 +11,10 @@ import {
   CustomerUpdateAction,
 } from '@commercetools/platform-sdk';
 import { BRAINTREE_CUSTOMER_TYPE_KEY } from '../connector/actions';
+import {getOrderById, getPaymentById} from "../services/commercetools.service";
+import {findSuitableTransactionId} from "../services/payments.service";
+import {Package, ParcelAddedToDeliveryMessagePayload} from "../types/index.types";
+import {addPackageTracking} from "../services/braintree.service";
 
 function parseRequest(request: Request) {
   if (!request.body) {
@@ -90,6 +94,59 @@ const handlePaymentInteractionAdded = async (
   await setBraintreeCustomerId(customerId, customer.body.version);
 };
 
+
+const handleParcelAddedToDelivery = async (
+    message: ParcelAddedToDeliveryMessagePayload
+) => {
+  if (!process.env.BRAINTREE_SEND_TRACKING) {
+    return;
+  }
+  const order = await getOrderById(message.resource.id);
+  if (!order) {
+    logger.info(`Could not load order with id ${message.resource.id}`);
+    return;
+  }
+  logger.info(`Loaded order with id ${order.id}`);
+  if (!order?.paymentInfo?.payments) {
+    logger.info(`No payments assigned to order with id ${order.id}`);
+    return;
+  }
+  const parcel = message.parcel;
+  logger.info(parcel);
+  const payment = (
+      await Promise.all(
+          order.paymentInfo?.payments.map(async ({ id }) => {
+            const payment = await getPaymentById(id);
+            if (!payment) return undefined;
+            const captureTransaction = findSuitableTransactionId(payment, 'Charge');
+            return payment?.custom?.fields?.PayPalOrderId && captureTransaction
+                ? payment
+                : undefined;
+          })
+      )
+  ).find((id) => id);
+  logger.info(payment);
+  if (!payment) {
+    logger.info(
+        `No charged PayPal payment assigned to order with id ${order.id}`
+    );
+    return;
+  }
+  const request = {
+    trackingNumber: parcel?.trackingData?.trackingId,
+    carrier: parcel?.trackingData?.carrier,
+    transactionId: findSuitableTransactionId(payment, 'Charge'),
+  } as Package;
+  logger.info(JSON.stringify(request));
+  const response = await addPackageTracking(
+      payment?.custom?.fields?.PayPalOrderId,
+      request
+  );
+  logger.info(JSON.stringify(response));
+  return;
+};
+
+
 /**
  * Exposed event POST endpoint.
  * Receives the Pub/Sub message and works with it
@@ -112,6 +169,12 @@ export const post = async (
         handlePaymentInteractionAdded(messagePayload);
         response.status(200).send();
         break;
+      case 'ParcelAddedToDelivery':
+        await handleParcelAddedToDelivery(
+            messagePayload as unknown as ParcelAddedToDeliveryMessagePayload
+        );
+        response.status(204).send();
+        return;
       default:
         response.status(200).send();
     }
