@@ -98,7 +98,7 @@ const handlePaymentInteractionAdded = async (
 const handleParcelAddedToDelivery = async (
     message: ParcelAddedToDeliveryMessagePayload
 ) => {
-  if (!process.env.BRAINTREE_SEND_TRACKING) {
+  if (process.env.BRAINTREE_SEND_TRACKING !== 'true') {
     return;
   }
   const order = await getOrderById(message.resource.id);
