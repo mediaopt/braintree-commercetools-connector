@@ -9,6 +9,7 @@ import {
 import {
   CustomerUpdate,
   CustomerUpdateAction,
+  DeliveryItem,
 } from '@commercetools/platform-sdk';
 import { BRAINTREE_CUSTOMER_TYPE_KEY } from '../connector/actions';
 import { getOrderById } from '../services/commercetools.service';
@@ -18,6 +19,7 @@ import {
   ParcelAddedToDeliveryMessagePayload,
 } from '../types/index.types';
 import { addPackageTracking } from '../services/braintree.service';
+import { mapItems } from '../utils/map.utils';
 
 function parseRequest(request: Request) {
   if (!request.body) {
@@ -100,7 +102,10 @@ const handlePaymentInteractionAdded = async (
 const handleParcelAddedToDelivery = async (
   message: ParcelAddedToDeliveryMessagePayload
 ) => {
-  if (process.env.BRAINTREE_SEND_TRACKING !== 'true' || message.parcel.trackingData?.isReturn === true) {
+  if (
+    process.env.BRAINTREE_SEND_TRACKING !== 'true' ||
+    message.parcel.trackingData?.isReturn === true
+  ) {
     return;
   }
   const order = await getOrderById(message.resource.id);
@@ -127,9 +132,19 @@ const handleParcelAddedToDelivery = async (
     );
     return;
   }
+  const deliveryItems: DeliveryItem[] =
+    parcel.items ??
+    order.shippingInfo?.deliveries?.find(
+      (delivery) =>
+        !!delivery?.parcels?.find(
+          (deliveryParcel) => deliveryParcel.id === parcel.id
+        )
+    )?.items ??
+    [];
   const request = {
     trackingNumber: parcel?.trackingData?.trackingId,
     carrier: parcel?.trackingData?.carrier,
+    lineItems: mapItems(order, deliveryItems),
   } as Package;
   logger.info(JSON.stringify(request));
   await addPackageTracking(suitableBraintreeTransaction, request);

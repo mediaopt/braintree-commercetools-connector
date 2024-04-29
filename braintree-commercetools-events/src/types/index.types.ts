@@ -23,7 +23,18 @@ export type Package = {
   carrier: string;
   trackingNumber: string;
   notifyPayer?: boolean;
-  items?: any[];
+  lineItems?: LineItem[];
+};
+
+export type LineItem = {
+  upc_code?: string;
+  upc_type?: string;
+  image_url?: string;
+  quantity?: number;
+  name?: string;
+  description?: string;
+  productCode?: string;
+  url?: string;
 };
 
 export type ParcelAddedToDeliveryMessagePayload = {
