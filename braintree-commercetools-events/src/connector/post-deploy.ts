@@ -19,7 +19,7 @@ async function postDeploy(properties: Map<string, unknown>): Promise<void> {
   assertString(topicName, CONNECT_GCP_TOPIC_NAME_KEY);
   assertString(projectId, CONNECT_GCP_PROJECT_ID_KEY);
 
-  const apiRoot = await createApiRoot();
+  const apiRoot = createApiRoot();
   await createPaymentInteractionAddedSubscription(
     apiRoot,
     topicName,
