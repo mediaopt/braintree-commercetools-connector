@@ -11,7 +11,11 @@ export const getOrderById = async (
   const response = await apiRoot
     .orders()
     .withId({ ID: orderId })
-    .get()
+    .get({
+      queryArgs: {
+        expand: 'paymentInfo.payments[*]',
+      },
+    })
     .execute();
   return response.body;
 };

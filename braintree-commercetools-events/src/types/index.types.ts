@@ -1,4 +1,4 @@
-import {Delivery, OrderReference, Parcel} from "@commercetools/platform-sdk";
+import { Delivery, OrderReference, Parcel } from '@commercetools/platform-sdk';
 
 export type Message = {
   code: string;
@@ -18,15 +18,13 @@ export type Wrapper = (
   validator: ValidatorFunction
 ) => (value: object) => boolean;
 
-
 export type Package = {
   transactionId: string;
   carrier: string;
   trackingNumber: string;
   notifyPayer?: boolean;
   items?: any[];
-}
-
+};
 
 export type ParcelAddedToDeliveryMessagePayload = {
   notificationType: 'Message';

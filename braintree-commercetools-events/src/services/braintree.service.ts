@@ -1,13 +1,14 @@
 import { logger } from '../utils/logger.utils';
-import braintree, {
+import {
   Environment,
   Customer,
   ValidatedResponse,
   Transaction,
+  BraintreeGateway,
 } from 'braintree';
 import CustomError from '../errors/custom.error';
-import {TransactionGateway} from "../interfaces/transaction.interface";
-import {Package} from "../types/index.types";
+import { TransactionGateway } from '../interfaces/transaction.interface';
+import { Package } from '../types/index.types';
 
 const getBraintreeGateway = () => {
   if (
@@ -20,7 +21,7 @@ const getBraintreeGateway = () => {
       'Internal Server Error - braintree config is missing'
     );
   }
-  return new braintree.BraintreeGateway({
+  return new BraintreeGateway({
     environment:
       process.env.BRAINTREE_ENVIRONMENT === 'Production'
         ? Environment.Production
@@ -38,11 +39,17 @@ function logResponse(
   logger.info(`${requestName} response: ${JSON.stringify(response)}`);
 }
 
-export const addPackageTracking = async (transactionId: string, packageParam: Package) => {
+export const addPackageTracking = async (
+  transactionId: string,
+  packageParam: Package
+) => {
   logger.info(transactionId);
   const gateway = getBraintreeGateway();
   const transactionGateway = gateway.transaction as TransactionGateway;
-  const response = await transactionGateway.packageTracking(transactionId, packageParam);
+  const response = await transactionGateway.packageTracking(
+    transactionId,
+    packageParam
+  );
   logResponse('packageTracking', response);
   if (!response.success) {
     throw new CustomError(500, response.message);

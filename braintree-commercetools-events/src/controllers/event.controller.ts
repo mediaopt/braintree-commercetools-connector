@@ -11,10 +11,13 @@ import {
   CustomerUpdateAction,
 } from '@commercetools/platform-sdk';
 import { BRAINTREE_CUSTOMER_TYPE_KEY } from '../connector/actions';
-import {getOrderById, getPaymentById} from "../services/commercetools.service";
-import {findSuitableTransactionId} from "../services/payments.service";
-import {Package, ParcelAddedToDeliveryMessagePayload} from "../types/index.types";
-import {addPackageTracking} from "../services/braintree.service";
+import { getOrderById } from '../services/commercetools.service';
+import { findSuitableTransactionId } from '../services/payments.service';
+import {
+  Package,
+  ParcelAddedToDeliveryMessagePayload,
+} from '../types/index.types';
+import { addPackageTracking } from '../services/braintree.service';
 
 function parseRequest(request: Request) {
   if (!request.body) {
@@ -94,11 +97,10 @@ const handlePaymentInteractionAdded = async (
   await setBraintreeCustomerId(customerId, customer.body.version);
 };
 
-
 const handleParcelAddedToDelivery = async (
-    message: ParcelAddedToDeliveryMessagePayload
+  message: ParcelAddedToDeliveryMessagePayload
 ) => {
-  if (process.env.BRAINTREE_SEND_TRACKING !== 'true') {
+  if (process.env.BRAINTREE_SEND_TRACKING !== 'true' || message.parcel.trackingData?.isReturn === true) {
     return;
   }
   const order = await getOrderById(message.resource.id);
@@ -112,40 +114,26 @@ const handleParcelAddedToDelivery = async (
     return;
   }
   const parcel = message.parcel;
-  logger.info(parcel);
-  const payment = (
-      await Promise.all(
-          order.paymentInfo?.payments.map(async ({ id }) => {
-            const payment = await getPaymentById(id);
-            if (!payment) return undefined;
-            const captureTransaction = findSuitableTransactionId(payment, 'Charge');
-            return payment?.custom?.fields?.PayPalOrderId && captureTransaction
-                ? payment
-                : undefined;
-          })
-      )
-  ).find((id) => id);
-  logger.info(payment);
-  if (!payment) {
+  const suitableBraintreeTransaction = order.paymentInfo?.payments
+    .map(({ obj: payment }) => {
+      if (!payment || !payment?.custom?.fields?.BraintreeOrderId)
+        return undefined;
+      return findSuitableTransactionId(payment, 'Charge');
+    })
+    .find((id) => id);
+  if (!suitableBraintreeTransaction) {
     logger.info(
-        `No charged PayPal payment assigned to order with id ${order.id}`
+      `No charged PayPal payment assigned to order with id ${order.id}`
     );
     return;
   }
   const request = {
     trackingNumber: parcel?.trackingData?.trackingId,
     carrier: parcel?.trackingData?.carrier,
-    transactionId: findSuitableTransactionId(payment, 'Charge'),
   } as Package;
   logger.info(JSON.stringify(request));
-  const response = await addPackageTracking(
-      payment?.custom?.fields?.PayPalOrderId,
-      request
-  );
-  logger.info(JSON.stringify(response));
-  return;
+  await addPackageTracking(suitableBraintreeTransaction, request);
 };
-
 
 /**
  * Exposed event POST endpoint.
@@ -166,15 +154,17 @@ export const post = async (
     const messagePayload = parseRequest(request);
     switch (messagePayload.type) {
       case 'PaymentInteractionAdded':
-        handlePaymentInteractionAdded(messagePayload);
+        await handlePaymentInteractionAdded(
+          messagePayload as unknown as PaymentInteractionAddedMessagePayload
+        );
         response.status(200).send();
         break;
       case 'ParcelAddedToDelivery':
         await handleParcelAddedToDelivery(
-            messagePayload as unknown as ParcelAddedToDeliveryMessagePayload
+          messagePayload as unknown as ParcelAddedToDeliveryMessagePayload
         );
         response.status(204).send();
-        return;
+        break;
       default:
         response.status(200).send();
     }
