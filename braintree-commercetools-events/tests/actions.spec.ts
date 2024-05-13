@@ -1,6 +1,6 @@
 import { describe, expect } from '@jest/globals';
 import {
-  createCustomerCreateSubscription,
+  createPaymentInteractionAddedSubscription,
   deleteCustomerCreateSubscription,
 } from '../src/connector/actions';
 
@@ -16,7 +16,7 @@ describe('Testing actions', () => {
       get: jest.fn(() => apiRequest),
       post: jest.fn(() => apiRequest),
     };
-    await createCustomerCreateSubscription(
+    await createPaymentInteractionAddedSubscription(
       apiRoot,
       'lorem ipsum',
       'lorem ipsum'

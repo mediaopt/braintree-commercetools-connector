@@ -9,8 +9,17 @@ import {
 import {
   CustomerUpdate,
   CustomerUpdateAction,
+  DeliveryItem,
 } from '@commercetools/platform-sdk';
 import { BRAINTREE_CUSTOMER_TYPE_KEY } from '../connector/actions';
+import { getOrderById } from '../services/commercetools.service';
+import { findSuitableTransactionId } from '../services/payments.service';
+import {
+  Package,
+  ParcelAddedToDeliveryMessagePayload,
+} from '../types/index.types';
+import { addPackageTracking } from '../services/braintree.service';
+import { mapItems } from '../utils/map.utils';
 
 function parseRequest(request: Request) {
   if (!request.body) {
@@ -90,6 +99,57 @@ const handlePaymentInteractionAdded = async (
   await setBraintreeCustomerId(customerId, customer.body.version);
 };
 
+const handleParcelAddedToDelivery = async (
+  message: ParcelAddedToDeliveryMessagePayload
+) => {
+  if (
+    process.env.BRAINTREE_SEND_TRACKING !== 'true' ||
+    message.parcel.trackingData?.isReturn === true
+  ) {
+    return;
+  }
+  const order = await getOrderById(message.resource.id);
+  if (!order) {
+    logger.info(`Could not load order with id ${message.resource.id}`);
+    return;
+  }
+  logger.info(`Loaded order with id ${order.id}`);
+  if (!order?.paymentInfo?.payments) {
+    logger.info(`No payments assigned to order with id ${order.id}`);
+    return;
+  }
+  const parcel = message.parcel;
+  const suitableBraintreeTransaction = order.paymentInfo?.payments
+    .map(({ obj: payment }) => {
+      if (!payment || !payment?.custom?.fields?.BraintreeOrderId)
+        return undefined;
+      return findSuitableTransactionId(payment, 'Charge');
+    })
+    .find((id) => id);
+  if (!suitableBraintreeTransaction) {
+    logger.info(
+      `No charged PayPal payment assigned to order with id ${order.id}`
+    );
+    return;
+  }
+  const deliveryItems: DeliveryItem[] =
+    parcel.items ??
+    order.shippingInfo?.deliveries?.find(
+      (delivery) =>
+        !!delivery?.parcels?.find(
+          (deliveryParcel) => deliveryParcel.id === parcel.id
+        )
+    )?.items ??
+    [];
+  const request = {
+    trackingNumber: parcel?.trackingData?.trackingId,
+    carrier: parcel?.trackingData?.carrier,
+    lineItems: mapItems(order, deliveryItems),
+  } as Package;
+  logger.info(JSON.stringify(request));
+  await addPackageTracking(suitableBraintreeTransaction, request);
+};
+
 /**
  * Exposed event POST endpoint.
  * Receives the Pub/Sub message and works with it
@@ -107,10 +167,22 @@ export const post = async (
   try {
     logger.info('Event message received');
     const messagePayload = parseRequest(request);
-    if (messagePayload.type === 'PaymentInteractionAdded') {
-      handlePaymentInteractionAdded(messagePayload);
+    switch (messagePayload.type) {
+      case 'PaymentInteractionAdded':
+        await handlePaymentInteractionAdded(
+          messagePayload as unknown as PaymentInteractionAddedMessagePayload
+        );
+        response.status(200).send();
+        break;
+      case 'ParcelAddedToDelivery':
+        await handleParcelAddedToDelivery(
+          messagePayload as unknown as ParcelAddedToDeliveryMessagePayload
+        );
+        response.status(204).send();
+        break;
+      default:
+        response.status(200).send();
     }
-    response.status(200).send();
   } catch (error) {
     if (error instanceof Error) {
       next(new CustomError(400, error.message));

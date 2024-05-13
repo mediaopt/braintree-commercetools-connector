@@ -9,31 +9,46 @@ deployAs:
       standardConfiguration:
         - key: CTP_REGION
           description: commercetools Composable Commerce API region
+          required: true
         - key: BRAINTREE_MERCHANT_ID
           description: Braintree Merchant Account
+          required: true
         - key: BRAINTREE_PUBLIC_KEY
           description: Braintree public key
+          required: true
         - key: BRAINTREE_ENVIRONMENT
           description: Braintree environment (Sandbox or Production)
+          required: true
+          default: Sandbox
         - key: BRAINTREE_AUTOCAPTURE
           description: Braintree setting whether transactions should be captured directly (true OR false)
+          required: true
+          default: 'true'
         - key: BRAINTREE_MERCHANT_ACCOUNT
           description: Default Braintree merchant account (optional). Can be overwritten on request level
+          required: false
         - key: BRAINTREE_VALIDATE_CARD
           description: Braintree setting whether to valid a card before vaulting (optional).
+          required: false
         - key: BRAINTREE_PAYPAL_DESCRIPTION
           description: Description of the transaction that is displayed to customers in PayPal email receipts.
+          required: false
       securedConfiguration:
         - key: CTP_PROJECT_KEY
           description: commercetools Composable Commerce project key
+          required: true
         - key: CTP_CLIENT_ID
           description: commercetools Composable Commerce client ID
+          required: true
         - key: CTP_CLIENT_SECRET
           description: commercetools Composable Commerce client secret
+          required: true
         - key: CTP_SCOPE
           description: commercetools Composable Commerce client scope
+          required: true
         - key: BRAINTREE_PRIVATE_KEY
           description: Braintree private key
+          required: true
   - name: braintree-notifications
     applicationType: service
     endpoint: /braintree-notifications
@@ -43,23 +58,33 @@ deployAs:
       standardConfiguration:
         - key: CTP_REGION
           description: commercetools Composable Commerce API region
+          required: true
         - key: BRAINTREE_MERCHANT_ID
           description: Braintree Merchant Account
+          required: true
         - key: BRAINTREE_PUBLIC_KEY
           description: Braintree public key
+          required: true
         - key: BRAINTREE_ENVIRONMENT
           description: Braintree environment (Sandbox or Production)
+          required: true
+          default: Sandbox
       securedConfiguration:
         - key: CTP_PROJECT_KEY
           description: commercetools Composable Commerce project key
+          required: true
         - key: CTP_CLIENT_ID
           description: commercetools Composable Commerce client ID
+          required: true
         - key: CTP_CLIENT_SECRET
           description: commercetools Composable Commerce client secret
+          required: true
         - key: CTP_SCOPE
           description: commercetools Composable Commerce client scope
+          required: true
         - key: BRAINTREE_PRIVATE_KEY
           description: Braintree private key
+          required: true
   - name: braintree-commercetools-events
     applicationType: event
     endpoint: /braintree-commercetools-events
@@ -70,12 +95,34 @@ deployAs:
       standardConfiguration:
         - key: CTP_REGION
           description: commercetools Composable Commerce API region
+          required: true
+        - key: BRAINTREE_MERCHANT_ID
+          description: Braintree Merchant Account
+          required: true
+        - key: BRAINTREE_PUBLIC_KEY
+          description: Braintree public key
+          required: true
+        - key: BRAINTREE_ENVIRONMENT
+          description: Braintree environment (Sandbox or Production)
+          required: true
+          default: Sandbox
+        - key: BRAINTREE_SEND_TRACKING
+          description: Automatically transfer the Tracking Data to Braintree when a Parcel is created for a delivery of an Order (true OR false)
+          default: 'false'
+          required: true
       securedConfiguration:
         - key: CTP_PROJECT_KEY
           description: commercetools Composable Commerce project key
+          required: true
         - key: CTP_CLIENT_ID
           description: commercetools Composable Commerce client ID
+          required: true
         - key: CTP_CLIENT_SECRET
           description: commercetools Composable Commerce client secret
+          required: true
         - key: CTP_SCOPE
           description: commercetools Composable Commerce client scope
+          required: true
+        - key: BRAINTREE_PRIVATE_KEY
+          description: Braintree private key
+          required: true

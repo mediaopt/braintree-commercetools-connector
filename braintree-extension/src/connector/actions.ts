@@ -26,6 +26,7 @@ export const BRAINTREE_API_PAYMENT_ENDPOINTS = [
   'void',
   'findTransaction',
   'payPalOrder',
+  'addPackageTracking',
 ];
 export const BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY =
   'braintree-payment-transaction-type';
@@ -65,7 +66,7 @@ export async function deleteExtensionIfExist(
   }
 }
 
-export async function createBraintreeExtension(
+export async function createBraintreePaymentExtension(
   apiRoot: ByProjectKeyRequestBuilder,
   applicationUrl: string
 ): Promise<void> {

@@ -9,7 +9,7 @@ import {
   BRAINTREE_API_PAYMENT_ENDPOINTS,
   BRAINTREE_API_CUSTOMER_ENDPOINTS,
   createCustomCustomerType,
-  createBraintreeExtension,
+  createBraintreePaymentExtension,
   createCustomPaymentInteractionType,
 } from '../src/connector/actions';
 
@@ -19,7 +19,7 @@ describe('Testing actions', () => {
       method: createBraintreeCustomerExtension,
     },
     {
-      method: createBraintreeExtension,
+      method: createBraintreePaymentExtension,
     },
   ])('$method', async ({ method }) => {
     const apiRequest: any = {
