@@ -127,7 +127,7 @@ describe('vaulting', () => {
         email: `${customerId}@test.de`,
         custom: {
           fields: {
-            vaultRequest: 'fake-valid-nonce',
+            vaultRequest: 'fake-valid-commercial-nonce',
           },
         },
       },
@@ -179,7 +179,7 @@ describe('vaulting', () => {
         id: customerId,
         custom: {
           fields: {
-            vaultRequest: 'fake-valid-dinersclub-nonce',
+            vaultRequest: 'fake-valid-amex-nonce',
             braintreeCustomerId: customerId,
           },
         },

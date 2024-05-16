@@ -172,7 +172,7 @@ export const post = async (
         await handlePaymentInteractionAdded(
           messagePayload as unknown as PaymentInteractionAddedMessagePayload
         );
-        response.status(200).send();
+        response.status(204).send();
         break;
       case 'ParcelAddedToDelivery':
         await handleParcelAddedToDelivery(
