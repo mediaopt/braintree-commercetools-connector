@@ -133,14 +133,14 @@ const handleParcelAddedToDelivery = async (
     return;
   }
   const deliveryItems: DeliveryItem[] =
-    parcel.items ??
-    order.shippingInfo?.deliveries?.find(
-      (delivery) =>
-        !!delivery?.parcels?.find(
-          (deliveryParcel) => deliveryParcel.id === parcel.id
-        )
-    )?.items ??
-    [];
+    parcel.items && parcel.items.length > 0
+      ? parcel.items
+      : order.shippingInfo?.deliveries?.find(
+          (delivery) =>
+            !!delivery?.parcels?.find(
+              (deliveryParcel) => deliveryParcel.id === parcel.id
+            )
+        )?.items ?? [];
   const request = {
     trackingNumber: parcel?.trackingData?.trackingId,
     carrier: parcel?.trackingData?.carrier,
