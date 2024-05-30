@@ -622,8 +622,8 @@ URL: {{host}}/{{project-key}}/payments/{{payment-id}}
 Create Tracking Data for Payment.
 
 The order id will be read from the payment object and the capture_id will be used from the transactions.
-P
-lease provide a tracking_number and carrier.
+
+Please provide a tracking_number and carrier.
 
 Custom items can be submitted at your own responsibility.
 
