@@ -13,7 +13,7 @@ This is a [connect application](https://marketplace.commercetools.com/) to integ
 
 The payments demo and integration to the commercetools frontend can be seen at https://poc-mediaopt.frontend.site/ and [github](https://github.com/mediaopt/braintree-commercetools-cofe-integration).
 
-## Prerequisites - !!!check
+## Prerequisites
 
 To use the connector you need to have the following:
 
