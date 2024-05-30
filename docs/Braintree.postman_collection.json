@@ -1029,6 +1029,92 @@
 					"response": []
 				},
 				{
+					"name": "AddPackageTracking",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"tests[\"Status code \" + responseCode.code] = responseCode.code === 200 || responseCode.code === 201;",
+									"var data = JSON.parse(responseBody);",
+									"if(data.results && data.results[0] && data.results[0].id && data.results[0].version){",
+									"    pm.environment.set(\"payment-id\", data.results[0].id); ",
+									"    pm.environment.set(\"payment-version\", data.results[0].version);",
+									"}",
+									"if(data.results && data.results[0] && data.results[0].key){",
+									"    pm.environment.set(\"payment-key\", data.results[0].key); ",
+									"}",
+									"if(data.version){",
+									"    pm.environment.set(\"payment-version\", data.version);",
+									"}",
+									"if(data.id){",
+									"    pm.environment.set(\"payment-id\", data.id); ",
+									"}",
+									"if(data.key){",
+									"    pm.environment.set(\"payment-key\", data.key);",
+									"}",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "oauth2",
+							"oauth2": [
+								{
+									"key": "accessToken",
+									"value": "{{ctp_access_token}}",
+									"type": "string"
+								},
+								{
+									"key": "addTokenTo",
+									"value": "header",
+									"type": "string"
+								},
+								{
+									"key": "tokenType",
+									"value": "Bearer",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"version\": {{payment-version}},\n    \"actions\": [\n        {\n            \"action\" : \"setCustomField\",\n            \"name\" : \"addPackageTrackingRequest\",\n            \"value\" : \"{\\\"carrier\\\": \\\"DHL\\\", \\\"trackingNumber\\\":\\\"1234567\\\"}\"\n          }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{host}}/{{project-key}}/payments/{{payment-id}}",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"{{project-key}}",
+								"payments",
+								"{{payment-id}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Create Tracking Data for Payment.\n\nThe order id will be read from the payment object and the capture_id will be used from the transactions.\n\nPlease provide a tracking_number and carrier. \n\nCustom items can be submitted at your own responsibility."
+					},
+					"response": []
+				},
+				{
 					"name": "Void",
 					"event": [
 						{
