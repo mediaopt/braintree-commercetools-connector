@@ -36,7 +36,7 @@ Please keep in mind, that the parameter [merchant account id](https://developer.
 - `cd braintree-extension`
 - run `yarn` to install the dependencies
 - insert commercetools credentials to `.env` file
-- run `./bin/ngrok.sh` to start ngrok and insert the dynamic url in the `.env` file as CONNECT_SERVICE_URL
+- run `./bin/ngrok.sh` to start ngrok and insert the dynamic url in the `.env` file
 - run `yarn connector:post-deploy` to register the extension with the public ngrok url
 - run `ỳarn start:dev` to build the application
 
