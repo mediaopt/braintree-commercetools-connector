@@ -43,21 +43,22 @@ Please see [http://docs.commercetools.com/](http://docs.commercetools.com/) for 
   5. [Refund](#5-refund)
   6. [Partial Refund](#6-partial-refund)
   7. [SubmitForSettlement](#7-submitforsettlement)
-  8. [Void](#8-void)
-  9. [Partial SubmitForSettlement](#9-partial-submitforsettlement)
-  10. [Transaction Refund](#10-transaction-refund)
-  11. [Transaction SubmitForSettlement](#11-transaction-submitforsettlement)
-  12. [TransactionSale](#12-transactionsale)
+  8. [AddPackageTracking](#8-addPackageTracking)
+  9. [Void](#9-void)
+  10. [Partial SubmitForSettlement](#10-partial-submitforsettlement)
+  11. [Transaction Refund](#11-transaction-refund)
+  12. [Transaction SubmitForSettlement](#12-transaction-submitforsettlement)
+  13. [TransactionSale](#13-transactionsale)
       - [TransactionSale US Merchant](#i-example-request-transactionsale-us-merchant)
       - [Gateway Declined](#ii-example-request-gateway-declined)
       - [SoftDecline](#iii-example-request-softdecline)
       - [VaultedCard](#iv-example-request-vaultedcard)
       - [Authorizaton](#v-example-request-authorizaton)
-  13. [GetClientToken](#13-getclienttoken)
+  14. [GetClientToken](#14-getclienttoken)
       - [GetClientToken US Merchant](#i-example-request-getclienttoken-us-merchant)
-  14. [FindTransaction](#14-findtransaction)
-  15. [SetCustomType For Payment](#15-setcustomtype-for-payment)
-  16. [SetCustomType For Customer](#16-setcustomtype-for-customer)
+  15. [FindTransaction](#15-findtransaction)
+  16. [SetCustomType For Payment](#16-setcustomtype-for-payment)
+  17. [SetCustomType For Customer](#17-setcustomtype-for-customer)
 
 ---
 
@@ -616,7 +617,57 @@ URL: {{host}}/{{project-key}}/payments/{{payment-id}}
 
 <br>
 
-### 8. Void
+### 8. AddPackageTracking
+
+Create Tracking Data for Payment.
+
+The order id will be read from the payment object and the capture_id will be used from the transactions.
+
+Please provide a trackingNumber and carrier.
+
+Custom items can be submitted at your own responsibility.
+
+**_Endpoint:_**
+
+```bash
+Method: POST
+Type: RAW
+URL: {{host}}/{{project-key}}/payments/{{payment-id}}
+```
+
+**_Headers:_**
+
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+**_Body:_**
+
+```js
+{
+    "version": {{payment-version}},
+    "actions": [
+        {
+            "action" : "setCustomField",
+            "name" : "addPackageTrackingRequest",
+            "value" : "{\"carrier\": \"DHL\", \"trackingNumber\":\"1234567\"}"
+          }
+    ]
+}
+```
+
+**_🔑 Authentication oauth2_**
+
+| Key         | Value                |
+|-------------|----------------------|
+| accessToken | {{ctp_access_token}} |
+| addTokenTo  | header               |
+| tokenType   | Bearer               |
+
+<br>
+
+
+### 9. Void
 
 Void a transaction.
 
@@ -663,7 +714,7 @@ URL: {{host}}/{{project-key}}/payments/{{payment-id}}
 
 <br>
 
-### 9. Partial SubmitForSettlement
+### 10. Partial SubmitForSettlement
 
 Submit a transaction for settlement.
 
@@ -710,7 +761,7 @@ URL: {{host}}/{{project-key}}/payments/{{payment-id}}
 
 <br>
 
-### 10. Transaction Refund
+### 11. Transaction Refund
 
 Refund a transaction.
 
@@ -761,7 +812,7 @@ URL: {{host}}/{{project-key}}/payments/{{payment-id}}
 
 <br>
 
-### 11. Transaction SubmitForSettlement
+### 12. Transaction SubmitForSettlement
 
 Submit a transaction for settlement.
 
@@ -812,7 +863,7 @@ URL: {{host}}/{{project-key}}/payments/{{payment-id}}
 
 <br>
 
-### 12. TransactionSale
+### 13. TransactionSale
 
 Make a transaction sale request.
 
@@ -1034,7 +1085,7 @@ URL: {{host}}/{{project-key}}/payments/{{payment-id}}
 
 <br>
 
-### 13. GetClientToken
+### 14. GetClientToken
 
 Get Client Token.
 
@@ -1116,7 +1167,7 @@ URL: {{host}}/{{project-key}}/payments/{{payment-id}}
 
 <br>
 
-### 14. FindTransaction
+### 15. FindTransaction
 
 Find a transaction by the payments orderId.
 
@@ -1163,7 +1214,7 @@ URL: {{host}}/{{project-key}}/payments/{{payment-id}}
 
 <br>
 
-### 15. SetCustomType For Payment
+### 16. SetCustomType For Payment
 
 Set the custom type of a payment to braintree-payment-type so that custom fields like getClientTokenRequest can be set.
 
@@ -1208,7 +1259,7 @@ URL: {{host}}/{{project-key}}/payments/{{payment-id}}
 
 <br>
 
-### 16. SetCustomType For Customer
+### 17. SetCustomType For Customer
 
 Set the custom type of a payment to braintree-payment-type so that custom fields like getClientTokenRequest can be set.
 

@@ -7,24 +7,51 @@
   </a><br>
 </p>
 
-This is a [connect application](https://marketplace.commercetools.com/) to integrate Braintree into Commercetools.
-It follows the folder structure to ensure certification & deployment from commercetools connect team as stated [here](https://github.com/commercetools/connect-application-kit#readme).
+This is a [connect application](https://marketplace.commercetools.com/) to integrate Braintree into Commercetools. It follows the folder structure to ensure certification & deployment from commercetools connect team as stated [here](https://github.com/commercetools/connect-application-kit#readme).
+
+[PayPal Braintree commercetools connector](https://marketplace.commercetools.com/integration/paypal-braintree) is available in the commercetools marketplace.
+
+The payments demo and integration to the commercetools frontend can be seen at https://poc-mediaopt.frontend.site/ and [github](https://github.com/mediaopt/braintree-commercetools-cofe-integration).
+
+## Prerequisites
+
+To use the connector you need to have the following:
+
+- commercetools Composable Commerce account and [API client](https://docs.commercetools.com/api/projects/api-clients#apiclient) credentials, namely:
+  - region (CTP_REGION) - region, in which your commercetools project is hosted
+  - project key (CTP_PROJECT_KEY) - the key of your commercetools project
+  - client ID (CTP_CLIENT_ID) - the ID of your commercetools API client
+  - client secret (CTP_CLIENT_SECRET) - the secret of your commercetools API client
+  - scope (CTP_SCOPE) - the scope of your commercetools API client
+- [Braintree merchant account](https://developer.paypal.com/braintree/articles/get-started/overview) and [Braintee gateway credentials](https://developer.paypal.com/braintree/articles/control-panel/important-gateway-credentials), namely:
+  - merchant ID (BRAINTREE_MERCHANT_ID)
+  - public key (BRAINTREE_PUBLIC_KEY)
+  - private key (BRAINTREE_PRIVATE_KEY)
+  - environment (BRAINTREE_ENVIRONMENT) - the environment of your Braintree API client (production or sandbox)
+
+Please keep in mind, that the parameter [merchant account id](https://developer.paypal.com/braintree/articles/control-panel/important-gateway-credentials#merchant-account-id-versus-merchant-id) (BRAINTREE_MERCHANT_ACCOUNT) differs from merchant ID and is optional.
 
 ## Instructions
 
-* `cd braintree-extension`
-* run `yarn` to install the dependencies 
-* insert commercetools credentials to `.env` file
-* run `./bin/ngrok.sh` to start ngrok and insert the dynamic url in the `.env` file
-* run `yarn connector:post-deploy` to register the extension with the public ngrok url
-* run `ỳarn start:dev` to build the application
+- `cd braintree-extension`
+- run `yarn` to install the dependencies
+- insert commercetools credentials to `.env` file
+- run `./bin/ngrok.sh` to start ngrok and insert the dynamic url in the `.env` file
+- run `yarn connector:post-deploy` to register the extension with the public ngrok url
+- run `ỳarn start:dev` to build the application
 
-## Architecture principles for building a connect application 
+## Technology Stack
 
-* Connector solution should be lightweight in nature
-* Connector solutions should follow test driven development. Unit , Integration (& E2E) tests should be included and successfully passed to be used
-* No hardcoding of customer related config. If needed, values in an environment file which should not be maintained in repository
-* Connector solution should be supported with detailed documentation
-* Connectors should be point to point in nature, currently doesnt support any persistence capabilities apart from in memory persistence
-* Connector solution should use open source technologies, although connector itself can be private for specific customer(s)
-* Code should not contain console.log statements, use [the included logger](https://github.com/commercetools/merchant-center-application-kit/tree/main/packages-backend/loggers#readme) instead.
+The connector is written in TypeScript and yarn is used as the package manager.
+
+## Contributing
+
+Feel free to contribute to the project by opening an issue.
+
+## Additional information
+
+In the docs folder you can find:
+
+- description of each application included (README.md)
+- architecture of the connector (Architecture.pdf)
+- documented PayPal Braintree Commercetools API Postman collection (Braintree.md, Braintree.postman_collection.json)
