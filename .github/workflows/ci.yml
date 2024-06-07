@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  yarn-check:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        directory: [
+          'braintree-commercetools-events',
+          'braintree-extension',
+          'braintree-notifications'
+        ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'yarn'
+          cache-dependency-path: ${{ matrix.directory }}/yarn.lock
+
+      - name: Install dependencies
+        run: yarn
+        working-directory: ${{ matrix.directory }}
+
+      - name: Build project
+        run: yarn build
+        working-directory: ${{ matrix.directory }}
+
+      - name: Run tests
+        run: yarn test
+        working-directory: ${{ matrix.directory }}
+
+      - name: Run audit
+        run: yarn audit
+        working-directory: ${{ matrix.directory }}
