@@ -31,6 +31,13 @@ To use the connector you need to have the following:
 
 Please keep in mind, that the parameter [merchant account id](https://developer.paypal.com/braintree/articles/control-panel/important-gateway-credentials#merchant-account-id-versus-merchant-id) (BRAINTREE_MERCHANT_ACCOUNT) differs from merchant ID and is optional.
 
+Please set the following parameters according to your project requirements:
+
+- BRAINTREE_SEND_TRACKING
+- BRAINTREE_PAYPAL_DESCRIPTION
+- BRAINTREE_VALIDATE_CARD
+- BRAINTREE_AUTOCAPTURE
+
 ## Instructions
 
 - `cd braintree-extension`
