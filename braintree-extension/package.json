@@ -38,13 +38,13 @@
     "typescript": "^4.8.3"
   },
   "dependencies": {
-    "@commercetools-backend/loggers": "^21.19.0",
+    "@commercetools-backend/loggers": "^22.35.0",
     "@commercetools/platform-sdk": "^4.0.0",
     "@commercetools/sdk-client-v2": "^2.0.0",
     "body-parser": "^1.20.0",
     "braintree": "^3.13.0",
     "dotenv": "^16.0.3",
-    "express": "4.21.0",
+    "express": "^4.21.1",
     "validator": "^13.7.0"
   }
 }
