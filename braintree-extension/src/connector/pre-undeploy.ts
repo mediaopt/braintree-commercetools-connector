@@ -1,4 +1,6 @@
 import * as dotenv from 'dotenv';
+dotenv.config();
+
 import { createApiRoot } from '../client/create.client';
 import { assertError } from '../utils/assert.utils';
 import {
@@ -11,8 +13,6 @@ import {
   deleteExtensionIfExist,
   deleteOrUpdateCustomType,
 } from './actions';
-
-dotenv.config();
 
 async function preUndeploy(): Promise<void> {
   const apiRoot = createApiRoot();
