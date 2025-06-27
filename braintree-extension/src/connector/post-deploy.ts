@@ -5,12 +5,14 @@ dotenv.config();
 import { createApiRoot } from '../client/create.client';
 import { assertError, assertString } from '../utils/assert.utils';
 import {
-  createCustomPaymentType,
-  createBraintreePaymentExtension,
-  createBraintreeCustomerExtension,
-  createCustomPaymentInteractionType,
-  createCustomPaymentTransactionType,
-  createCustomCustomerType,
+  addOrUpdateCustomType,
+  BRAINTREE_CUSTOMER_EXTENSION_KEY,
+  BRAINTREE_CUSTOMER_TYPE_KEY,
+  BRAINTREE_EXTENSION_KEY,
+  BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
+  BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY,
+  BRAINTREE_PAYMENT_TYPE_KEY,
+  createExtension,
 } from './actions';
 
 const CONNECT_APPLICATION_URL_KEY = 'CONNECT_SERVICE_URL';
@@ -21,12 +23,16 @@ async function postDeploy(properties: Map<string, unknown>): Promise<void> {
   assertString(applicationUrl, CONNECT_APPLICATION_URL_KEY);
 
   const apiRoot = createApiRoot();
-  await createBraintreePaymentExtension(apiRoot, applicationUrl);
-  await createBraintreeCustomerExtension(apiRoot, applicationUrl);
-  await createCustomPaymentType(apiRoot);
-  await createCustomPaymentInteractionType(apiRoot);
-  await createCustomPaymentTransactionType(apiRoot);
-  await createCustomCustomerType(apiRoot);
+  await createExtension(apiRoot, applicationUrl, BRAINTREE_EXTENSION_KEY);
+  await createExtension(
+    apiRoot,
+    applicationUrl,
+    BRAINTREE_CUSTOMER_EXTENSION_KEY
+  );
+  await addOrUpdateCustomType(apiRoot, BRAINTREE_PAYMENT_TYPE_KEY);
+  await addOrUpdateCustomType(apiRoot, BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY);
+  await addOrUpdateCustomType(apiRoot, BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY);
+  await addOrUpdateCustomType(apiRoot, BRAINTREE_CUSTOMER_TYPE_KEY);
 }
 
 async function run(): Promise<void> {
