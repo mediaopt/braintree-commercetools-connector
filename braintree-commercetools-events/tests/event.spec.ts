@@ -16,11 +16,11 @@ import { DeliveryItem } from '@commercetools/platform-sdk';
 
 describe('Testing braintree-commercetools-events Controller', () => {
   function expectSuccessfulResponse(next: NextFunction, response: Response) {
-    expect(next).toBeCalledTimes(0);
-    expect(response.status).toBeCalledTimes(1);
-    expect(response.status).toBeCalledWith(204);
-    expect(response.send).toBeCalledTimes(1);
-    expect(response.send).toBeCalledWith();
+    expect(next).toHaveBeenCalledTimes(0);
+    expect(response.status).toHaveBeenCalledTimes(1);
+    expect(response.status).toHaveBeenCalledWith(204);
+    expect(response.send).toHaveBeenCalledTimes(1);
+    expect(response.send).toHaveBeenCalledWith();
   }
 
   test.each([
@@ -72,9 +72,9 @@ describe('Testing braintree-commercetools-events Controller', () => {
     const next = jest.fn();
     await post(request, response, next);
     expectSuccessfulResponse(next, response);
-    expect(api.withId).toBeCalledWith({ ID: '123' });
-    expect(api.post).toBeCalledTimes(postExecuted ? 1 : 0);
-    expect(api.execute).toBeCalledTimes(1 + (postExecuted ? 1 : 0));
+    expect(api.withId).toHaveBeenCalledWith({ ID: '123' });
+    expect(api.post).toHaveBeenCalledTimes(postExecuted ? 1 : 0);
+    expect(api.execute).toHaveBeenCalledTimes(1 + (postExecuted ? 1 : 0));
   });
 
   test('test parcel added', async () => {
@@ -177,9 +177,9 @@ describe('Testing braintree-commercetools-events Controller', () => {
     const next = jest.fn();
     await post(request, response, next);
     expectSuccessfulResponse(next, response);
-    expect(api.withId).toBeCalledWith({ ID: orderId });
-    expect(addDeliveryDataCallback).toBeCalledTimes(1);
-    expect(addDeliveryDataCallback).toBeCalledWith(captureId, {
+    expect(api.withId).toHaveBeenCalledWith({ ID: orderId });
+    expect(addDeliveryDataCallback).toHaveBeenCalledTimes(1);
+    expect(addDeliveryDataCallback).toHaveBeenCalledWith(captureId, {
       carrier: 'DHL',
       trackingNumber,
       lineItems: [
@@ -213,7 +213,7 @@ describe('Testing missing data', () => {
     const response = {} as unknown as Response;
     const next = jest.fn();
     await post(request as Request, response, next);
-    expect(next).toBeCalledTimes(1);
-    expect(next).toBeCalledWith(new Error(expectedError));
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith(new Error(expectedError));
   });
 });

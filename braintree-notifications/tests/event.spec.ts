@@ -54,8 +54,8 @@ describe('Testing missing data', () => {
     const response = {} as unknown as Response;
     const next = jest.fn();
     await post(request as Request, response, next);
-    expect(next).toBeCalledTimes(1);
-    expect(next).toBeCalledWith(new Error(expectedError));
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith(new Error(expectedError));
   });
 });
 
@@ -79,10 +79,10 @@ describe('Testing webhooks', () => {
 
     const next = jest.fn();
     await post(request, response, next);
-    expect(next).toBeCalledTimes(0);
-    expect(response.status).toBeCalledTimes(1);
-    expect(response.status).toBeCalledWith(200);
-    expect(response.send).toBeCalledTimes(1);
-    expect(response.send).toBeCalledWith();
+    expect(next).toHaveBeenCalledTimes(0);
+    expect(response.status).toHaveBeenCalledTimes(1);
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.send).toHaveBeenCalledTimes(1);
+    expect(response.send).toHaveBeenCalledWith();
   });
 });
