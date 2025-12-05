@@ -27,10 +27,10 @@ describe('Extension related actions', () => {
         post: jest.fn(() => apiRequest),
       };
       await createExtension(apiRoot, 'https://lorem.ipsum', extensionKey);
-      expect(apiRoot.get).toBeCalledTimes(1);
-      expect(apiRoot.delete).toBeCalledTimes(1);
-      expect(apiRoot.post).toBeCalledTimes(1);
-      expect(apiRequest.execute).toBeCalledTimes(3);
+      expect(apiRoot.get).toHaveBeenCalledTimes(1);
+      expect(apiRoot.delete).toHaveBeenCalledTimes(1);
+      expect(apiRoot.post).toHaveBeenCalledTimes(1);
+      expect(apiRequest.execute).toHaveBeenCalledTimes(3);
     }
   );
 
@@ -45,9 +45,9 @@ describe('Extension related actions', () => {
       get: jest.fn(() => apiRequest),
     };
     await deleteExtensionIfExist(apiRoot, 'braintree-extension');
-    expect(apiRoot.get).toBeCalledTimes(1);
-    expect(apiRoot.delete).toBeCalledTimes(1);
-    expect(apiRequest.execute).toBeCalledTimes(2);
+    expect(apiRoot.get).toHaveBeenCalledTimes(1);
+    expect(apiRoot.delete).toHaveBeenCalledTimes(1);
+    expect(apiRequest.execute).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -83,9 +83,9 @@ describe('create custom type actions', () => {
         get: jest.fn(() => apiRequest),
       };
       await addOrUpdateCustomType(apiRoot, key);
-      expect(apiRoot.get).toBeCalledTimes(1);
-      expect(apiRoot.post).toBeCalledTimes(1);
-      expect(apiRequest.execute).toBeCalledTimes(2);
+      expect(apiRoot.get).toHaveBeenCalledTimes(1);
+      expect(apiRoot.post).toHaveBeenCalledTimes(1);
+      expect(apiRequest.execute).toHaveBeenCalledTimes(2);
       expect(apiRoot.post.mock.calls[0][0].body.actions).toHaveLength(
         expectedLength
       );
@@ -113,9 +113,9 @@ describe('create custom type actions', () => {
       get: jest.fn(() => apiRequest),
     };
     await addOrUpdateCustomType(apiRoot, 'braintree-payment-interaction-type');
-    expect(apiRoot.get).toBeCalledTimes(1);
-    expect(apiRoot.post).toBeCalledTimes(3);
-    expect(apiRequest.execute).toBeCalledTimes(4);
+    expect(apiRoot.get).toHaveBeenCalledTimes(1);
+    expect(apiRoot.post).toHaveBeenCalledTimes(3);
+    expect(apiRequest.execute).toHaveBeenCalledTimes(4);
     expect(apiRoot.post.mock.calls[0][0].body.actions).toHaveLength(3);
     expect(apiRoot.post.mock.calls[1][0].body.actions).toHaveLength(2);
   });
@@ -141,9 +141,9 @@ describe('create custom type actions', () => {
       get: jest.fn(() => apiRequest),
     };
     await addOrUpdateCustomType(apiRoot, 'braintree-payment-interaction-type');
-    expect(apiRoot.get).toBeCalledTimes(1);
-    expect(apiRoot.post).toBeCalledTimes(2);
-    expect(apiRequest.execute).toBeCalledTimes(3);
+    expect(apiRoot.get).toHaveBeenCalledTimes(1);
+    expect(apiRoot.post).toHaveBeenCalledTimes(2);
+    expect(apiRequest.execute).toHaveBeenCalledTimes(3);
     expect(apiRoot.post.mock.calls[0][0].body.actions).toHaveLength(3);
     expect(apiRoot.post.mock.calls[1][0].body.actions).toHaveLength(2);
   });
@@ -163,9 +163,9 @@ describe('create custom type actions', () => {
       get: jest.fn(() => apiRequest),
     };
     await addOrUpdateCustomType(apiRoot, 'braintree-payment-interaction-type');
-    expect(apiRoot.get).toBeCalledTimes(1);
-    expect(apiRoot.post).toBeCalledTimes(1);
-    expect(apiRequest.execute).toBeCalledTimes(2);
+    expect(apiRoot.get).toHaveBeenCalledTimes(1);
+    expect(apiRoot.post).toHaveBeenCalledTimes(1);
+    expect(apiRequest.execute).toHaveBeenCalledTimes(2);
     expect(apiRoot.post.mock.calls[0][0].body).not.toHaveProperty('actions');
   });
 });
@@ -191,9 +191,9 @@ describe('delete custom type', () => {
       get: jest.fn(() => apiRequest),
     };
     await deleteOrUpdateCustomType(apiRoot, 'braintree-payment-type');
-    expect(apiRoot.get).toBeCalledTimes(1);
-    expect(apiRoot.post).toBeCalledTimes(0);
-    expect(apiRequest.execute).toBeCalledTimes(1);
+    expect(apiRoot.get).toHaveBeenCalledTimes(1);
+    expect(apiRoot.post).toHaveBeenCalledTimes(0);
+    expect(apiRequest.execute).toHaveBeenCalledTimes(1);
   });
 
   test('if only some fields match the type draft - delete these fields, but not the type', async () => {
@@ -222,9 +222,9 @@ describe('delete custom type', () => {
       apiRoot,
       'braintree-payment-interaction-type'
     );
-    expect(apiRoot.get).toBeCalledTimes(1);
-    expect(apiRoot.post).toBeCalledTimes(1);
-    expect(apiRequest.execute).toBeCalledTimes(2);
+    expect(apiRoot.get).toHaveBeenCalledTimes(1);
+    expect(apiRoot.post).toHaveBeenCalledTimes(1);
+    expect(apiRequest.execute).toHaveBeenCalledTimes(2);
   });
 
   test('if all fields match the type draft - delete the type', async () => {
@@ -255,8 +255,8 @@ describe('delete custom type', () => {
       apiRoot,
       'braintree-payment-interaction-type'
     );
-    expect(apiRoot.get).toBeCalledTimes(1);
-    expect(apiRoot.delete).toBeCalledTimes(1);
-    expect(apiRequest.execute).toBeCalledTimes(2);
+    expect(apiRoot.get).toHaveBeenCalledTimes(1);
+    expect(apiRoot.delete).toHaveBeenCalledTimes(1);
+    expect(apiRequest.execute).toHaveBeenCalledTimes(2);
   });
 });

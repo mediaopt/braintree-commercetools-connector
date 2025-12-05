@@ -21,10 +21,10 @@ describe('Testing actions', () => {
       'lorem ipsum',
       'lorem ipsum'
     );
-    expect(apiRoot.get).toBeCalledTimes(1);
-    expect(apiRoot.delete).toBeCalledTimes(1);
-    expect(apiRoot.post).toBeCalledTimes(1);
-    expect(apiRequest.execute).toBeCalledTimes(3);
+    expect(apiRoot.get).toHaveBeenCalledTimes(1);
+    expect(apiRoot.delete).toHaveBeenCalledTimes(1);
+    expect(apiRoot.post).toHaveBeenCalledTimes(1);
+    expect(apiRequest.execute).toHaveBeenCalledTimes(3);
   });
 
   test('delete extension', async () => {
@@ -38,8 +38,8 @@ describe('Testing actions', () => {
       get: jest.fn(() => apiRequest),
     };
     await deleteCustomerCreateSubscription(apiRoot);
-    expect(apiRoot.get).toBeCalledTimes(1);
-    expect(apiRoot.delete).toBeCalledTimes(1);
-    expect(apiRequest.execute).toBeCalledTimes(2);
+    expect(apiRoot.get).toHaveBeenCalledTimes(1);
+    expect(apiRoot.delete).toHaveBeenCalledTimes(1);
+    expect(apiRequest.execute).toHaveBeenCalledTimes(2);
   });
 });
