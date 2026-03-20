@@ -3382,10 +3382,10 @@ neo-async@^2.6.2:
   resolved "https://registry.yarnpkg.com/neo-async/-/neo-async-2.6.2.tgz#b4aafb93e3aeb2d8174ca53cf163ab7d7308305f"
   integrity sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==
 
-ngrok@v5.0.0-beta.1:
-  version "5.0.0-beta.1"
-  resolved "https://registry.yarnpkg.com/ngrok/-/ngrok-5.0.0-beta.1.tgz#59907a9e1b0e43941e500d619b6f7bc38eb39d82"
-  integrity sha512-BjLJPECtIwyqQL/ISCHbTTezjxeE7QCs+NZG7t7ZadG0sVvxsEZHHTq3teS7fnIhHBUrI8Ct+4MOMFfDn5+qBQ==
+ngrok@v5.0.0-beta.2:
+  version "5.0.0-beta.2"
+  resolved "https://registry.yarnpkg.com/ngrok/-/ngrok-5.0.0-beta.2.tgz#7976690a592b27de9a91ff93892cfabda24360ad"
+  integrity sha512-UzsyGiJ4yTTQLCQD11k1DQaMwq2/SsztBg2b34zAqcyjS25qjDpogMKPaCKHwe/APRTHeel3iDXcVctk5CNaCQ==
   dependencies:
     extract-zip "^2.0.1"
     got "^11.8.5"
