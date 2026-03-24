@@ -18,6 +18,6 @@
     "declaration": true,
     "typeRoots": ["index.d.ts", "node_modules/@types"]
   },
-  "include": ["src/components", "index.ts", "src/App.tsx"],
+  "include": ["src/components", "src/index.ts", "src/App.tsx"],
   "exclude": ["node_modules"]
 }
