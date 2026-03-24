@@ -206,10 +206,11 @@ export const ACHMask: React.FC<React.PropsWithChildren<ACHMaskProps>> = ({
               }
             );
 
-            usBankAccountInstance.tokenize(
+            usBankAccountInstance?.tokenize(
               {
                 bankDetails: bankDetails,
                 mandateText: mandateText,
+                bankLogin: undefined,
               },
               async function (
                 tokenizeErr?: BraintreeError,

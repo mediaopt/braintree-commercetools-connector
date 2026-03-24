@@ -62,6 +62,11 @@ export const GooglePayMask: React.FC<
               ...googlePayCreateOptions,
             },
             function (googlePaymentErr, googlePaymentInstance) {
+              if (googlePaymentErr || !googlePaymentInstance) {
+                isLoading(false);
+                notify("Error", "Error in google pay checkout.");
+                return;
+              }
               paymentsClient
                 .isReadyToPay({
                   apiVersion: GoogleApiVersion,
@@ -82,7 +87,6 @@ export const GooglePayMask: React.FC<
                               currencyCode: paymentInfo.currency,
                               totalPriceStatus: totalPriceStatus,
                               totalPrice: paymentInfo.amount.toString(),
-                              countryCode: acquirerCountryCode,
                             },
                           });
 

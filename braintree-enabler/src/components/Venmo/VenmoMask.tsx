@@ -135,7 +135,7 @@ export const VenmoMask: React.FC<React.PropsWithChildren<VenmoMaskType>> = ({
               notify("Error", "Error creating Venmo:" + venmoErr.message);
               return;
             }
-            if (!venmoInstance.isBrowserSupported()) {
+            if (!venmoInstance?.isBrowserSupported()) {
               if (!ignoreBowserSupport) {
                 notify("Error", "Browser does not support Venmo");
                 return;
@@ -152,22 +152,23 @@ export const VenmoMask: React.FC<React.PropsWithChildren<VenmoMaskType>> = ({
               return;
             }
 
-            if (venmoInstance.hasTokenizationResult()) {
-              venmoInstance.tokenize(function (
-                tokenizeErr: BraintreeError | undefined,
-                payload: VenmoTokenizePayload | undefined
-              ) {
-                if (useTestNonce) {
-                  handleVenmoSuccess(TEST_PAYLOAD);
-                  return;
-                } else if (tokenizeErr) {
-                  handleVenmoError(tokenizeErr);
-                } else if (payload) {
-                  handleVenmoSuccess(payload);
-                } else {
-                  notify("Error", "Couldn't create payment");
-                }
-              });
+            if (venmoInstance?.hasTokenizationResult()) {
+              //TODO update according to current definitions
+              // venmoInstance.tokenize(function (
+              //   tokenizeErr: BraintreeError | undefined,
+              //   payload: VenmoTokenizePayload | undefined
+              // ) {
+              //   if (useTestNonce) {
+              //     handleVenmoSuccess(TEST_PAYLOAD);
+              //     return;
+              //   } else if (tokenizeErr) {
+              //     handleVenmoError(tokenizeErr);
+              //   } else if (payload) {
+              //     handleVenmoSuccess(payload);
+              //   } else {
+              //     notify("Error", "Couldn't create payment");
+              //   }
+              // });
               return;
             }
           }
