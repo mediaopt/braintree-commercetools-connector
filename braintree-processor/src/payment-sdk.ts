@@ -9,6 +9,7 @@ import {
   updateRequestContext,
 } from "./libs/fastify/context/context";
 import { log } from "./libs/logger";
+import { Object } from "@sinclair/typebox";
 
 export class AppLogger implements Logger {
   public debug = (obj: object, message: string) => {
@@ -28,6 +29,7 @@ export class AppLogger implements Logger {
 export const appLogger = new AppLogger();
 
 export const paymentSDK = setupPaymentSDK({
+  checkoutUrl: "", //todo - implement proper url
   apiUrl: config.apiUrl,
   authUrl: config.authUrl,
   clientId: config.clientId,
@@ -45,11 +47,11 @@ export const paymentSDK = setupPaymentSDK({
     };
   },
   updateContextFn: (context: Partial<RequestContextData>) => {
-    const requestContext = Object.assign(
+    const requestContext = (<any>Object).assign(
       {},
       context.correlationId ? { correlationId: context.correlationId } : {},
       context.requestId ? { requestId: context.requestId } : {},
-      context.authentication ? { authentication: context.authentication } : {}
+      context.authentication ? { authentication: context.authentication } : {},
     );
     updateRequestContext(requestContext);
   },

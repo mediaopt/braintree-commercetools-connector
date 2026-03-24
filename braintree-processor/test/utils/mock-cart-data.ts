@@ -1,5 +1,10 @@
-import { Cart, LineItem, CustomLineItem, ShippingInfo } from '@commercetools/connect-payments-sdk';
-import { randomUUID } from 'crypto';
+import {
+  Cart,
+  LineItem,
+  CustomLineItem,
+  ShippingInfo,
+} from "@commercetools/connect-payments-sdk";
+import { randomUUID } from "crypto";
 
 export const mockGetCartResult = () => {
   const cartId = randomUUID();
@@ -9,53 +14,54 @@ export const mockGetCartResult = () => {
     lineItems: [lineItem],
     customLineItems: [customLineItem],
     totalPrice: {
-      type: 'centPrecision',
-      currencyCode: 'USD',
+      type: "centPrecision",
+      currencyCode: "USD",
       centAmount: 150000,
       fractionDigits: 2,
     },
-    cartState: 'Ordered',
-    origin: 'Customer',
-    taxMode: 'ExternalAmount',
-    taxRoundingMode: 'HalfEven',
-    taxCalculationMode: 'LineItemLevel',
+    cartState: "Ordered",
+    origin: "Customer",
+    taxMode: "ExternalAmount",
+    taxRoundingMode: "HalfEven",
+    taxCalculationMode: "LineItemLevel",
     shipping: [],
     discountCodes: [],
     directDiscounts: [],
     refusedGifts: [],
     itemShippingAddresses: [],
-    inventoryMode: 'ReserveOnOrder',
-    shippingMode: 'Single',
+    inventoryMode: "ReserveOnOrder",
+    shippingMode: "Single",
     shippingInfo: shippingInfo,
-    createdAt: '2024-01-01T00:00:00Z',
-    lastModifiedAt: '2024-01-01T00:00:00Z',
+    createdAt: "2024-01-01T00:00:00Z",
+    lastModifiedAt: "2024-01-01T00:00:00Z",
+    priceRoundingMode: "HalfEven",
   };
   return mockGetCartResult;
 };
 
 const lineItem: LineItem = {
-  id: 'lineitem-id-1',
-  productId: 'product-id-1',
+  id: "lineitem-id-1",
+  productId: "product-id-1",
   name: {
-    en: 'lineitem-name-1',
+    en: "lineitem-name-1",
   },
   productType: {
-    id: 'product-type-reference-1',
-    typeId: 'product-type',
+    id: "product-type-reference-1",
+    typeId: "product-type",
   },
   price: {
-    id: 'price-id-1',
+    id: "price-id-1",
     value: {
-      type: 'centPrecision',
-      currencyCode: 'USD',
+      type: "centPrecision",
+      currencyCode: "USD",
       centAmount: 150000,
       fractionDigits: 2,
     },
   },
   quantity: 1,
   totalPrice: {
-    type: 'centPrecision',
-    currencyCode: 'USD',
+    type: "centPrecision",
+    currencyCode: "USD",
     centAmount: 150000,
     fractionDigits: 2,
   },
@@ -63,30 +69,30 @@ const lineItem: LineItem = {
   taxedPricePortions: [],
   state: [],
   perMethodTaxRate: [],
-  priceMode: 'Platform',
-  lineItemMode: 'Standard',
+  priceMode: "Platform",
+  lineItemMode: "Standard",
   variant: {
     id: 1,
-    sku: 'variant-sku-1',
+    sku: "variant-sku-1",
   },
 };
 
 const customLineItem: CustomLineItem = {
-  id: 'customLineItem-id-1',
+  id: "customLineItem-id-1",
   name: {
-    en: 'customLineItem-name-1',
+    en: "customLineItem-name-1",
   },
-  slug: '',
+  slug: "",
   money: {
-    type: 'centPrecision',
-    currencyCode: 'USD',
+    type: "centPrecision",
+    currencyCode: "USD",
     centAmount: 150000,
     fractionDigits: 2,
   },
   quantity: 1,
   totalPrice: {
-    type: 'centPrecision',
-    currencyCode: 'USD',
+    type: "centPrecision",
+    currencyCode: "USD",
     centAmount: 150000,
     fractionDigits: 2,
   },
@@ -94,25 +100,25 @@ const customLineItem: CustomLineItem = {
   taxedPricePortions: [],
   state: [],
   perMethodTaxRate: [],
-  priceMode: 'Platform',
+  priceMode: "Platform",
 };
 
 const shippingInfo: ShippingInfo = {
-  shippingMethodName: 'shippingMethodName1',
+  shippingMethodName: "shippingMethodName1",
   price: {
-    type: 'centPrecision',
-    currencyCode: 'USD',
+    type: "centPrecision",
+    currencyCode: "USD",
     centAmount: 150000,
     fractionDigits: 2,
   },
   shippingRate: {
     price: {
-      type: 'centPrecision',
-      currencyCode: 'USD',
+      type: "centPrecision",
+      currencyCode: "USD",
       centAmount: 1000,
       fractionDigits: 2,
     },
     tiers: [],
   },
-  shippingMethodState: 'MatchesCart',
+  shippingMethodState: "MatchesCart",
 };
