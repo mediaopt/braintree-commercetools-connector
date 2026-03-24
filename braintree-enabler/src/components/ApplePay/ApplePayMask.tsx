@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState, FC, PropsWithChildren, useRef } from "react";
 import {
   client as braintreeClient,
   applePay,
@@ -16,9 +16,7 @@ declare const window: any;
 
 type ApplePayMaskProps = ApplePayTypes & GeneralPayButtonProps;
 
-export const ApplePayMask: React.FC<
-  React.PropsWithChildren<ApplePayMaskProps>
-> = ({
+export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
   fullWidth,
   applePayDisplayName,
   lineItems,
@@ -31,7 +29,7 @@ export const ApplePayMask: React.FC<
   const { handlePurchase, paymentInfo, clientToken } = usePayment();
   const { notify } = useNotifications();
 
-  const applePayButtonContainer = React.useRef<HTMLDivElement>(null);
+  const applePayButtonContainer = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!clientToken) return;

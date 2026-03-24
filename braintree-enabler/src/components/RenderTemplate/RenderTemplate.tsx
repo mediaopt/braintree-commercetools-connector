@@ -1,4 +1,4 @@
-import { FC } from "react";
+import { FC, PropsWithChildren } from "react";
 
 import { NotificationsProvider } from "../../app/useNotifications";
 import { PaymentProvider } from "../../app/usePayment";
@@ -7,9 +7,7 @@ import { RenderPurchase } from "../RenderPurchase";
 
 import { GeneralComponentsProps } from "../../types";
 
-export const RenderTemplate: FC<
-  React.PropsWithChildren<GeneralComponentsProps>
-> = ({
+export const RenderTemplate: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   children,
   getClientTokenUrl,
   createPaymentUrl,

@@ -1,5 +1,5 @@
-import { FC } from "react";
-import { XIcon } from "@heroicons/react/outline";
+import { FC, PropsWithChildren } from "react";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 import {
   NotificationType,
   getNotificationTypeTitle,
@@ -14,7 +14,7 @@ export type NotificationTypeBannerProps = {
 };
 
 export const NotificationTypeBanner: FC<
-  React.PropsWithChildren<NotificationTypeBannerProps>
+  PropsWithChildren<NotificationTypeBannerProps>
 > = ({ type, text, onClose }: NotificationTypeBannerProps) => {
   const generalStyle =
     "rounded-lg bg-neutral-700 text-neutral-100 dark:text-neutral-900 p-2 shadow-lg dark:bg-neutral-100 sm:p-3";
@@ -46,7 +46,7 @@ export const NotificationTypeBanner: FC<
                   className="-mr-1 flex rounded-md p-2 hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-white dark:hover:bg-neutral-200 dark:focus:ring-neutral-600"
                 >
                   <span className="sr-only">Dismiss</span>
-                  <XIcon
+                  <XMarkIcon
                     className="h-6 w-6 text-white dark:text-neutral-700"
                     aria-hidden="true"
                     aria-label="Close Notification"

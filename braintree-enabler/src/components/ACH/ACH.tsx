@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 
 import { RenderTemplate } from "../RenderTemplate";
 import { isPayButtonDisabled } from "../PayButton";
@@ -9,7 +9,7 @@ import { GeneralComponentsProps, GeneralACHProps } from "../../types";
 
 type ACHProps = GeneralComponentsProps & GeneralACHProps;
 
-export const ACH: React.FC<ACHProps> = ({
+export const ACH: FC<ACHProps> = ({
   createPaymentUrl,
   getClientTokenUrl,
   purchaseUrl,

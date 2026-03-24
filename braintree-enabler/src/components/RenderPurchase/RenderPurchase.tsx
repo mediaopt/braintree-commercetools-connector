@@ -1,5 +1,5 @@
-import { FC } from "react";
+import { FC, PropsWithChildren } from "react";
 
-export const RenderPurchase: FC<React.PropsWithChildren> = ({ children }) => {
+export const RenderPurchase: FC<PropsWithChildren> = ({ children }) => {
   return <>{children}</>;
 };

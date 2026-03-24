@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState, FC, PropsWithChildren, ChangeEvent } from "react";
 import {
   client as braintreeClient,
   paypalCheckout,
@@ -32,7 +32,7 @@ type LimitedVaultedPayment = {
 
 const FUNDING_SOURCES = ["paypal"];
 
-export const PayPalMask: React.FC<React.PropsWithChildren<PayPalMaskProps>> = ({
+export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   flow,
   buttonLabel,
   buttonColor,
@@ -365,7 +365,7 @@ export const PayPalMask: React.FC<React.PropsWithChildren<PayPalMaskProps>> = ({
     height,
   ]);
 
-  const changeAccount = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const changeAccount = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSelectedAccount(value);
   };

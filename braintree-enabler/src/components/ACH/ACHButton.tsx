@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 
 import { usePayment } from "../../app/usePayment";
 import { PayButtonProps, PAY_BUTTON_TEXT_FALLBACK } from "../PayButton";
@@ -10,7 +10,7 @@ import { ACHMask } from "./ACHMask";
 
 type ACHButtonProps = PayButtonProps & CartInformationProps & GeneralACHProps;
 
-export const ACHButton: React.FC<ACHButtonProps> = ({
+export const ACHButton: FC<ACHButtonProps> = ({
   disabled,
   fullWidth = true,
   buttonText,

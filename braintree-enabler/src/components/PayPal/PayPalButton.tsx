@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 
 import { usePayment } from "../../app/usePayment";
 import {
@@ -14,7 +14,7 @@ import { PayPalProps } from "../../types";
 
 type PayPalButtonProps = PayPalProps & PayButtonProps;
 
-export const PayPalButton: React.FC<PayPalButtonProps> = ({
+export const PayPalButton: FC<PayPalButtonProps> = ({
   disabled,
   fullWidth = true,
   buttonText,

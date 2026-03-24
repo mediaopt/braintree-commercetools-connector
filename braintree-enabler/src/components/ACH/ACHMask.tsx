@@ -1,4 +1,11 @@
-import React, { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+  FC,
+  PropsWithChildren,
+  FormEvent,
+  ChangeEvent,
+} from "react";
 import {
   client as braintreeClient,
   dataCollector,
@@ -58,7 +65,7 @@ type LimitedVaultedPayment = {
   details: LimitedVaultedPaymentDetails;
 };
 
-export const ACHMask: React.FC<React.PropsWithChildren<ACHMaskProps>> = ({
+export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   fullWidth = true,
   buttonText,
   cartInformation,
@@ -141,7 +148,7 @@ export const ACHMask: React.FC<React.PropsWithChildren<ACHMaskProps>> = ({
     });
   }, [clientToken]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
 
     if (formButtonDisabled) return;
@@ -252,7 +259,7 @@ export const ACHMask: React.FC<React.PropsWithChildren<ACHMaskProps>> = ({
     );
   };
 
-  const changeAccount = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const changeAccount = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSelectedAccount(value);
   };

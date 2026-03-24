@@ -1,4 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  FC,
+  PropsWithChildren,
+  MouseEvent,
+} from "react";
 import {
   client as braintreeClient,
   localPayment,
@@ -21,8 +28,8 @@ type LocalPaymentMethodMaskType = LocalPaymentMethodsType &
   GeneralPayButtonProps &
   LocalPaymentComponentsProp;
 
-export const LocalPaymentMethodMask: React.FC<
-  React.PropsWithChildren<LocalPaymentMethodMaskType>
+export const LocalPaymentMethodMask: FC<
+  PropsWithChildren<LocalPaymentMethodMaskType>
 > = ({
   saveLocalPaymentIdUrl,
   paymentType,
@@ -49,7 +56,7 @@ export const LocalPaymentMethodMask: React.FC<
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
 
-  const invokePayment = (e: React.MouseEvent<HTMLButtonElement>): void => {
+  const invokePayment = (e: MouseEvent<HTMLButtonElement>): void => {
     let overridePaymentVersion: number;
     e.preventDefault();
     if (!localPaymentInstance) {

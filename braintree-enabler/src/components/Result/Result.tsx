@@ -1,4 +1,4 @@
-import { FC } from "react";
+import { FC, PropsWithChildren } from "react";
 import { useLoader } from "../../app/useLoader";
 
 type ResultProps = {
@@ -6,7 +6,7 @@ type ResultProps = {
   message?: string;
 };
 
-export const Result: FC<React.PropsWithChildren<ResultProps>> = ({
+export const Result: FC<PropsWithChildren<ResultProps>> = ({
   success = true,
   message,
   children,

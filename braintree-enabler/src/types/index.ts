@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 import {
   ButtonColorOption,
   ButtonLabelOption,
@@ -352,38 +352,34 @@ export type Shipping = {
   streetAddress?: string;
 };
 
-export type LocalPaymentBancontactType = React.FC<
+export type LocalPaymentBancontactType = FC<
   GeneralComponentsProps & LocalPaymentBancontact
 >;
 
-export type LocalPaymentP24Type = React.FC<
-  GeneralComponentsProps & LocalPaymentP24
->;
+export type LocalPaymentP24Type = FC<GeneralComponentsProps & LocalPaymentP24>;
 
-export type LocalPaymentSofortType = React.FC<
+export type LocalPaymentSofortType = FC<
   GeneralComponentsProps & LocalPaymentSofort
 >;
 
-export type LocalPaymentBLIKType = React.FC<
+export type LocalPaymentBLIKType = FC<
   GeneralComponentsProps & LocalPaymentBLIK
 >;
 
-export type LocalPaymentEPSType = React.FC<
-  GeneralComponentsProps & LocalPaymentEPS
->;
+export type LocalPaymentEPSType = FC<GeneralComponentsProps & LocalPaymentEPS>;
 
-export type LocalPaymentGiropayType = React.FC<
+export type LocalPaymentGiropayType = FC<
   GeneralComponentsProps & LocalPaymentGiropay
 >;
 
-export type LocalPaymentGrabpayType = React.FC<
+export type LocalPaymentGrabpayType = FC<
   GeneralComponentsProps & LocalPaymentGrabpay
 >;
 
-export type LocalPaymentIDealType = React.FC<
+export type LocalPaymentIDealType = FC<
   GeneralComponentsProps & LocalPaymentIdeal
 >;
 
-export type LocalPaymentMyBankType = React.FC<
+export type LocalPaymentMyBankType = FC<
   GeneralComponentsProps & LocalPaymentMyBank
 >;

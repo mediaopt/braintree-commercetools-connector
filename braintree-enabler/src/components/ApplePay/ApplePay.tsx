@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 
 import { RenderTemplate } from "../RenderTemplate";
 import { isPayButtonDisabled } from "../PayButton";
@@ -9,7 +9,7 @@ import { GeneralComponentsProps, ApplePayTypes } from "../../types";
 
 type ApplePayComponentProps = ApplePayTypes & GeneralComponentsProps;
 
-export const ApplePay: React.FC<ApplePayComponentProps> = ({
+export const ApplePay: FC<ApplePayComponentProps> = ({
   createPaymentUrl,
   getClientTokenUrl,
   purchaseUrl,

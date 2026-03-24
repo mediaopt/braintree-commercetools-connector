@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 
 import { usePayment } from "../../app/usePayment";
 import { CreditCardMask } from "./CreditCardMask";
@@ -12,7 +12,7 @@ import { useHandleGetClientToken } from "../../app/useHandleGetClientToken";
 
 type CreditCardButton = GeneralCreditCardProps & PayButtonProps;
 
-export const CreditCardButton: React.FC<CreditCardButton> = ({
+export const CreditCardButton: FC<CreditCardButton> = ({
   disabled,
   fullWidth = true,
   buttonText,

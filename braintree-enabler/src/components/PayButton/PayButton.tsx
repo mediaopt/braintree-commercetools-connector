@@ -1,4 +1,4 @@
-import { FC } from "react";
+import { FC, PropsWithChildren } from "react";
 import classNames from "classnames";
 import { usePayment } from "../../app/usePayment";
 
@@ -12,7 +12,7 @@ export type PayButtonProps = {
 export const PAY_BUTTON_TEXT_FALLBACK = "Purchase";
 export const VAULT_BUTTON_TEXT_FALLBACK = "Save for future use";
 
-export const PayButton: FC<React.PropsWithChildren<PayButtonProps>> = ({
+export const PayButton: FC<PropsWithChildren<PayButtonProps>> = ({
   disabled,
   fullWidth = true,
   buttonText = PAY_BUTTON_TEXT_FALLBACK,
