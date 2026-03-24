@@ -1,0 +1,1 @@
+export { RenderPurchase } from "./RenderPurchase";

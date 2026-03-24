@@ -1,0 +1,1 @@
+export { GooglePay } from "./GooglePay";
