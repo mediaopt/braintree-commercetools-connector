@@ -1,7 +1,7 @@
-import { createApplicationLogger } from '@commercetools-backend/loggers';
-import { defaultFieldsFormatter } from '@commercetools/connect-payments-sdk';
-import { getRequestContext } from '../fastify/context/context';
-import { config } from '../../config/config';
+import { createApplicationLogger } from "@commercetools-backend/loggers";
+import { defaultFieldsFormatter } from "@commercetools/connect-payments-sdk";
+import { getRequestContext } from "../fastify/context/context";
+import { config } from "../../config/config";
 
 export const log = createApplicationLogger({
   formatters: [

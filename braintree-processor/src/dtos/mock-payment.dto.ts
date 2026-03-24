@@ -1,15 +1,15 @@
-import { Static, Type } from '@sinclair/typebox';
+import { Static, Type } from "@sinclair/typebox";
 
 export enum PaymentOutcome {
-  AUTHORIZED = 'Authorized',
-  REJECTED = 'Rejected',
+  AUTHORIZED = "Authorized",
+  REJECTED = "Rejected",
 }
 
 export enum PaymentMethodType {
-  CARD = 'card',
-  CUSTOM_TEST_METHOD = 'customtestmethod',
-  INVOICE = 'invoice',
-  PURCHASE_ORDER = 'purchaseorder',
+  CARD = "card",
+  CUSTOM_TEST_METHOD = "customtestmethod",
+  INVOICE = "invoice",
+  PURCHASE_ORDER = "purchaseorder",
 }
 
 export const PaymentResponseSchema = Type.Object({

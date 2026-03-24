@@ -5,7 +5,7 @@ import {
   TransactionType,
   TransactionState,
   ErrorInvalidOperation,
-} from '@commercetools/connect-payments-sdk';
+} from "@commercetools/connect-payments-sdk";
 import {
   CancelPaymentRequest,
   CapturePaymentRequest,
@@ -14,21 +14,34 @@ import {
   RefundPaymentRequest,
   ReversePaymentRequest,
   StatusResponse,
-} from './types/operation.type';
+} from "./types/operation.type";
 
-import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-componets.dto';
-import { PaymentModificationStatus } from '../dtos/operations/payment-intents.dto';
-import packageJSON from '../../package.json';
+import { SupportedPaymentComponentsSchemaDTO } from "../dtos/operations/payment-componets.dto";
+import { PaymentModificationStatus } from "../dtos/operations/payment-intents.dto";
+import packageJSON from "../../package.json";
 
-import { AbstractPaymentService } from './abstract-payment.service';
-import { getConfig } from '../config/config';
-import { appLogger, paymentSDK } from '../payment-sdk';
-import { CreatePaymentRequest, MockPaymentServiceOptions } from './types/mock-payment.type';
-import { PaymentMethodType, PaymentOutcome, PaymentResponseSchemaDTO } from '../dtos/mock-payment.dto';
-import { getCartIdFromContext, getPaymentInterfaceFromContext } from '../libs/fastify/context/context';
-import { randomUUID } from 'crypto';
-import { launchpadPurchaseOrderCustomType } from '../custom-types/custom-types';
-import { TransactionDraftDTO, TransactionResponseDTO } from '../dtos/operations/transaction.dto';
+import { AbstractPaymentService } from "./abstract-payment.service";
+import { getConfig } from "../config/config";
+import { appLogger, paymentSDK } from "../payment-sdk";
+import {
+  CreatePaymentRequest,
+  MockPaymentServiceOptions,
+} from "./types/mock-payment.type";
+import {
+  PaymentMethodType,
+  PaymentOutcome,
+  PaymentResponseSchemaDTO,
+} from "../dtos/mock-payment.dto";
+import {
+  getCartIdFromContext,
+  getPaymentInterfaceFromContext,
+} from "../libs/fastify/context/context";
+import { randomUUID } from "crypto";
+import { launchpadPurchaseOrderCustomType } from "../custom-types/custom-types";
+import {
+  TransactionDraftDTO,
+  TransactionResponseDTO,
+} from "../dtos/operations/transaction.dto";
 
 export class MockPaymentService extends AbstractPaymentService {
   constructor(opts: MockPaymentServiceOptions) {
@@ -66,33 +79,34 @@ export class MockPaymentService extends AbstractPaymentService {
       checks: [
         healthCheckCommercetoolsPermissions({
           requiredPermissions: [
-            'manage_payments',
-            'view_sessions',
-            'view_api_clients',
-            'manage_orders',
-            'introspect_oauth_tokens',
-            'manage_checkout_payment_intents',
-            'manage_types',
+            "manage_payments",
+            "view_sessions",
+            "view_api_clients",
+            "manage_orders",
+            "introspect_oauth_tokens",
+            "manage_checkout_payment_intents",
+            "manage_types",
           ],
           ctAuthorizationService: paymentSDK.ctAuthorizationService,
           projectKey: getConfig().projectKey,
         }),
         async () => {
           try {
-            const paymentMethods = 'card';
+            const paymentMethods = "card";
             return {
-              name: 'Mock Payment API',
-              status: 'UP',
-              message: 'Mock api is working',
+              name: "Mock Payment API",
+              status: "UP",
+              message: "Mock api is working",
               details: {
                 paymentMethods,
               },
             };
           } catch (e) {
             return {
-              name: 'Mock Payment API',
-              status: 'DOWN',
-              message: 'The mock paymentAPI is down for some reason. Please check the logs for more details.',
+              name: "Mock Payment API",
+              status: "DOWN",
+              message:
+                "The mock paymentAPI is down for some reason. Please check the logs for more details.",
               details: {
                 // TODO do not expose the error
                 error: e,
@@ -104,7 +118,8 @@ export class MockPaymentService extends AbstractPaymentService {
       metadataFn: async () => ({
         name: packageJSON.name,
         description: packageJSON.description,
-        '@commercetools/connect-payments-sdk': packageJSON.dependencies['@commercetools/connect-payments-sdk'],
+        "@commercetools/connect-payments-sdk":
+          packageJSON.dependencies["@commercetools/connect-payments-sdk"],
       }),
     })();
 
@@ -148,17 +163,22 @@ export class MockPaymentService extends AbstractPaymentService {
    * @param request - contains the amount and {@link https://docs.commercetools.com/api/projects/payments | Payment } defined in composable commerce
    * @returns Promise with mocking data containing operation status and PSP reference
    */
-  public async capturePayment(request: CapturePaymentRequest): Promise<PaymentProviderModificationResponse> {
+  public async capturePayment(
+    request: CapturePaymentRequest,
+  ): Promise<PaymentProviderModificationResponse> {
     await this.ctPaymentService.updatePayment({
       id: request.payment.id,
       transaction: {
-        type: 'Charge',
+        type: "Charge",
         amount: request.amount,
         interactionId: request.payment.interfaceId,
-        state: 'Success',
+        state: "Success",
       },
     });
-    return { outcome: PaymentModificationStatus.APPROVED, pspReference: request.payment.interfaceId as string };
+    return {
+      outcome: PaymentModificationStatus.APPROVED,
+      pspReference: request.payment.interfaceId as string,
+    };
   }
 
   /**
@@ -170,17 +190,22 @@ export class MockPaymentService extends AbstractPaymentService {
    * @param request - contains {@link https://docs.commercetools.com/api/projects/payments | Payment } defined in composable commerce
    * @returns Promise with mocking data containing operation status and PSP reference
    */
-  public async cancelPayment(request: CancelPaymentRequest): Promise<PaymentProviderModificationResponse> {
+  public async cancelPayment(
+    request: CancelPaymentRequest,
+  ): Promise<PaymentProviderModificationResponse> {
     await this.ctPaymentService.updatePayment({
       id: request.payment.id,
       transaction: {
-        type: 'CancelAuthorization',
+        type: "CancelAuthorization",
         amount: request.payment.amountPlanned,
         interactionId: request.payment.interfaceId,
-        state: 'Success',
+        state: "Success",
       },
     });
-    return { outcome: PaymentModificationStatus.APPROVED, pspReference: request.payment.interfaceId as string };
+    return {
+      outcome: PaymentModificationStatus.APPROVED,
+      pspReference: request.payment.interfaceId as string,
+    };
   }
 
   /**
@@ -192,17 +217,22 @@ export class MockPaymentService extends AbstractPaymentService {
    * @param request - contains amount and {@link https://docs.commercetools.com/api/projects/payments | Payment } defined in composable commerce
    * @returns Promise with mocking data containing operation status and PSP reference
    */
-  public async refundPayment(request: RefundPaymentRequest): Promise<PaymentProviderModificationResponse> {
+  public async refundPayment(
+    request: RefundPaymentRequest,
+  ): Promise<PaymentProviderModificationResponse> {
     await this.ctPaymentService.updatePayment({
       id: request.payment.id,
       transaction: {
-        type: 'Refund',
+        type: "Refund",
         amount: request.amount,
         interactionId: request.payment.interfaceId,
-        state: 'Success',
+        state: "Success",
       },
     });
-    return { outcome: PaymentModificationStatus.APPROVED, pspReference: request.payment.interfaceId as string };
+    return {
+      outcome: PaymentModificationStatus.APPROVED,
+      pspReference: request.payment.interfaceId as string,
+    };
   }
 
   /**
@@ -214,21 +244,23 @@ export class MockPaymentService extends AbstractPaymentService {
    * @param request
    * @returns Promise with outcome containing operation status and PSP reference
    */
-  public async reversePayment(request: ReversePaymentRequest): Promise<PaymentProviderModificationResponse> {
+  public async reversePayment(
+    request: ReversePaymentRequest,
+  ): Promise<PaymentProviderModificationResponse> {
     const hasCharge = this.ctPaymentService.hasTransactionInState({
       payment: request.payment,
-      transactionType: 'Charge',
-      states: ['Success'],
+      transactionType: "Charge",
+      states: ["Success"],
     });
     const hasRefund = this.ctPaymentService.hasTransactionInState({
       payment: request.payment,
-      transactionType: 'Refund',
-      states: ['Success', 'Pending'],
+      transactionType: "Refund",
+      states: ["Success", "Pending"],
     });
     const hasCancelAuthorization = this.ctPaymentService.hasTransactionInState({
       payment: request.payment,
-      transactionType: 'CancelAuthorization',
-      states: ['Success', 'Pending'],
+      transactionType: "CancelAuthorization",
+      states: ["Success", "Pending"],
     });
 
     const wasPaymentReverted = hasRefund || hasCancelAuthorization;
@@ -243,14 +275,16 @@ export class MockPaymentService extends AbstractPaymentService {
 
     const hasAuthorization = this.ctPaymentService.hasTransactionInState({
       payment: request.payment,
-      transactionType: 'Authorization',
-      states: ['Success'],
+      transactionType: "Authorization",
+      states: ["Success"],
     });
     if (hasAuthorization && !wasPaymentReverted) {
       return this.cancelPayment({ payment: request.payment });
     }
 
-    throw new ErrorInvalidOperation('There is no successful payment transaction to reverse.');
+    throw new ErrorInvalidOperation(
+      "There is no successful payment transaction to reverse.",
+    );
   }
 
   /**
@@ -262,7 +296,9 @@ export class MockPaymentService extends AbstractPaymentService {
    * @param request - contains paymentType defined in composable commerce
    * @returns Promise with mocking data containing operation status and PSP reference
    */
-  public async createPayment(request: CreatePaymentRequest): Promise<PaymentResponseSchemaDTO> {
+  public async createPayment(
+    request: CreatePaymentRequest,
+  ): Promise<PaymentResponseSchemaDTO> {
     this.validatePaymentMethod(request);
 
     const ctCart = await this.ctCartService.getCart({
@@ -274,11 +310,11 @@ export class MockPaymentService extends AbstractPaymentService {
         cart: ctCart,
       }),
       paymentMethodInfo: {
-        paymentInterface: getPaymentInterfaceFromContext() || 'mock',
+        paymentInterface: getPaymentInterfaceFromContext() || "mock",
       },
       ...(ctCart.customerId && {
         customer: {
-          typeId: 'customer',
+          typeId: "customer",
           id: ctCart.customerId,
         },
       }),
@@ -303,20 +339,23 @@ export class MockPaymentService extends AbstractPaymentService {
       pspReference: pspReference,
       paymentMethod: request.data.paymentMethod.type,
       transaction: {
-        type: 'Authorization',
+        type: "Authorization",
         amount: ctPayment.amountPlanned,
         interactionId: pspReference,
         state: this.convertPaymentResultCode(request.data.paymentOutcome),
       },
-      ...(request.data.paymentMethod.type === PaymentMethodType.PURCHASE_ORDER && {
+      ...(request.data.paymentMethod.type ===
+        PaymentMethodType.PURCHASE_ORDER && {
         customFields: {
           type: {
             key: launchpadPurchaseOrderCustomType.key,
-            typeId: 'type',
+            typeId: "type",
           },
           fields: {
-            [launchpadPurchaseOrderCustomType.purchaseOrderNumber]: request.data.paymentMethod.poNumber,
-            [launchpadPurchaseOrderCustomType.invoiceMemo]: request.data.paymentMethod.invoiceMemo,
+            [launchpadPurchaseOrderCustomType.purchaseOrderNumber]:
+              request.data.paymentMethod.poNumber,
+            [launchpadPurchaseOrderCustomType.invoiceMemo]:
+              request.data.paymentMethod.invoiceMemo,
           },
         },
       }),
@@ -327,21 +366,28 @@ export class MockPaymentService extends AbstractPaymentService {
     };
   }
 
-  public async handleTransaction(transactionDraft: TransactionDraftDTO): Promise<TransactionResponseDTO> {
-    const TRANSACTION_AUTHORIZATION_TYPE: TransactionType = 'Authorization';
-    const TRANSACTION_STATE_SUCCESS: TransactionState = 'Success';
-    const TRANSACTION_STATE_FAILURE: TransactionState = 'Failure';
+  public async handleTransaction(
+    transactionDraft: TransactionDraftDTO,
+  ): Promise<TransactionResponseDTO> {
+    const TRANSACTION_AUTHORIZATION_TYPE: TransactionType = "Authorization";
+    const TRANSACTION_STATE_SUCCESS: TransactionState = "Success";
+    const TRANSACTION_STATE_FAILURE: TransactionState = "Failure";
 
     const maxCentAmountIfSuccess = 10000;
 
-    const ctCart = await this.ctCartService.getCart({ id: transactionDraft.cartId });
+    const ctCart = await this.ctCartService.getCart({
+      id: transactionDraft.cartId,
+    });
 
     let amountPlanned = transactionDraft.amount;
     if (!amountPlanned) {
-      amountPlanned = await this.ctCartService.getPaymentAmount({ cart: ctCart });
+      amountPlanned = await this.ctCartService.getPaymentAmount({
+        cart: ctCart,
+      });
     }
 
-    const isBelowSuccessStateThreshold = amountPlanned.centAmount < maxCentAmountIfSuccess;
+    const isBelowSuccessStateThreshold =
+      amountPlanned.centAmount < maxCentAmountIfSuccess;
 
     const newlyCreatedPayment = await this.ctPaymentService.createPayment({
       amountPlanned,
@@ -379,7 +425,7 @@ export class MockPaymentService extends AbstractPaymentService {
       return {
         transactionStatus: {
           errors: [],
-          state: 'Pending',
+          state: "Pending",
         },
       };
     } else {
@@ -387,11 +433,11 @@ export class MockPaymentService extends AbstractPaymentService {
         transactionStatus: {
           errors: [
             {
-              code: 'PaymentRejected',
+              code: "PaymentRejected",
               message: `Payment '${newlyCreatedPayment.id}' has been rejected.`,
             },
           ],
-          state: 'Failed',
+          state: "Failed",
         },
       };
     }
@@ -400,19 +446,22 @@ export class MockPaymentService extends AbstractPaymentService {
   private convertPaymentResultCode(resultCode: PaymentOutcome): string {
     switch (resultCode) {
       case PaymentOutcome.AUTHORIZED:
-        return 'Success';
+        return "Success";
       case PaymentOutcome.REJECTED:
-        return 'Failure';
+        return "Failure";
       default:
-        return 'Initial';
+        return "Initial";
     }
   }
 
   private validatePaymentMethod(request: CreatePaymentRequest): void {
     const { paymentMethod } = request.data;
 
-    if (paymentMethod.type === PaymentMethodType.PURCHASE_ORDER && !paymentMethod.poNumber) {
-      throw new ErrorRequiredField('poNumber');
+    if (
+      paymentMethod.type === PaymentMethodType.PURCHASE_ORDER &&
+      !paymentMethod.poNumber
+    ) {
+      throw new ErrorRequiredField("poNumber");
     }
   }
 }

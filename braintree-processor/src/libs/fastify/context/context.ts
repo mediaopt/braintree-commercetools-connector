@@ -1,8 +1,11 @@
-import * as paymentSdk from '@commercetools/connect-payments-sdk';
-import { fastifyRequestContext, requestContext } from '@fastify/request-context';
-import { randomUUID } from 'crypto';
-import { FastifyInstance, FastifyRequest } from 'fastify';
-import fp from 'fastify-plugin';
+import * as paymentSdk from "@commercetools/connect-payments-sdk";
+import {
+  fastifyRequestContext,
+  requestContext,
+} from "@fastify/request-context";
+import { randomUUID } from "crypto";
+import { FastifyInstance, FastifyRequest } from "fastify";
+import fp from "fastify-plugin";
 
 export type ContextData = {
   anonymousId?: string;
@@ -19,11 +22,11 @@ export type ContextData = {
 };
 
 export const getRequestContext = (): Partial<ContextData> => {
-  return requestContext.get('request') ?? {};
+  return requestContext.get("request") ?? {};
 };
 
 export const setRequestContext = (ctx: ContextData) => {
-  requestContext.set('request', ctx);
+  requestContext.set("request", ctx);
 };
 
 export const updateRequestContext = (ctx: Partial<ContextData>) => {
@@ -46,7 +49,9 @@ export const getCartIdFromContext = (): string => {
 
 export const getAllowedPaymentMethodsFromContext = (): string[] => {
   const contextData = getRequestContext() as ContextData;
-  return paymentSdk.getAllowedPaymentMethodsFromContext(contextData) as string[];
+  return paymentSdk.getAllowedPaymentMethodsFromContext(
+    contextData,
+  ) as string[];
 };
 
 export const getPaymentInterfaceFromContext = (): string | undefined => {
@@ -71,11 +76,13 @@ export const getFutureOrderNumberFromContext = (): string | undefined => {
 
 export const requestContextPlugin = fp(async (fastify: FastifyInstance) => {
   // Enhance the request object with a correlationId property
-  fastify.decorateRequest('correlationId', '');
+  fastify.decorateRequest("correlationId", "");
 
   // Propagate the correlationId from the request header to the request object
-  fastify.addHook('onRequest', (req, reply, done) => {
-    req.correlationId = req.headers['x-correlation-id'] ? (req.headers['x-correlation-id'] as string) : undefined;
+  fastify.addHook("onRequest", (req, reply, done) => {
+    req.correlationId = req.headers["x-correlation-id"]
+      ? (req.headers["x-correlation-id"] as string)
+      : undefined;
     done();
   });
 
@@ -91,6 +98,6 @@ export const requestContextPlugin = fp(async (fastify: FastifyInstance) => {
         requestId: req.id,
       },
     }),
-    hook: 'onRequest',
+    hook: "onRequest",
   });
 });

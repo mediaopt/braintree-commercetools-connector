@@ -1,4 +1,4 @@
-import { Static, Type } from '@sinclair/typebox';
+import { Static, Type } from "@sinclair/typebox";
 
 export const AmountSchema = Type.Object({
   centAmount: Type.Integer(),
@@ -7,7 +7,7 @@ export const AmountSchema = Type.Object({
 
 export const ActionCapturePaymentSchema = Type.Composite([
   Type.Object({
-    action: Type.Literal('capturePayment'),
+    action: Type.Literal("capturePayment"),
   }),
   Type.Object({
     amount: AmountSchema,
@@ -17,7 +17,7 @@ export const ActionCapturePaymentSchema = Type.Composite([
 
 export const ActionRefundPaymentSchema = Type.Composite([
   Type.Object({
-    action: Type.Literal('refundPayment'),
+    action: Type.Literal("refundPayment"),
   }),
   Type.Object({
     amount: AmountSchema,
@@ -27,14 +27,14 @@ export const ActionRefundPaymentSchema = Type.Composite([
 
 export const ActionCancelPaymentSchema = Type.Composite([
   Type.Object({
-    action: Type.Literal('cancelPayment'),
+    action: Type.Literal("cancelPayment"),
     merchantReference: Type.Optional(Type.String()),
   }),
 ]);
 
 export const ActionReversePaymentSchema = Type.Composite([
   Type.Object({
-    action: Type.Literal('reversePayment'),
+    action: Type.Literal("reversePayment"),
     merchantReference: Type.Optional(Type.String()),
   }),
 ]);
@@ -69,9 +69,9 @@ export const PaymentIntentRequestSchema = Type.Object({
 });
 
 export enum PaymentModificationStatus {
-  APPROVED = 'approved',
-  REJECTED = 'rejected',
-  RECEIVED = 'received',
+  APPROVED = "approved",
+  REJECTED = "rejected",
+  RECEIVED = "received",
 }
 const PaymentModificationSchema = Type.Enum(PaymentModificationStatus);
 
@@ -79,6 +79,10 @@ export const PaymentIntentResponseSchema = Type.Object({
   outcome: PaymentModificationSchema,
 });
 
-export type PaymentIntentRequestSchemaDTO = Static<typeof PaymentIntentRequestSchema>;
-export type PaymentIntentResponseSchemaDTO = Static<typeof PaymentIntentResponseSchema>;
+export type PaymentIntentRequestSchemaDTO = Static<
+  typeof PaymentIntentRequestSchema
+>;
+export type PaymentIntentResponseSchemaDTO = Static<
+  typeof PaymentIntentResponseSchema
+>;
 export type AmountSchemaDTO = Static<typeof AmountSchema>;

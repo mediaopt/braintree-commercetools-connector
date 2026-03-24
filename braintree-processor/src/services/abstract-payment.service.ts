@@ -2,7 +2,7 @@ import {
   CommercetoolsCartService,
   CommercetoolsPaymentService,
   ErrorInvalidOperation,
-} from '@commercetools/connect-payments-sdk';
+} from "@commercetools/connect-payments-sdk";
 import {
   CancelPaymentRequest,
   CapturePaymentRequest,
@@ -12,16 +12,22 @@ import {
   RefundPaymentRequest,
   ReversePaymentRequest,
   StatusResponse,
-} from './types/operation.type';
+} from "./types/operation.type";
 
-import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-componets.dto';
-import { TransactionDraftDTO, TransactionResponseDTO } from '../dtos/operations/transaction.dto';
+import { SupportedPaymentComponentsSchemaDTO } from "../dtos/operations/payment-componets.dto";
+import {
+  TransactionDraftDTO,
+  TransactionResponseDTO,
+} from "../dtos/operations/transaction.dto";
 
 export abstract class AbstractPaymentService {
   protected ctCartService: CommercetoolsCartService;
   protected ctPaymentService: CommercetoolsPaymentService;
 
-  protected constructor(ctCartService: CommercetoolsCartService, ctPaymentService: CommercetoolsPaymentService) {
+  protected constructor(
+    ctCartService: CommercetoolsCartService,
+    ctPaymentService: CommercetoolsPaymentService,
+  ) {
     this.ctCartService = ctCartService;
     this.ctPaymentService = ctPaymentService;
   }
@@ -65,7 +71,9 @@ export abstract class AbstractPaymentService {
    * @param request - contains the amount and {@link https://docs.commercetools.com/api/projects/payments | Payment } defined in composable commerce
    * @returns Promise with the outcome containing operation status and PSP reference
    */
-  abstract capturePayment(request: CapturePaymentRequest): Promise<PaymentProviderModificationResponse>;
+  abstract capturePayment(
+    request: CapturePaymentRequest,
+  ): Promise<PaymentProviderModificationResponse>;
 
   /**
    * Cancel payment
@@ -76,7 +84,9 @@ export abstract class AbstractPaymentService {
    * @param request - contains {@link https://docs.commercetools.com/api/projects/payments | Payment } defined in composable commerce
    * @returns Promise with outcome containing operation status and PSP reference
    */
-  abstract cancelPayment(request: CancelPaymentRequest): Promise<PaymentProviderModificationResponse>;
+  abstract cancelPayment(
+    request: CancelPaymentRequest,
+  ): Promise<PaymentProviderModificationResponse>;
 
   /**
    * Refund payment
@@ -87,7 +97,9 @@ export abstract class AbstractPaymentService {
    * @param request
    * @returns Promise with outcome containing operation status and PSP reference
    */
-  abstract refundPayment(request: RefundPaymentRequest): Promise<PaymentProviderModificationResponse>;
+  abstract refundPayment(
+    request: RefundPaymentRequest,
+  ): Promise<PaymentProviderModificationResponse>;
 
   /**
    * Reverse payment
@@ -98,7 +110,9 @@ export abstract class AbstractPaymentService {
    * @param request
    * @returns Promise with outcome containing operation status and PSP reference
    */
-  abstract reversePayment(request: ReversePaymentRequest): Promise<PaymentProviderModificationResponse>;
+  abstract reversePayment(
+    request: ReversePaymentRequest,
+  ): Promise<PaymentProviderModificationResponse>;
 
   /**
    * Handle the payment transaction request. It will create a new Payment in CoCo and associate it with the provided cartId. If no amount is given it will use the full cart amount.
@@ -109,7 +123,9 @@ export abstract class AbstractPaymentService {
    * @param transactionDraft the incoming request payload
    * @returns Promise with the created Payment and whether or not it was a success or not
    */
-  abstract handleTransaction(transactionDraft: TransactionDraftDTO): Promise<TransactionResponseDTO>;
+  abstract handleTransaction(
+    transactionDraft: TransactionDraftDTO,
+  ): Promise<TransactionResponseDTO>;
 
   /**
    * Modify payment
@@ -120,31 +136,36 @@ export abstract class AbstractPaymentService {
    * @param opts - input for payment modification including payment ID, action and payment amount
    * @returns Promise with outcome of payment modification after invocation to PSPs
    */
-  public async modifyPayment(opts: ModifyPayment): Promise<PaymentProviderModificationResponse> {
+  public async modifyPayment(
+    opts: ModifyPayment,
+  ): Promise<PaymentProviderModificationResponse> {
     const ctPayment = await this.ctPaymentService.getPayment({
       id: opts.paymentId,
     });
     const request = opts.data.actions[0];
 
     switch (request.action) {
-      case 'cancelPayment': {
-        return await this.cancelPayment({ payment: ctPayment, merchantReference: request.merchantReference });
+      case "cancelPayment": {
+        return await this.cancelPayment({
+          payment: ctPayment,
+          merchantReference: request.merchantReference,
+        });
       }
-      case 'capturePayment': {
+      case "capturePayment": {
         return await this.capturePayment({
           payment: ctPayment,
           merchantReference: request.merchantReference,
           amount: request.amount,
         });
       }
-      case 'refundPayment': {
+      case "refundPayment": {
         return await this.refundPayment({
           amount: request.amount,
           payment: ctPayment,
           merchantReference: request.merchantReference,
         });
       }
-      case 'reversePayment': {
+      case "reversePayment": {
         return await this.reversePayment({
           payment: ctPayment,
           merchantReference: request.merchantReference,

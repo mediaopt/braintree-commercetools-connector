@@ -1,7 +1,7 @@
-import { FastifyError, type FastifyReply, type FastifyRequest } from 'fastify';
+import { FastifyError, type FastifyReply, type FastifyRequest } from "fastify";
 
-import { FastifySchemaValidationError } from 'fastify/types/schema';
-import { log } from '../logger';
+import { FastifySchemaValidationError } from "fastify/types/schema";
+import { log } from "../logger";
 import {
   ErrorAuthErrorResponse,
   ErrorGeneral,
@@ -10,16 +10,27 @@ import {
   ErrorRequiredField,
   Errorx,
   MultiErrorx,
-} from '@commercetools/connect-payments-sdk';
-import { TAuthErrorResponse, TErrorObject, TErrorResponse } from './dtos/error.dto';
+} from "@commercetools/connect-payments-sdk";
+import {
+  TAuthErrorResponse,
+  TErrorObject,
+  TErrorResponse,
+} from "./dtos/error.dto";
 
 function isFastifyValidationError(error: Error): error is FastifyError {
   return (error as unknown as FastifyError).validation != undefined;
 }
 
-export const errorHandler = (error: Error, req: FastifyRequest, reply: FastifyReply) => {
+export const errorHandler = (
+  error: Error,
+  req: FastifyRequest,
+  reply: FastifyReply,
+) => {
   if (isFastifyValidationError(error) && error.validation) {
-    return handleErrors(transformValidationErrors(error.validation, req), reply);
+    return handleErrors(
+      transformValidationErrors(error.validation, req),
+      reply,
+    );
   } else if (error instanceof ErrorAuthErrorResponse) {
     return handleAuthError(error, reply);
   } else if (error instanceof Errorx) {
@@ -29,10 +40,21 @@ export const errorHandler = (error: Error, req: FastifyRequest, reply: FastifyRe
   }
 
   // If it isn't any of the cases above (for example a normal Error is thrown) then fallback to a general 500 internal server error
-  return handleErrors([new ErrorGeneral('Internal server error.', { cause: error, skipLog: false })], reply);
+  return handleErrors(
+    [
+      new ErrorGeneral("Internal server error.", {
+        cause: error,
+        skipLog: false,
+      }),
+    ],
+    reply,
+  );
 };
 
-const handleAuthError = (error: ErrorAuthErrorResponse, reply: FastifyReply) => {
+const handleAuthError = (
+  error: ErrorAuthErrorResponse,
+  reply: FastifyReply,
+) => {
   const transformedErrors: TErrorObject[] = transformErrorxToHTTPModel([error]);
 
   const response: TAuthErrorResponse = {
@@ -47,7 +69,8 @@ const handleAuthError = (error: ErrorAuthErrorResponse, reply: FastifyReply) => 
 };
 
 const handleErrors = (errorxList: Errorx[], reply: FastifyReply) => {
-  const transformedErrors: TErrorObject[] = transformErrorxToHTTPModel(errorxList);
+  const transformedErrors: TErrorObject[] =
+    transformErrorxToHTTPModel(errorxList);
 
   // Based on CoCo specs, the root level message attribute is always set to the values from the first error. MultiErrorx enforces the same HTTP status code.
   const response: TErrorResponse = {
@@ -81,18 +104,23 @@ const transformErrorxToHTTPModel = (errors: Errorx[]): TErrorObject[] => {
   return errorObjectList;
 };
 
-const transformValidationErrors = (errors: FastifySchemaValidationError[], req: FastifyRequest): Errorx[] => {
+const transformValidationErrors = (
+  errors: FastifySchemaValidationError[],
+  req: FastifyRequest,
+): Errorx[] => {
   const errorxList: Errorx[] = [];
 
   for (const err of errors) {
     switch (err.keyword) {
-      case 'required':
-        errorxList.push(new ErrorRequiredField(err.params.missingProperty as string));
+      case "required":
+        errorxList.push(
+          new ErrorRequiredField(err.params.missingProperty as string),
+        );
         break;
-      case 'enum':
+      case "enum":
         errorxList.push(
           new ErrorInvalidField(
-            getKeys(err.instancePath).join('.'),
+            getKeys(err.instancePath).join("."),
             getPropertyFromPath(err.instancePath, req.body),
             err.params.allowedValues as string,
           ),
@@ -109,7 +137,7 @@ const transformValidationErrors = (errors: FastifySchemaValidationError[], req: 
   return errorxList;
 };
 
-const getKeys = (path: string) => path.replace(/^\//, '').split('/');
+const getKeys = (path: string) => path.replace(/^\//, "").split("/");
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getPropertyFromPath = (path: string, obj: any): any => {
