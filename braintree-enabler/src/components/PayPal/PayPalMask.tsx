@@ -14,6 +14,7 @@ import {
   PayPalProps,
   GeneralPayButtonProps,
   PayPalFundingSourcesProp,
+  LineItemKind,
 } from "../../types";
 
 import { HOSTED_FIELDS_LABEL, renderMaskButtonClasses } from "../../styles";
@@ -154,20 +155,21 @@ export const PayPalMask: React.FC<React.PropsWithChildren<PayPalMaskProps>> = ({
             client: clientInstance,
           },
           (paypalCheckoutErr, paypalCheckoutInstance) => {
-            if (paypalCheckoutErr) {
+            if (paypalCheckoutErr || !paypalCheckoutInstance) {
               isLoading(false);
               notify("Error", "Error in paypal checkout.");
               return;
             }
 
             paypalCheckoutInstance.loadPayPalSDK(
-              isVault
-                ? { vault: true }
-                : {
-                    currency: paymentInfo.currency,
-                    intent: intent,
-                    ...enableFunding,
-                  },
+              { vault: true }, //FIXME - restore proper call
+              // isVault
+              //   ? { vault: true }
+              //   : {
+              //       currency: paymentInfo.currency,
+              //       intent: intent,
+              //       ...enableFunding,
+              //     },
               () => {
                 const paypal = global.paypal;
 
@@ -175,28 +177,29 @@ export const PayPalMask: React.FC<React.PropsWithChildren<PayPalMaskProps>> = ({
                   return paypalCheckoutInstance.tokenizePayment(
                     data,
                     function (err: any, payload: any) {
-                      if (isPureVault) {
-                        handlePureVault(payload.nonce);
-                      } else {
-                        handlePurchase(payload.nonce, {
-                          deviceData: deviceData,
-                          lineItems: lineItems,
-                          shipping: shipping,
-                          account: {
-                            email: payload.details.email,
-                          },
-                          billing: {
-                            firstName: payload.details.firstName,
-                            lastName: payload.details.lastName,
-                            streetName: payload.details.shippingAddress.line1,
-                            streetNumber: payload.details.shippingAddress.line1,
-                            city: payload.details.shippingAddress.city,
-                            country: payload.details.countryCode,
-                            postalCode:
-                              payload.details.shippingAddress.postalCode,
-                          },
-                        });
-                      }
+                      handlePureVault(payload.nonce);
+                      // if (isPureVault) {
+                      //   handlePureVault(payload.nonce);
+                      // } else {
+                      //   handlePurchase(payload.nonce, {
+                      //     deviceData: deviceData,
+                      //     lineItems: lineItems,
+                      //     shipping: shipping,
+                      //     account: {
+                      //       email: payload.details.email,
+                      //     },
+                      //     billing: {
+                      //       firstName: payload.details.firstName,
+                      //       lastName: payload.details.lastName,
+                      //       streetName: payload.details.shippingAddress.line1,
+                      //       streetNumber: payload.details.shippingAddress.line1,
+                      //       city: payload.details.shippingAddress.city,
+                      //       country: payload.details.countryCode,
+                      //       postalCode:
+                      //         payload.details.shippingAddress.postalCode,
+                      //     },
+                      //   });
+                      // }
                     }
                   );
                 };
@@ -208,6 +211,8 @@ export const PayPalMask: React.FC<React.PropsWithChildren<PayPalMaskProps>> = ({
                 };
 
                 if (isVault) {
+                  // @ts-ignore
+                  // @ts-ignore
                   paypal
                     .Buttons({
                       style: {
@@ -229,8 +234,8 @@ export const PayPalMask: React.FC<React.PropsWithChildren<PayPalMaskProps>> = ({
                           shippingAddressOverride: shippingAddressOverride,
                         });
                       },
-
-                      onApprove: handleOnApprove,
+                      //@ts-ignore
+                      onApprove: handleOnApprove, //fixme - resolve type
                       onCancel: handleOnClose,
                       onError: handleOnError,
                     })
@@ -283,11 +288,15 @@ export const PayPalMask: React.FC<React.PropsWithChildren<PayPalMaskProps>> = ({
                                   shippingAmountString;
                               } else {
                                 lineItems.push({
+                                  description: "",
+                                  productCode: "",
+                                  unitTaxAmount: "",
+                                  url: "",
                                   name: "Shipping",
-                                  kind: "debit",
                                   quantity: "1",
                                   totalAmount: shippingAmountString,
                                   unitAmount: shippingAmountString,
+                                  kind: LineItemKind.Debit,
                                 });
                               }
                             }
@@ -311,10 +320,8 @@ export const PayPalMask: React.FC<React.PropsWithChildren<PayPalMaskProps>> = ({
                             amount: paymentInfo.amount,
                             currency: paymentInfo.currency,
                             intent: intent,
-                            commit: commit,
                             enableShippingAddress: enableShippingAddress,
                             shippingAddressEditable: shippingAddressEditable,
-                            paypalLineItem: lineItems,
                             billingAgreementDescription:
                               billingAgreementDescription,
                             shippingAddressOverride: shippingAddressOverride,

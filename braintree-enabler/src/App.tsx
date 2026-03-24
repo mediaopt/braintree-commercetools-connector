@@ -9,29 +9,30 @@ import { ApplePay } from "./components/ApplePay";
 import { ACH } from "./components/ACH";
 import {
   Bancontact,
-  P24,
-  Sofort,
   BLIK,
-  MyBank,
   EPS,
   Giropay,
   Grabpay,
   IDeal,
+  MyBank,
+  P24,
+  Sofort,
 } from "./components/LocalPaymentMethods";
 import {
-  ShippingAddressOverride,
-  Shipping,
-  PayPalShippingOptions,
   LineItem,
+  LineItemKind,
+  PayPalShippingOptions,
+  Shipping,
+  ShippingAddressOverride,
 } from "./types";
 
 import {
   ButtonColorOption,
   ButtonLabelOption,
-  FlowType,
-  Intent,
   ButtonShapeOption,
   ButtonSizeOption,
+  FlowType,
+  Intent,
 } from "paypal-checkout-components";
 
 const CC_FRONTEND_EXTENSION_VERSION: string = "devmajidabbasi";
@@ -71,7 +72,7 @@ function App() {
   const lineItems: LineItem[] = [
     {
       name: "Product",
-      kind: "debit",
+      kind: LineItemKind.Debit,
       quantity: "6",
       unitAmount: "1.00",
       unitOfMeasure: "unit",
@@ -80,6 +81,9 @@ function App() {
       discountAmount: "0.00",
       productCode: "54321",
       commodityCode: "98765",
+      unitTaxAmount: "",
+      description: "",
+      url: "",
     },
   ];
 

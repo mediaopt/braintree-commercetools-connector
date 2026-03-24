@@ -1,16 +1,11 @@
 import React, { useEffect, useState } from "react";
 import classNames from "classnames";
 import { hostedFields, dataCollector } from "braintree-web";
-import { ThreeDSecureVerifyOptions } from "braintree-web/modules/three-d-secure";
 
 import { useBraintreeClient } from "../../app/useBraintreeClient";
 import { usePayment } from "../../app/usePayment";
 import { useNotifications } from "../../app/useNotifications";
 import { useLoader } from "../../app/useLoader";
-import {
-  HostedFieldsAccountDetails,
-  HostedFieldsHostedFieldsFieldName,
-} from "braintree-web/modules/hosted-fields";
 
 import {
   GeneralPayButtonProps,
@@ -24,6 +19,11 @@ import {
   HOSTED_FIELDS,
   renderMaskButtonClasses,
 } from "../../styles";
+import {
+  HostedFieldsAccountDetails,
+  HostedFieldsHostedFieldsFieldName,
+} from "braintree-web/hosted-fields";
+import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
 
 type CreditCardMaskProps = GeneralPayButtonProps & GeneralCreditCardProps;
 
@@ -328,7 +328,7 @@ export const CreditCardMask: React.FC<
                 handlePureVault(payload.nonce);
               } else {
                 let threeDSecureParameters: ThreeDSecureVerifyOptions = {
-                  amount: paymentInfo.amount,
+                  amount: `${paymentInfo.amount}`,
                   nonce: payload.nonce,
                   bin: payload.details.bin,
                   email: paymentInfo.cartInformation.account.email,
@@ -376,7 +376,7 @@ export const CreditCardMask: React.FC<
     }
     isLoading(true);
     let threeDSecureParameters: ThreeDSecureVerifyOptions = {
-      amount: paymentInfo.amount,
+      amount: `${paymentInfo.amount}`,
       nonce: selectedCard!.nonce,
       bin: selectedCard!.bin,
       email: paymentInfo.cartInformation.account.email,

@@ -10,7 +10,7 @@ import {
 import {
   ThreeDSecureAdditionalInformation,
   ThreeDSecureBillingAddress,
-} from "braintree-web/modules/three-d-secure";
+} from "braintree-web/three-d-secure";
 
 export type ClientTokenRequest = {
   paymentId: string;
@@ -19,17 +19,25 @@ export type ClientTokenRequest = {
   merchantAccountId?: string;
 };
 
+export enum LineItemKind {
+  Debit = "debit",
+  Credit = "credit",
+}
+
 export type LineItem = {
-  name?: string;
-  kind: string;
+  name: string;
+  kind: LineItemKind;
   quantity: string;
   unitAmount: string;
   unitOfMeasure?: string;
   totalAmount: string;
   taxAmount?: string;
   discountAmount?: string;
-  productCode?: string;
+  productCode: string;
   commodityCode?: string;
+  unitTaxAmount: string;
+  description: string;
+  url: string;
 };
 
 export type LineItems = LineItem[];
@@ -167,12 +175,12 @@ export type PayPalProps = {
 
 export type ShippingAddressOverride = {
   recipientName: string;
-  line1?: string;
+  line1: string;
   line2?: string;
-  city?: string;
-  countryCode?: string;
-  postalCode?: string;
-  state?: string;
+  city: string;
+  countryCode: string;
+  postalCode: string;
+  state: string;
   phone?: string;
 };
 
