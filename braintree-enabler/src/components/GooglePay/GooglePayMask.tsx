@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect, FC, PropsWithChildren, useRef } from "react";
 import { client as braintreeClient, googlePayment } from "braintree-web";
 import classNames from "classnames";
 
@@ -8,9 +8,7 @@ import { useLoader } from "../../app/useLoader";
 import loadScript from "../../app/loadScript";
 import { GooglePayTypes } from "../../types";
 
-export const GooglePayMask: React.FC<
-  React.PropsWithChildren<GooglePayTypes>
-> = ({
+export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
   environment,
   totalPriceStatus,
   googleMerchantId,
@@ -31,7 +29,7 @@ export const GooglePayMask: React.FC<
   const GoogleApiMinorVersion: number = 0;
   const GooglePayVersion: number = 2;
 
-  const googlePayButtonContainer = React.useRef<HTMLDivElement>(null);
+  const googlePayButtonContainer = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     isLoading(true);

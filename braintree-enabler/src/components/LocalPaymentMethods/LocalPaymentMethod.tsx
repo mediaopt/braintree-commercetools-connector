@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 
 import { RenderTemplate } from "../RenderTemplate";
 import { isPayButtonDisabled } from "../PayButton";
@@ -15,7 +15,7 @@ type LocalPaymentMethodType = GeneralComponentsProps &
   LocalPaymentComponentsProp &
   LocalPaymentMethodsType;
 
-export const LocalPaymentMethod: React.FC<LocalPaymentMethodType> = ({
+export const LocalPaymentMethod: FC<LocalPaymentMethodType> = ({
   createPaymentUrl,
   getClientTokenUrl,
   purchaseUrl,

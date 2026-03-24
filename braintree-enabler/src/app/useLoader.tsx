@@ -1,4 +1,11 @@
-import React, { FC, createContext, useMemo, useContext, useState } from "react";
+import {
+  FC,
+  PropsWithChildren,
+  createContext,
+  useMemo,
+  useContext,
+  useState,
+} from "react";
 import { LoadingOverlayType } from "../types";
 import { LoadingOverlay } from "../components/LoadingOverlay";
 
@@ -10,9 +17,11 @@ const LoaderContext = createContext<LoaderContextT>({
   isLoading: (active: boolean): void => {},
 });
 
-export const LoaderProvider: FC<
-  React.PropsWithChildren<LoadingOverlayType>
-> = ({ children, textStyles, loadingText }) => {
+export const LoaderProvider: FC<PropsWithChildren<LoadingOverlayType>> = ({
+  children,
+  textStyles,
+  loadingText,
+}) => {
   const [showLoader, setShowLoader] = useState<boolean>(false);
 
   const value = useMemo(() => {

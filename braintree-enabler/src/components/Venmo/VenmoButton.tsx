@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 
 import { usePayment } from "../../app/usePayment";
 import { PayButtonProps, PAY_BUTTON_TEXT_FALLBACK } from "../PayButton";
@@ -8,7 +8,7 @@ import { VenmoMask } from "./VenmoMask";
 import { VenmoTypes } from "../../types";
 type VenmoButton = VenmoTypes & PayButtonProps;
 
-export const VenmoButton: React.FC<VenmoButton> = ({
+export const VenmoButton: FC<VenmoButton> = ({
   disabled,
   fullWidth = true,
   buttonText,

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { ChangeEvent, ReactElement, useState } from "react";
 import "./App.css";
 
 import { CreditCard } from "./components/CreditCard";
@@ -149,7 +149,7 @@ function App() {
   };
 
   const [choosenPaymentMethod, setChoosenPaymentMethod] = useState("");
-  const paymentMethods: { [index: string]: JSX.Element } = {
+  const paymentMethods: { [index: string]: ReactElement } = {
     CreditCard: (
       <CreditCard
         requestHeader={requestHeader}
@@ -333,7 +333,7 @@ function App() {
   };
 
   const [choosenVaultMethod, setChoosenVaultMethod] = useState("");
-  const vaultMethods: { [index: string]: JSX.Element } = {
+  const vaultMethods: { [index: string]: ReactElement } = {
     CreditCardVault: (
       <CreditCard
         requestHeader={requestHeader}
@@ -356,11 +356,11 @@ function App() {
       />
     ),
   };
-  const changePaymentMethod = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const changePaymentMethod = (e: ChangeEvent<HTMLInputElement>) => {
     if (!e.target.checked) return;
     setChoosenPaymentMethod(e.target.value);
   };
-  const changeVaultMethod = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const changeVaultMethod = (e: ChangeEvent<HTMLInputElement>) => {
     if (!e.target.checked) return;
     setChoosenVaultMethod(e.target.value);
   };

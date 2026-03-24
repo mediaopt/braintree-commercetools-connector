@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 
 import { Intent } from "paypal-checkout-components";
 
@@ -11,7 +11,7 @@ import { GeneralComponentsProps, PayPalProps } from "../../types";
 
 type PayPalComponentProps = PayPalProps & GeneralComponentsProps;
 
-export const PayPal: React.FC<PayPalComponentProps> = ({
+export const PayPal: FC<PayPalComponentProps> = ({
   flow,
   buttonColor,
   buttonLabel,

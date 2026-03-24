@@ -1,4 +1,11 @@
-import { FC, createContext, useMemo, useContext, useState } from "react";
+import {
+  FC,
+  PropsWithChildren,
+  createContext,
+  useMemo,
+  useContext,
+  useState,
+} from "react";
 import {
   FetchPaymentMethodsPayload,
   VaultManager,
@@ -75,9 +82,7 @@ const PaymentContext = createContext<PaymentContextT>({
   requestHeader: {},
 });
 
-export const PaymentProvider: FC<
-  React.PropsWithChildren<GeneralComponentsProps>
-> = ({
+export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   createPaymentUrl,
   createPaymentForVault,
   getClientTokenUrl,

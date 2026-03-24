@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 
 import { RenderTemplate } from "../RenderTemplate";
 import { isPayButtonDisabled } from "../PayButton";
@@ -9,7 +9,7 @@ import { GeneralComponentsProps, GeneralCreditCardProps } from "../../types";
 
 type CreditCardProps = GeneralComponentsProps & GeneralCreditCardProps;
 
-export const CreditCard: React.FC<CreditCardProps> = ({
+export const CreditCard: FC<CreditCardProps> = ({
   createPaymentUrl,
   getClientTokenUrl,
   purchaseUrl,

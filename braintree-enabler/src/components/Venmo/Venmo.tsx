@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 
 import { RenderTemplate } from "../RenderTemplate";
 import { isPayButtonDisabled } from "../PayButton";
@@ -9,7 +9,7 @@ import { GeneralComponentsProps, VenmoTypes } from "../../types";
 
 export type VenmoProps = VenmoTypes & GeneralComponentsProps;
 
-export const Venmo: React.FC<VenmoProps> = ({
+export const Venmo: FC<VenmoProps> = ({
   mobileWebFallBack,
   paymentMethodUsage,
   desktopFlow,

@@ -1,4 +1,12 @@
-import React, { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+  FC,
+  PropsWithChildren,
+  useRef,
+  RefObject,
+  ChangeEvent,
+} from "react";
 import classNames from "classnames";
 import { hostedFields, dataCollector } from "braintree-web";
 
@@ -40,9 +48,7 @@ type SelectedCardType =
   | "new"
   | "";
 
-export const CreditCardMask: React.FC<
-  React.PropsWithChildren<CreditCardMaskProps>
-> = ({
+export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   fullWidth = true,
   buttonText,
   showPostalCode,
@@ -78,18 +84,18 @@ export const CreditCardMask: React.FC<
 
   const { client, threeDS } = useBraintreeClient();
 
-  const ccFormRef = React.useRef<HTMLFormElement>(null);
-  const ccNumberRef = React.useRef<HTMLDivElement>(null);
-  const ccNameRef = React.useRef<HTMLDivElement>(null);
-  const ccCvvRef = React.useRef<HTMLDivElement>(null);
-  const ccPostalRef = React.useRef<HTMLDivElement>(null);
-  const ccExpireRef = React.useRef<HTMLDivElement>(null);
-  const ccVaultCheckbox = React.useRef<HTMLInputElement>(null);
+  const ccFormRef = useRef<HTMLFormElement>(null);
+  const ccNumberRef = useRef<HTMLDivElement>(null);
+  const ccNameRef = useRef<HTMLDivElement>(null);
+  const ccCvvRef = useRef<HTMLDivElement>(null);
+  const ccPostalRef = useRef<HTMLDivElement>(null);
+  const ccExpireRef = useRef<HTMLDivElement>(null);
+  const ccVaultCheckbox = useRef<HTMLInputElement>(null);
 
   const borderClassToggle: Array<string> = ["border-2", "border-rose-600"];
 
   const FieldKeyMap: {
-    [index: string]: React.RefObject<HTMLDivElement>;
+    [index: string]: RefObject<HTMLDivElement | null>;
   } = {
     number: ccNumberRef,
     cvv: ccCvvRef,
@@ -350,7 +356,7 @@ export const CreditCardMask: React.FC<
     );
   }, [client, threeDS]);
 
-  const changeCard = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const changeCard = (e: ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value);
     const checkNew = value === -1;
     if (checkNew) {

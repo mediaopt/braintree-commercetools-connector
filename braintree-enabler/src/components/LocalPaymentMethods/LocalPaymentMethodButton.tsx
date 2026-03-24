@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 
 import { usePayment } from "../../app/usePayment";
 import { PAY_BUTTON_TEXT_FALLBACK, PayButtonProps } from "../PayButton";
@@ -13,7 +13,7 @@ type LocalPaymentMethod = LocalPaymentComponentsProp &
   LocalPaymentMethodsType &
   PayButtonProps;
 
-export const LocalPaymentMethodButton: React.FC<LocalPaymentMethod> = ({
+export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
   saveLocalPaymentIdUrl,
   disabled,
   fullWidth = true,

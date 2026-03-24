@@ -1,4 +1,11 @@
-import React, { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+  FC,
+  useRef,
+  PropsWithChildren,
+  FormEvent,
+} from "react";
 import {
   client as braintreeClient,
   venmo,
@@ -22,7 +29,7 @@ const TEST_PAYLOAD: VenmoTokenizePayload = {
   type: "",
 };
 
-export const VenmoMask: React.FC<React.PropsWithChildren<VenmoMaskType>> = ({
+export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
   paymentMethodUsage,
   desktopFlow,
   mobileWebFallBack,
@@ -44,7 +51,7 @@ export const VenmoMask: React.FC<React.PropsWithChildren<VenmoMaskType>> = ({
   const [currentVenmoInstance, setVenmoInstance] = useState<Venmo>();
   const [deviceData, setDeviceData] = useState("");
 
-  const venmoForm = React.useRef<HTMLFormElement>(null);
+  const venmoForm = useRef<HTMLFormElement>(null);
 
   const handleVenmoError = (err: BraintreeError) => {
     if (err.code === "VENMO_CANCELED") {
@@ -65,7 +72,7 @@ export const VenmoMask: React.FC<React.PropsWithChildren<VenmoMaskType>> = ({
     setVenmoUserName(payload.details.username);
   };
 
-  const clickVenmoButton = (e: React.FormEvent) => {
+  const clickVenmoButton = (e: FormEvent) => {
     e.preventDefault();
     if (!currentVenmoInstance) return;
     setVenmoDisabled(true);

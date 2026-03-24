@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 
 import { RenderTemplate } from "../RenderTemplate";
 import { isPayButtonDisabled } from "../PayButton";
@@ -9,7 +9,7 @@ import { GeneralComponentsProps, GooglePayTypes } from "../../types";
 
 type GooglePayComponentProps = GeneralComponentsProps & GooglePayTypes;
 
-export const GooglePay: React.FC<GooglePayComponentProps> = ({
+export const GooglePay: FC<GooglePayComponentProps> = ({
   createPaymentUrl,
   getClientTokenUrl,
   purchaseUrl,

@@ -1,5 +1,5 @@
-import React from "react";
 import { render, screen } from "@testing-library/react";
+//import "@testing-library/jest-dom";
 import { PayButton, PAY_BUTTON_TEXT_FALLBACK } from "./PayButton";
 
 test("button has default text", () => {

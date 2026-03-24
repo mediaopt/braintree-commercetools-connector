@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState, FC } from "react";
 
 import { useNotifications } from "../../app/useNotifications";
 import { usePayment } from "../../app/usePayment";
@@ -12,7 +12,7 @@ declare const window: any;
 
 type ApplePayButtonProps = ApplePayTypes & PayButtonProps;
 
-export const ApplePayButton: React.FC<ApplePayButtonProps> = ({
+export const ApplePayButton: FC<ApplePayButtonProps> = ({
   disabled,
   fullWidth = true,
   applePayDisplayName,

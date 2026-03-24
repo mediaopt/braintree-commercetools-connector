@@ -1,13 +1,13 @@
-// react 17.0.2
+// react 19
 
-import React from "react";
-import ReactDOM from "react-dom";
-import "./index.css";
+import { createRoot } from "react-dom/client";
 import App from "./App";
+import { StrictMode } from "react";
 
-ReactDOM.render(
-  <React.StrictMode>
+const root = createRoot(document.getElementById("root") as HTMLElement);
+
+root.render(
+  <StrictMode>
     <App />
-  </React.StrictMode>,
-  document.getElementById("root")
+  </StrictMode>
 );

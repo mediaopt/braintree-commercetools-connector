@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import {
   FC,
+  PropsWithChildren,
   createContext,
   useMemo,
   useContext,
@@ -24,9 +25,7 @@ const NotificationContext = createContext<NotificationContextT>({
 const NOTIFICATION_DURATION_MS = 5000;
 const NOTIFICATION_DELAY_MS = 500;
 
-export const NotificationsProvider: FC<React.PropsWithChildren> = ({
-  children,
-}) => {
+export const NotificationsProvider: FC<PropsWithChildren> = ({ children }) => {
   const [notifications, setNotifications] = useState<NotificationWithId[]>([]);
 
   const removeNotification = useCallback(
