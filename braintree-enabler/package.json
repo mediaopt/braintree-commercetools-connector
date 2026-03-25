@@ -22,16 +22,13 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "dev": "vite",
-    "start": "npm run prebuild && vite --host 0.0.0.0",
-    "build": "tsc && vite build",
+    "dev": "vite --port 3000",
+    "start": "serve public -l 8080 --cors",
+    "test": "jest --detectOpenHandles",
     "test.coverage": "jest  --runInBand --no-cache --coverage",
-    "clean": "rimraf dist",
-    "copy-files": "copyfiles -e *.ts -e **/*.ts -e **/*.tsx -u 1 src/**/**/*.css dist/esm/src",
-    "tsc-local": "npm run clean && tsc -p tsconfig.json && tsc -p tsconfig-cjs.json && npm run copy-files",
-    "prepare-local": "npm run tsc",
-    "tsc": "tsc -p tsconfig.json && tsc -p tsconfig-cjs.json && npm run copy-files",
-    "prepare": "npm run tsc"
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "serve": "npm run build && serve public -l 3000 --cors"
   },
   "eslintConfig": {
     "extends": [
@@ -57,7 +54,6 @@
     "@types/braintree-web": "^3.75.23",
     "@types/uuid": "^9.0.1",
     "tailwindcss": "^3.3.2",
-    "copyfiles": "^2.4.1",
     "vite": "^8.0.2",
     "@vitejs/plugin-react": "^6.0.1",
     "vite-plugin-css-injected-by-js": "3.5.2",
