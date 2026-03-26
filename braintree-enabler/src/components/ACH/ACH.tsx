@@ -10,15 +10,12 @@ import { GeneralComponentsProps, GeneralACHProps } from "../../types";
 type ACHProps = GeneralComponentsProps & GeneralACHProps;
 
 export const ACH: FC<ACHProps> = ({
-  createPaymentUrl,
-  getClientTokenUrl,
-  purchaseUrl,
+  processorUrl,
   purchaseCallback,
   cartInformation,
   fullWidth,
   buttonText,
   mandateText,
-  getAchVaultTokenURL,
   useKount,
   lineItems,
   shipping,
@@ -30,9 +27,7 @@ export const ACH: FC<ACHProps> = ({
 }: ACHProps) => {
   return (
     <RenderTemplate
-      getClientTokenUrl={getClientTokenUrl}
-      createPaymentUrl={createPaymentUrl}
-      purchaseUrl={purchaseUrl}
+      processorUrl={processorUrl}
       purchaseCallback={purchaseCallback}
       cartInformation={cartInformation}
       taxAmount={taxAmount}
@@ -42,12 +37,12 @@ export const ACH: FC<ACHProps> = ({
       requestHeader={requestHeader}
     >
       <ACHButton
+        processorUrl={processorUrl}
         disabled={isPayButtonDisabled(cartInformation)}
         buttonText={buttonText}
         fullWidth={fullWidth}
         cartInformation={cartInformation}
         mandateText={mandateText}
-        getAchVaultTokenURL={getAchVaultTokenURL}
         useKount={useKount}
         lineItems={lineItems}
         shipping={shipping}

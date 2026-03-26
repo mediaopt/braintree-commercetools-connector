@@ -12,12 +12,11 @@ import { GeneralComponentsProps, PayPalProps } from "../../types";
 type PayPalComponentProps = PayPalProps & GeneralComponentsProps;
 
 export const PayPal: FC<PayPalComponentProps> = ({
+  processorUrl,
+  sessionId,
   flow,
   buttonColor,
   buttonLabel,
-  createPaymentUrl,
-  getClientTokenUrl,
-  purchaseUrl,
   purchaseCallback,
   cartInformation,
   fullWidth,
@@ -44,24 +43,17 @@ export const PayPal: FC<PayPalComponentProps> = ({
   discountAmount,
   shippingMethodId,
   isPureVault,
-  createPaymentForVault,
-  vaultPaymentMethodUrl,
-  requestHeader,
 }: PayPalComponentProps) => {
   return (
     <RenderTemplate
-      getClientTokenUrl={getClientTokenUrl}
-      createPaymentUrl={createPaymentUrl}
-      purchaseUrl={purchaseUrl}
+      processorUrl={processorUrl}
+      sessionId={sessionId}
       purchaseCallback={purchaseCallback}
       cartInformation={cartInformation}
       taxAmount={taxAmount}
       shippingAmount={shippingAmount}
       discountAmount={discountAmount}
       shippingMethodId={shippingMethodId}
-      createPaymentForVault={createPaymentForVault}
-      vaultPaymentMethodUrl={vaultPaymentMethodUrl}
-      requestHeader={requestHeader}
     >
       <PayPalButton
         disabled={isPayButtonDisabled(cartInformation) && !isPureVault}

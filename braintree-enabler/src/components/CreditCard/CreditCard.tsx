@@ -1,7 +1,6 @@
 import { FC } from "react";
 
 import { RenderTemplate } from "../RenderTemplate";
-import { isPayButtonDisabled } from "../PayButton";
 
 import { CreditCardButton } from "./CreditCardButton";
 
@@ -10,9 +9,8 @@ import { GeneralComponentsProps, GeneralCreditCardProps } from "../../types";
 type CreditCardProps = GeneralComponentsProps & GeneralCreditCardProps;
 
 export const CreditCard: FC<CreditCardProps> = ({
-  createPaymentUrl,
-  getClientTokenUrl,
-  purchaseUrl,
+  processorUrl,
+  sessionId,
   purchaseCallback,
   cartInformation,
   fullWidth,
@@ -32,27 +30,20 @@ export const CreditCard: FC<CreditCardProps> = ({
   discountAmount,
   shippingMethodId,
   isPureVault,
-  createPaymentForVault,
-  vaultPaymentMethodUrl,
-  requestHeader,
 }: CreditCardProps) => {
   return (
     <RenderTemplate
-      requestHeader={requestHeader}
-      getClientTokenUrl={getClientTokenUrl}
-      createPaymentUrl={createPaymentUrl}
-      purchaseUrl={purchaseUrl}
+      processorUrl={processorUrl}
+      sessionId={sessionId}
       purchaseCallback={purchaseCallback}
       cartInformation={cartInformation}
       taxAmount={taxAmount}
       shippingAmount={shippingAmount}
       discountAmount={discountAmount}
       shippingMethodId={shippingMethodId}
-      createPaymentForVault={createPaymentForVault}
-      vaultPaymentMethodUrl={vaultPaymentMethodUrl}
     >
       <CreditCardButton
-        disabled={isPayButtonDisabled(cartInformation) && !isPureVault}
+        disabled={true} //{isPayButtonDisabled(cartInformation) && !isPureVault}
         buttonText={buttonText}
         fullWidth={fullWidth}
         showPostalCode={showPostalCode}

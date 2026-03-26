@@ -35,10 +35,6 @@ import {
   Intent,
 } from "paypal-checkout-components";
 
-const CC_FRONTEND_EXTENSION_VERSION: string = "devmajidabbasi";
-const FRONTASTIC_SESSION: string =
-  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJjYXJ0SWQiOiI2YjRhMGIyYy1lYmFlLTRhZGMtYmQyNS1mMTg4MjliOTNlYzAiLCJ3aXNobGlzdElkIjoiMmI3ZDc4OWYtMGJmNi00NGQ3LThkZDctYzJlMjg0OGJiNTJkIn0.96b5PacXfBwfqkiI8lm5OEDsJb7o3Cps-hHayaF4b3I";
-
 function App() {
   const cartInformation = {
     account: {
@@ -62,11 +58,6 @@ function App() {
       country: "DE",
       postalCode: "12045",
     },
-  };
-
-  const requestHeader = {
-    "Frontastic-Session": FRONTASTIC_SESSION,
-    "Commercetools-Frontend-Extension-Version": CC_FRONTEND_EXTENSION_VERSION,
   };
 
   const lineItems: LineItem[] = [
@@ -103,13 +94,9 @@ function App() {
     },
   ];
 
-  const ENDPOINT_URL: string =
-    "https://poc-mediaopt.frontastic.rocks/frontastic/action";
-
   const params = {
-    createPaymentUrl: `${ENDPOINT_URL}/payment/createPayment`,
-    getClientTokenUrl: `${ENDPOINT_URL}/payment/getClientToken`,
-    purchaseUrl: `${ENDPOINT_URL}/payment/createPurchase`,
+    processorUrl: "https://poc-mediaopt.frontastic.rocks/frontastic/action",
+    sessionId: "cfddb93b-66f7-4e5a-b7e1-d44d211eca4b",
     purchaseCallback: (result: any, options: any) => {
       console.log("Do something", result, options);
     },
@@ -125,13 +112,10 @@ function App() {
   };
 
   const vaultingParams = {
-    createPaymentForVault: `${ENDPOINT_URL}/payment/createPaymentForVault`,
-    vaultPaymentMethodUrl: `${ENDPOINT_URL}/payment/vaultPaymentMethod`,
     isPureVault: true,
   };
 
   const localPaymentParams = {
-    saveLocalPaymentIdUrl: `${ENDPOINT_URL}/payment/setLocalPaymentId`,
     fallbackUrl: "/test",
     fallbackButtonText: "purchase",
     merchantAccountId: "",
@@ -151,16 +135,10 @@ function App() {
   const [choosenPaymentMethod, setChoosenPaymentMethod] = useState("");
   const paymentMethods: { [index: string]: ReactElement } = {
     CreditCard: (
-      <CreditCard
-        requestHeader={requestHeader}
-        {...params}
-        enableVaulting={true}
-        useKount={true}
-      />
+      <CreditCard {...params} enableVaulting={true} useKount={true} />
     ),
     PayPal: (
       <PayPal
-        requestHeader={requestHeader}
         flow={"checkout" as FlowType}
         buttonColor={"blue" as ButtonColorOption}
         buttonLabel={"pay" as ButtonLabelOption}
@@ -179,7 +157,6 @@ function App() {
     ),
     PayPalBuyNow: (
       <PayPal
-        requestHeader={requestHeader}
         flow={"checkout" as FlowType}
         buttonColor={"blue" as ButtonColorOption}
         buttonLabel={"buynow" as ButtonLabelOption}
@@ -194,7 +171,6 @@ function App() {
     ),
     GooglePay: (
       <GooglePay
-        requestHeader={requestHeader}
         totalPriceStatus={"FINAL"}
         googleMerchantId={"merchant-id-from-google"}
         acquirerCountryCode={"DE"}
@@ -204,7 +180,6 @@ function App() {
     ),
     Venmo: (
       <Venmo
-        requestHeader={requestHeader}
         desktopFlow={"desktopWebLogin"}
         mobileWebFallBack={true}
         paymentMethodUsage={"multi_use"}
@@ -215,25 +190,16 @@ function App() {
         {...params}
       />
     ),
-    ApplePay: (
-      <ApplePay
-        requestHeader={requestHeader}
-        applePayDisplayName="My Store"
-        {...params}
-      />
-    ),
+    ApplePay: <ApplePay applePayDisplayName="My Store" {...params} />,
     ACH: (
       <ACH
-        requestHeader={requestHeader}
         mandateText='By clicking ["Checkout"], I authorize Braintree, a service of PayPal, on behalf of [your business name here] (i) to verify my bank account information using bank information and consumer reports and (ii) to debit my bank account.'
-        getAchVaultTokenURL={`${ENDPOINT_URL}/payment/getAchVaultToken`}
         useKount={true}
         {...params}
       />
     ),
     Bancontact: (
       <Bancontact
-        requestHeader={requestHeader}
         {...params}
         {...localPaymentParams}
         currencyCode={"EUR"}
@@ -244,7 +210,6 @@ function App() {
     ),
     P24: (
       <P24
-        requestHeader={requestHeader}
         {...params}
         {...localPaymentParams}
         currencyCode={"EUR"}
@@ -255,7 +220,6 @@ function App() {
     ),
     Sofort: (
       <Sofort
-        requestHeader={requestHeader}
         {...params}
         {...localPaymentParams}
         currencyCode={"EUR"}
@@ -266,7 +230,6 @@ function App() {
     ),
     BLIK: (
       <BLIK
-        requestHeader={requestHeader}
         {...params}
         {...localPaymentParams}
         currencyCode={"PLN"}
@@ -277,7 +240,6 @@ function App() {
     ),
     MyBank: (
       <MyBank
-        requestHeader={requestHeader}
         {...params}
         {...localPaymentParams}
         currencyCode={"EUR"}
@@ -288,7 +250,6 @@ function App() {
     ),
     EPS: (
       <EPS
-        requestHeader={requestHeader}
         {...params}
         {...localPaymentParams}
         currencyCode={"EUR"}
@@ -299,7 +260,6 @@ function App() {
     ),
     Giropay: (
       <Giropay
-        requestHeader={requestHeader}
         {...params}
         {...localPaymentParams}
         currencyCode={"EUR"}
@@ -310,7 +270,6 @@ function App() {
     ),
     Grabpay: (
       <Grabpay
-        requestHeader={requestHeader}
         {...params}
         {...localPaymentParams}
         currencyCode={"SGD"}
@@ -321,7 +280,6 @@ function App() {
     ),
     iDeal: (
       <IDeal
-        requestHeader={requestHeader}
         {...params}
         {...localPaymentParams}
         currencyCode={"EUR"}
@@ -334,16 +292,9 @@ function App() {
 
   const [choosenVaultMethod, setChoosenVaultMethod] = useState("");
   const vaultMethods: { [index: string]: ReactElement } = {
-    CreditCardVault: (
-      <CreditCard
-        requestHeader={requestHeader}
-        {...params}
-        {...vaultingParams}
-      />
-    ),
+    CreditCardVault: <CreditCard {...params} {...vaultingParams} />,
     PayPalVault: (
       <PayPal
-        requestHeader={requestHeader}
         flow={"vault" as FlowType}
         buttonColor={"blue" as ButtonColorOption}
         buttonLabel={"paypal" as ButtonLabelOption}

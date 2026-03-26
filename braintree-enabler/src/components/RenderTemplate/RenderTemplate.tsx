@@ -9,35 +9,27 @@ import { GeneralComponentsProps } from "../../types";
 
 export const RenderTemplate: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   children,
-  getClientTokenUrl,
-  createPaymentUrl,
-  createPaymentForVault,
-  purchaseUrl,
-  vaultPaymentMethodUrl,
+  processorUrl,
+  sessionId,
   purchaseCallback,
   cartInformation,
   taxAmount,
   shippingAmount,
   discountAmount,
   shippingMethodId,
-  requestHeader,
 }) => {
   return (
     <NotificationsProvider>
       <LoaderProvider>
         <PaymentProvider
-          getClientTokenUrl={getClientTokenUrl}
-          createPaymentUrl={createPaymentUrl}
-          createPaymentForVault={createPaymentForVault}
-          purchaseUrl={purchaseUrl}
-          vaultPaymentMethodUrl={vaultPaymentMethodUrl}
+          processorUrl={processorUrl}
+          sessionId={sessionId}
           purchaseCallback={purchaseCallback}
           cartInformation={cartInformation}
           taxAmount={taxAmount}
           shippingAmount={shippingAmount}
           discountAmount={discountAmount}
           shippingMethodId={shippingMethodId}
-          requestHeader={requestHeader}
         >
           <RenderPurchase>{children}</RenderPurchase>
         </PaymentProvider>

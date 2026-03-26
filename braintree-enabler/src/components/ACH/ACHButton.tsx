@@ -11,12 +11,12 @@ import { ACHMask } from "./ACHMask";
 type ACHButtonProps = PayButtonProps & CartInformationProps & GeneralACHProps;
 
 export const ACHButton: FC<ACHButtonProps> = ({
+  processorUrl,
   disabled,
   fullWidth = true,
   buttonText,
   cartInformation,
   mandateText,
-  getAchVaultTokenURL,
   useKount,
   lineItems,
   shipping,
@@ -32,7 +32,7 @@ export const ACHButton: FC<ACHButtonProps> = ({
       buttonText={buttonText ?? PAY_BUTTON_TEXT_FALLBACK}
       cartInformation={cartInformation}
       mandateText={mandateText}
-      getAchVaultTokenURL={getAchVaultTokenURL}
+      processorUrl={processorUrl}
       useKount={useKount}
       lineItems={lineItems}
       shipping={shipping}

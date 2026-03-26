@@ -29,15 +29,16 @@ export const CreditCardButton: FC<CreditCardButton> = ({
   shippingMethodId,
   isPureVault,
 }: CreditCardButton) => {
-  const { clientToken } = usePayment();
-
-  useHandleGetClientToken(disabled, undefined, shippingMethodId, isPureVault);
+  // const { clientToken } = usePayment();
+  //
+  // useHandleGetClientToken(disabled, undefined, shippingMethodId, isPureVault);
 
   const FALLBACK_TEXT = isPureVault
     ? VAULT_BUTTON_TEXT_FALLBACK
     : PAY_BUTTON_TEXT_FALLBACK;
 
-  return clientToken ? (
+  return (
+    // clientToken ? (
     <CreditCardMask
       fullWidth={fullWidth}
       buttonText={buttonText ?? FALLBACK_TEXT}
@@ -53,7 +54,7 @@ export const CreditCardButton: FC<CreditCardButton> = ({
       shipping={shipping}
       isPureVault={isPureVault}
     />
-  ) : (
-    <></>
+    // ) : (
+    //   <></>
   );
 };
