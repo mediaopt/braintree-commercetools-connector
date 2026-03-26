@@ -278,14 +278,14 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
 
   return (
     <>
-      {showVaultedMessage === true && (
+      {showVaultedMessage && (
         <Result
           success={true}
           message="Account vaulted successfully, as soon as the bank verifies it you can use it as a payment method."
         />
       )}
 
-      {showVaultedAccounts === true && (
+      {showVaultedAccounts && (
         <>
           {!!limitedVaultedPayments.length && (
             <div className="block w-full">
@@ -346,7 +346,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
           </button>
         </>
       )}
-      {showVaultForm === true && (
+      {showVaultForm && (
         <form className="m-auto p-8 max-w-screen-md" onSubmit={handleSubmit}>
           <label className={HOSTED_FIELDS_LABEL} htmlFor="routing-number">
             Routing Number

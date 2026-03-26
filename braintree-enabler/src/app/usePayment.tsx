@@ -289,7 +289,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
         requestBody,
       )) as TransactionSaleResponse;
       isLoading(false);
-      if (response.ok === false || !response) {
+      if (!response.ok || !response) {
         notify("Error", response.message ?? "An error occurred");
         return;
       }
