@@ -28,11 +28,12 @@ import { useNotifications } from "./useNotifications";
 import { useLoader } from "./useLoader";
 import { setLocalPaymentIdRequest } from "../services/setLocalPaymentId";
 import { makeVaultRequest } from "../services/makeVaultRequest";
+import { processorUrls } from "../components/constants";
 
 type HandlePurchaseType = (
   paymentNonce: string,
   options?: { [index: string]: any },
-  overridePaymentVersion?: number
+  overridePaymentVersion?: number,
 ) => void;
 
 type PaymentContextT = {
@@ -40,11 +41,11 @@ type PaymentContextT = {
   clientToken: string;
   handleGetClientToken: (
     merchantAccountId?: string,
-    vaultPayment?: boolean
+    vaultPayment?: boolean,
   ) => void;
   setLocalPaymentId: (
     localPaymentId: string,
-    saveLocalPaymentUrl: string
+    saveLocalPaymentUrl: string,
   ) => Promise<number>;
   handlePurchase: HandlePurchaseType;
   handlePureVault: (paymentNonce: string) => void;
@@ -65,6 +66,11 @@ const PaymentInfoInitialObject = {
   cartInformation: CartInformationInitial,
 };
 
+const sessionHeader = (sessionId: string) => ({
+  "Content-Type": "application/json",
+  "X-Session-Id": sessionId,
+});
+
 const PaymentContext = createContext<PaymentContextT>({
   gettingClientToken: false,
   clientToken: "",
@@ -76,18 +82,15 @@ const PaymentContext = createContext<PaymentContextT>({
   vaultedPaymentMethods: [],
   handleGetVaultedPaymentMethods: () =>
     new Promise<FetchPaymentMethodsPayload[]>(
-      (resolve) => [] as FetchPaymentMethodsPayload[]
+      (resolve) => [] as FetchPaymentMethodsPayload[],
     ),
   braintreeCustomerId: "",
   requestHeader: {},
 });
 
 export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
-  createPaymentUrl,
-  createPaymentForVault,
-  getClientTokenUrl,
-  purchaseUrl,
-  vaultPaymentMethodUrl,
+  processorUrl,
+  sessionId,
   purchaseCallback,
   children,
   cartInformation,
@@ -95,7 +98,6 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   shippingAmount,
   discountAmount,
   shippingMethodId,
-  requestHeader,
 }) => {
   const [gettingClientToken, setGettingClientToken] = useState(false);
   const [showResult, setShowResult] = useState(false);
@@ -106,11 +108,19 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   const [braintreeCustomerId, setBraintreeCustomerId] = useState("");
   const [customerVersion, setCustomerVersion] = useState<number>();
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>(
-    PaymentInfoInitialObject
+    PaymentInfoInitialObject,
   );
   const [vaultedPaymentMethods, setVaultedPaymentMethods] = useState<
     FetchPaymentMethodsPayload[]
   >([]);
+  const {
+    createPaymentUrl,
+    getClientTokenUrl,
+    purchaseUrl,
+    createPaymentForVault,
+    vaultPaymentMethodUrl,
+  } = processorUrls(processorUrl);
+  const requestHeader = sessionHeader(sessionId);
 
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
@@ -118,7 +128,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   const value = useMemo(() => {
     const handleGetClientToken = async (
       merchantAccountId?: string,
-      vaultPayment?: boolean
+      vaultPayment?: boolean,
     ) => {
       setGettingClientToken(true);
       isLoading(true);
@@ -131,7 +141,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
           requestHeader,
           createPaymentEndpoint,
           cartInformation,
-          shippingMethodId
+          shippingMethodId,
         )) as CreatePaymentResponse;
 
         if (!createPaymentResult.braintreeCustomerId && vaultPayment) {
@@ -154,7 +164,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
             createPaymentResult.id,
             createPaymentResult.version,
             createPaymentResult.braintreeCustomerId,
-            merchantAccountId
+            merchantAccountId,
           )) as ClientTokenResponse;
 
           if (!clientTokenresult) {
@@ -209,7 +219,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
           }
           return vaultInstance.fetchPaymentMethods({ defaultFirst: true }).then(
             (
-              customerPaymentMethods: FetchPaymentMethodsPayload[] | undefined
+              customerPaymentMethods: FetchPaymentMethodsPayload[] | undefined,
             ) => {
               isLoading(false);
               if (customerPaymentMethods !== undefined) {
@@ -220,25 +230,25 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
             },
             () => {
               return vaultedPaymentMethods;
-            }
+            },
           );
         },
         () => {
           return vaultedPaymentMethods;
-        }
+        },
       );
     };
 
     const setLocalPaymentId = async (
       localPaymentId: string,
-      saveLocalPaymentUrl: string
+      saveLocalPaymentUrl: string,
     ) => {
       const response = (await setLocalPaymentIdRequest(
         requestHeader,
         saveLocalPaymentUrl,
         paymentInfo.id,
         paymentInfo.version,
-        localPaymentId
+        localPaymentId,
       )) as { paymentVersion: number };
 
       setPaymentInfo({ ...paymentInfo, version: response.paymentVersion });
@@ -249,7 +259,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
     const handlePurchase: HandlePurchaseType = async (
       paymentNonce,
       options?,
-      overridePaymentVersion?
+      overridePaymentVersion?,
     ) => {
       const additional = options ?? {};
 
@@ -276,7 +286,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
       const response = (await makeTransactionSaleRequest(
         requestHeader,
         purchaseUrl,
-        requestBody
+        requestBody,
       )) as TransactionSaleResponse;
       isLoading(false);
       if (response.ok === false || !response) {
@@ -308,7 +318,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
       const response = await makeVaultRequest(
         requestHeader,
         vaultPaymentMethodUrl,
-        requestBody
+        requestBody,
       );
       isLoading(false);
       if (response.ok === false || !response) {
@@ -325,6 +335,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
     };
 
     return {
+      sessionId,
       gettingClientToken,
       clientToken,
       handleGetClientToken,

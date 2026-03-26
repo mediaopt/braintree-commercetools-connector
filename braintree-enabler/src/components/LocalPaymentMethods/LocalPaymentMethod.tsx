@@ -5,21 +5,12 @@ import { isPayButtonDisabled } from "../PayButton";
 
 import { LocalPaymentMethodButton } from "./LocalPaymentMethodButton";
 
-import {
-  GeneralComponentsProps,
-  LocalPaymentComponentsProp,
-  LocalPaymentMethodsType,
-} from "../../types";
+import { GeneralComponentsProps, LocalPaymentMethodsType } from "../../types";
 
-type LocalPaymentMethodType = GeneralComponentsProps &
-  LocalPaymentComponentsProp &
-  LocalPaymentMethodsType;
+type LocalPaymentMethodType = GeneralComponentsProps & LocalPaymentMethodsType;
 
 export const LocalPaymentMethod: FC<LocalPaymentMethodType> = ({
-  createPaymentUrl,
-  getClientTokenUrl,
-  purchaseUrl,
-  saveLocalPaymentIdUrl,
+  processorUrl,
   purchaseCallback,
   cartInformation,
   paymentType,
@@ -41,10 +32,8 @@ export const LocalPaymentMethod: FC<LocalPaymentMethodType> = ({
 }: LocalPaymentMethodType) => {
   return (
     <RenderTemplate
+      processorUrl={processorUrl}
       requestHeader={requestHeader}
-      getClientTokenUrl={getClientTokenUrl}
-      createPaymentUrl={createPaymentUrl}
-      purchaseUrl={purchaseUrl}
       purchaseCallback={purchaseCallback}
       cartInformation={cartInformation}
       taxAmount={taxAmount}
@@ -53,7 +42,7 @@ export const LocalPaymentMethod: FC<LocalPaymentMethodType> = ({
       shippingMethodId={shippingMethodId}
     >
       <LocalPaymentMethodButton
-        saveLocalPaymentIdUrl={saveLocalPaymentIdUrl}
+        processorUrl={processorUrl}
         paymentType={paymentType}
         countryCode={countryCode}
         currencyCode={currencyCode}

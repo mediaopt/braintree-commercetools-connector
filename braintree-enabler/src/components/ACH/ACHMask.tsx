@@ -30,6 +30,7 @@ import {
 } from "../../styles";
 
 import { getAchVaultToken } from "../../services/getAchVaultToken";
+import { processorUrls } from "../constants";
 
 type AccountType = "" | "checking" | "savings";
 type OwnershipType = "" | "personal" | "business";
@@ -66,11 +67,11 @@ type LimitedVaultedPayment = {
 };
 
 export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
+  processorUrl,
   fullWidth = true,
   buttonText,
   cartInformation,
   mandateText,
-  getAchVaultTokenURL,
   useKount,
   lineItems,
   shipping,
@@ -106,6 +107,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   const [locality, setLocality] = useState<string>("");
   const [region, setRegion] = useState<string>("");
   const [postalCode, setPostalCode] = useState<string>("");
+  const { getAchVaultTokenURL } = processorUrls(processorUrl);
 
   useEffect(() => {
     const { firstName, lastName, streetName, streetNumber, postalCode } =
@@ -194,7 +196,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
             if (usBankAccountErr) {
               notify(
                 "Error",
-                "There was an error creating the USBankAccount instance."
+                "There was an error creating the USBankAccount instance.",
               );
               isLoading(false);
               throw usBankAccountErr;
@@ -210,7 +212,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                 if (!dataCollectorErr && dataCollectorInstance) {
                   setDeviceData(dataCollectorInstance.deviceData);
                 }
-              }
+              },
             );
 
             usBankAccountInstance?.tokenize(
@@ -221,12 +223,12 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
               },
               async function (
                 tokenizeErr?: BraintreeError,
-                tokenizedPayload?: any
+                tokenizedPayload?: any,
               ) {
                 if (tokenizeErr) {
                   notify(
                     "Error",
-                    `There was an error tokenizing the bank details, ${tokenizeErr}`
+                    `There was an error tokenizing the bank details, ${tokenizeErr}`,
                   );
                   isLoading(false);
                   throw tokenizeErr;
@@ -235,7 +237,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                 const vaultResponse = await getAchVaultToken(
                   requestHeader,
                   getAchVaultTokenURL,
-                  tokenizedPayload.nonce
+                  tokenizedPayload.nonce,
                 );
 
                 const { token: vaultToken } = vaultResponse || {};
@@ -246,16 +248,16 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                 } else {
                   notify(
                     "Error",
-                    "There is an error in vaulting the bank account."
+                    "There is an error in vaulting the bank account.",
                   );
                 }
 
                 isLoading(false);
-              }
+              },
             );
-          }
+          },
         );
-      }
+      },
     );
   };
 
@@ -527,7 +529,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
               className={renderMaskButtonClasses(
                 fullWidth,
                 !formButtonDisabled,
-                formButtonDisabled
+                formButtonDisabled,
               )}
               value="Vault Bank Account"
               id="submit"

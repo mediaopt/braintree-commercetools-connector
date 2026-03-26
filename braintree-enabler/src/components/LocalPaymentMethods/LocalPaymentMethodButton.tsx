@@ -14,7 +14,7 @@ type LocalPaymentMethod = LocalPaymentComponentsProp &
   PayButtonProps;
 
 export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
-  saveLocalPaymentIdUrl,
+  processorUrl,
   disabled,
   fullWidth = true,
   buttonText = PAY_BUTTON_TEXT_FALLBACK,
@@ -36,7 +36,7 @@ export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
 
   return clientToken ? (
     <LocalPaymentMethodMask
-      saveLocalPaymentIdUrl={saveLocalPaymentIdUrl}
+      processorUrl={processorUrl}
       paymentType={paymentType}
       countryCode={countryCode}
       currencyCode={currencyCode}

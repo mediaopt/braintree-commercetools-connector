@@ -10,9 +10,8 @@ import { GeneralComponentsProps, ApplePayTypes } from "../../types";
 type ApplePayComponentProps = ApplePayTypes & GeneralComponentsProps;
 
 export const ApplePay: FC<ApplePayComponentProps> = ({
-  createPaymentUrl,
-  getClientTokenUrl,
-  purchaseUrl,
+  processorUrl,
+  sessionId,
   purchaseCallback,
   cartInformation,
   fullWidth,
@@ -24,20 +23,17 @@ export const ApplePay: FC<ApplePayComponentProps> = ({
   shippingAmount,
   discountAmount,
   shippingMethodId,
-  requestHeader,
 }: ApplePayComponentProps) => {
   return (
     <RenderTemplate
-      getClientTokenUrl={getClientTokenUrl}
-      createPaymentUrl={createPaymentUrl}
-      purchaseUrl={purchaseUrl}
+      processorUrl={processorUrl}
+      sessionId={sessionId}
       purchaseCallback={purchaseCallback}
       cartInformation={cartInformation}
       taxAmount={taxAmount}
       shippingAmount={shippingAmount}
       discountAmount={discountAmount}
       shippingMethodId={shippingMethodId}
-      requestHeader={requestHeader}
     >
       <ApplePayButton
         disabled={isPayButtonDisabled(cartInformation)}
