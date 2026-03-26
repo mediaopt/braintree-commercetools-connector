@@ -57,13 +57,12 @@ export type GeneralPayButtonProps = {
 
 export type RequestHeader = { [key: string]: string };
 
-export type GeneralComponentsProps = {
-  requestHeader: RequestHeader;
-  purchaseUrl: string;
-  createPaymentUrl: string;
-  createPaymentForVault?: string;
-  vaultPaymentMethodUrl?: string;
-  getClientTokenUrl: string;
+type RequiredSessionData = {
+  processorUrl: string;
+  sessionId: string;
+};
+
+export type GeneralComponentsProps = RequiredSessionData & {
   taxAmount?: string;
   shippingAmount?: string;
   discountAmount?: string;
@@ -75,7 +74,7 @@ export type GeneralComponentsProps = {
   LineItemsShipping;
 
 export type LocalPaymentComponentsProp = {
-  saveLocalPaymentIdUrl: string;
+  processorUrl: string;
 };
 
 export type ClientTokenResponse = {
@@ -250,7 +249,7 @@ export type LoadingOverlayType = {
 
 export type GeneralACHProps = {
   mandateText: string;
-  getAchVaultTokenURL: string;
+  processorUrl: string;
 };
 
 export type GeneralCreditCardProps = {
