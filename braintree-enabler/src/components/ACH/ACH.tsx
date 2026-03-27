@@ -11,6 +11,7 @@ type ACHProps = GeneralComponentsProps & GeneralACHProps;
 
 export const ACH: FC<ACHProps> = ({
   processorUrl,
+  sessionId,
   purchaseCallback,
   cartInformation,
   fullWidth,
@@ -23,18 +24,17 @@ export const ACH: FC<ACHProps> = ({
   shippingAmount,
   discountAmount,
   shippingMethodId,
-  requestHeader,
 }: ACHProps) => {
   return (
     <RenderTemplate
       processorUrl={processorUrl}
+      sessionId={sessionId}
       purchaseCallback={purchaseCallback}
       cartInformation={cartInformation}
       taxAmount={taxAmount}
       shippingAmount={shippingAmount}
       discountAmount={discountAmount}
       shippingMethodId={shippingMethodId}
-      requestHeader={requestHeader}
     >
       <ACHButton
         processorUrl={processorUrl}

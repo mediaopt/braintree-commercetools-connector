@@ -1,3 +1,3 @@
-import { Braintree } from "./payment-enabler/payment-enabler-braintree";
+import { BraintreePaymentEnabler } from "./payment-enabler/payment-enabler-braintree";
 
-export { Braintree as Enabler };
+export { BraintreePaymentEnabler as Enabler };
