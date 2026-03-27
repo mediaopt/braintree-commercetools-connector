@@ -11,6 +11,7 @@ type LocalPaymentMethodType = GeneralComponentsProps & LocalPaymentMethodsType;
 
 export const LocalPaymentMethod: FC<LocalPaymentMethodType> = ({
   processorUrl,
+  sessionId,
   purchaseCallback,
   cartInformation,
   paymentType,
@@ -28,12 +29,11 @@ export const LocalPaymentMethod: FC<LocalPaymentMethodType> = ({
   shippingAmount,
   discountAmount,
   shippingMethodId,
-  requestHeader,
 }: LocalPaymentMethodType) => {
   return (
     <RenderTemplate
       processorUrl={processorUrl}
-      requestHeader={requestHeader}
+      sessionId={sessionId}
       purchaseCallback={purchaseCallback}
       cartInformation={cartInformation}
       taxAmount={taxAmount}

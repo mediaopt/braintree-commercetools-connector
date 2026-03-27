@@ -29,6 +29,7 @@ import { useLoader } from "./useLoader";
 import { setLocalPaymentIdRequest } from "../services/setLocalPaymentId";
 import { makeVaultRequest } from "../services/makeVaultRequest";
 import { processorUrls } from "../components/constants";
+import { sessionHeader } from "../helpers/sessionHeader";
 
 type HandlePurchaseType = (
   paymentNonce: string,
@@ -65,11 +66,6 @@ const PaymentInfoInitialObject = {
   shippingMethod: {},
   cartInformation: CartInformationInitial,
 };
-
-const sessionHeader = (sessionId: string) => ({
-  "Content-Type": "application/json",
-  "X-Session-Id": sessionId,
-});
 
 const PaymentContext = createContext<PaymentContextT>({
   gettingClientToken: false,
