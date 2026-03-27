@@ -10,5 +10,7 @@ services:
       - jwt-mock-server
       - -y
       - start
+    environment:
+      - PORT=9002
     ports:
-      - 9000:9000
+      - 9002:9002
