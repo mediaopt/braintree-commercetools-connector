@@ -114,7 +114,7 @@ docker compose up -d
 ####Obtain JWT
 ```
 # Request token
-curl --location 'http://localhost:9000/jwt/token' \
+curl --location 'http://localhost:9002/jwt/token' \
 --header 'Content-Type: application/json' \
 --data '{
     "iss": "https://mc-api.europe-west1.gcp.commercetools.com",
