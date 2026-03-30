@@ -1,5 +1,5 @@
-import { logger } from '../utils/logger.utils';
-import braintree, {
+import { logger } from "../utils/logger.utils";
+import {
   ClientTokenRequest,
   TransactionRequest,
   Environment,
@@ -10,11 +10,12 @@ import braintree, {
   PaymentMethod,
   Transaction,
   PaymentMethodUpdateRequest,
-} from 'braintree';
-import CustomError from '../errors/custom.error';
-import { Stream } from 'stream';
-import { TransactionGateway } from '../interfaces/transaction.interface';
-import { Package } from '../types/index.types';
+  BraintreeGateway,
+} from "braintree";
+import CustomError from "../errors/custom.error";
+import { Stream } from "stream";
+import { TransactionGateway } from "../interfaces/transaction.interface";
+import { Package } from "../types/index.types";
 
 const BRAINTREE_TIMEOUT_PAYMENT = 9500;
 const BRAINTREE_TIMEOUT_CUSTOMER = 1500;
@@ -27,12 +28,12 @@ const getBraintreeGateway = (timeout: number = BRAINTREE_TIMEOUT_PAYMENT) => {
   ) {
     throw new CustomError(
       500,
-      'Internal Server Error - braintree config is missing'
+      "Internal Server Error - braintree config is missing",
     );
   }
-  const gateway = new braintree.BraintreeGateway({
+  const gateway = new BraintreeGateway({
     environment:
-      process.env.BRAINTREE_ENVIRONMENT === 'Production'
+      process.env.BRAINTREE_ENVIRONMENT === "Production"
         ? Environment.Production
         : Environment.Sandbox,
     merchantId: process.env.BRAINTREE_MERCHANT_ID,
@@ -45,7 +46,7 @@ const getBraintreeGateway = (timeout: number = BRAINTREE_TIMEOUT_PAYMENT) => {
 
 function logResponse(
   requestName: string,
-  response: ValidatedResponse<any> | Customer | Array<Transaction>
+  response: ValidatedResponse<any> | Customer | Array<Transaction>,
 ) {
   logger.info(`${requestName} response: ${JSON.stringify(response)}`);
 }
@@ -53,7 +54,7 @@ function logResponse(
 export const getClientToken = async (request: ClientTokenRequest) => {
   const gateway = getBraintreeGateway();
   const response = await gateway.clientToken.generate(request);
-  logResponse('getClientToken', response);
+  logResponse("getClientToken", response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }
@@ -63,13 +64,13 @@ export const getClientToken = async (request: ClientTokenRequest) => {
 export const transactionSale = async (request: TransactionRequest) => {
   const gateway = getBraintreeGateway();
   const response = await gateway.transaction.sale(request);
-  logResponse('transactionSale', response);
+  logResponse("transactionSale", response);
   if (!response.success) {
-    const prefix = ['soft_declined', 'hard_declined'].includes(
-      response?.transaction?.processorResponseType
+    const prefix = ["soft_declined", "hard_declined"].includes(
+      response?.transaction?.processorResponseType,
     )
       ? `[${response.transaction.processorResponseType}] `
-      : '';
+      : "";
     throw new CustomError(500, `${prefix}${response.message}`);
   }
   return response.transaction;
@@ -78,7 +79,7 @@ export const transactionSale = async (request: TransactionRequest) => {
 export const refund = async (transactionId: string, amount?: string) => {
   const gateway = getBraintreeGateway();
   const response = await gateway.transaction.refund(transactionId, amount);
-  logResponse('refund', response);
+  logResponse("refund", response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }
@@ -88,7 +89,7 @@ export const refund = async (transactionId: string, amount?: string) => {
 export const voidTransaction = async (transactionId: string) => {
   const gateway = getBraintreeGateway();
   const response = await gateway.transaction.void(transactionId);
-  logResponse('void', response);
+  logResponse("void", response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }
@@ -97,15 +98,15 @@ export const voidTransaction = async (transactionId: string) => {
 
 export const addPackageTracking = async (
   transactionId: string,
-  packageParam: Package
+  packageParam: Package,
 ) => {
   const gateway = getBraintreeGateway();
   const transactionGateway = gateway.transaction as TransactionGateway;
   const response = await transactionGateway.packageTracking(
     transactionId,
-    packageParam
+    packageParam,
   );
-  logResponse('packageTracking', response);
+  logResponse("packageTracking", response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }
@@ -114,16 +115,16 @@ export const addPackageTracking = async (
 
 export const submitForSettlement = async (
   transactionId: string,
-  amount?: string
+  amount?: string,
 ) => {
   const gateway = getBraintreeGateway();
   const response = amount
     ? await gateway.transaction.submitForPartialSettlement(
         transactionId,
-        amount
+        amount,
       )
     : await gateway.transaction.submitForSettlement(transactionId);
-  logResponse('submitForSettlement', response);
+  logResponse("submitForSettlement", response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }
@@ -133,16 +134,16 @@ export const submitForSettlement = async (
 export const findCustomer = async (customerId: string): Promise<Customer> => {
   const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   const response = await gateway.customer.find(customerId);
-  logResponse('findCustomer', response);
+  logResponse("findCustomer", response);
   return response;
 };
 
 export const createCustomer = async (
-  request: CustomerCreateRequest
+  request: CustomerCreateRequest,
 ): Promise<Customer> => {
   const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   const response = await gateway.customer.create(request);
-  logResponse('createCustomer', response);
+  logResponse("createCustomer", response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }
@@ -150,11 +151,11 @@ export const createCustomer = async (
 };
 
 export const createPaymentMethod = async (
-  request: PaymentMethodCreateRequest
+  request: PaymentMethodCreateRequest,
 ): Promise<PaymentMethod> => {
   const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   const response = await gateway.paymentMethod.create(request);
-  logResponse('createPaymentMethod', response);
+  logResponse("createPaymentMethod", response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }
@@ -175,21 +176,21 @@ export const findTransaction = async (orderId: string) => {
   if (transactions.length === 0) {
     throw new CustomError(
       500,
-      `could not find transaction with orderId ${orderId}`
+      `could not find transaction with orderId ${orderId}`,
     );
   }
-  logResponse('findTransaction', transactions);
+  logResponse("findTransaction", transactions);
   return transactions;
 };
 
 function streamToTransaction(stream: Stream): Promise<Array<Transaction>> {
   const transactions: Transaction[] = [];
   return new Promise((resolve, reject) => {
-    stream.on('data', (transaction: Transaction) =>
-      transactions.push(transaction)
+    stream.on("data", (transaction: Transaction) =>
+      transactions.push(transaction),
     );
-    stream.on('error', (err) => reject(err));
-    stream.on('end', () => resolve(transactions));
+    stream.on("error", (err) => reject(err));
+    stream.on("end", () => resolve(transactions));
   });
 }
 
@@ -200,14 +201,14 @@ export const deletePayment = async (paymentMethodToken: string) => {
 
 export const updatePayment = async (
   paymentMethodToken: string,
-  updateRequest: PaymentMethodUpdateRequest
+  updateRequest: PaymentMethodUpdateRequest,
 ) => {
   const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
   const response = await gateway.paymentMethod.update(
     paymentMethodToken,
-    updateRequest
+    updateRequest,
   );
-  logResponse('updatePaymentMethod', response);
+  logResponse("updatePaymentMethod", response);
   if (!response.success) {
     throw new CustomError(500, response.message);
   }

@@ -7,7 +7,7 @@ import {
   TypeUpdateAction,
 } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/type';
 import { ExtensionDraft, LocalizedString } from '@commercetools/platform-sdk';
-import { logger } from '../utils/logger.utils';
+import { logger } from 'common-connect/src/utils/logger.utils';
 
 export const BRAINTREE_EXTENSION_KEY = 'braintree-extension';
 export const BRAINTREE_CUSTOMER_EXTENSION_KEY = 'braintree-customer-extension';

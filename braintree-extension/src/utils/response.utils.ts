@@ -1,6 +1,6 @@
 import { BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY } from '../connector/actions';
 import { getCurrentTimestamp } from './data.utils';
-import { logger } from './logger.utils';
+import { logger } from 'common-connect/src/utils/logger.utils';
 import { UpdateActions, CustomerResponse } from '../types/index.types';
 import { Customer } from '@commercetools/platform-sdk';
 
