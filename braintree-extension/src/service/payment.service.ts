@@ -12,7 +12,7 @@ import {
   TransactionType,
   TransactionState,
 } from '@commercetools/platform-sdk';
-import CustomError from '../errors/custom.error';
+import CustomError from 'common-connect/src/errors/custom.error';
 import {
   handleError,
   handlePaymentResponse,
@@ -28,7 +28,8 @@ import {
   createPaymentMethod,
   deletePayment as braintreeDeletePayment,
   addPackageTracking as braintreeAddPackageTracking,
-} from './braintree.service';
+} from 'common-connect/src/service/braintree.service';
+
 import {
   mapBraintreeMoneyToCommercetoolsMoney,
   mapBraintreeStatusToCommercetoolsTransactionState,
@@ -41,9 +42,8 @@ import {
   TransactionRequest,
   TransactionStatus,
 } from 'braintree';
-import { logger } from '../utils/logger.utils';
+import { logger } from 'common-connect/src/utils/logger.utils';
 import { getCurrentTimestamp } from '../utils/data.utils';
-
 const CHANNEL_COMMERCETOOLS = 'commercetoolsGmbH_SP_BT';
 
 const getPayPalOrderPaymentToken = (payment: Payment) => {

@@ -1,5 +1,5 @@
 import { Customer, CustomerReference } from '@commercetools/platform-sdk';
-import CustomError from '../errors/custom.error';
+import CustomError from 'common-connect/src/errors/custom.error';
 import { UpdateAction } from '@commercetools/sdk-client-v2';
 import {
   handleCreateRequest,

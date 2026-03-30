@@ -1,14 +1,14 @@
 import { Customer } from '@commercetools/platform-sdk';
 import { mapCommercetoolsCustomerToBraintreeCustomerCreateRequest } from '../utils/map.utils';
-import { logger } from '../utils/logger.utils';
-import CustomError from '../errors/custom.error';
+import { logger } from 'common-connect/src/utils/logger.utils';
+import CustomError from 'common-connect/src/errors/custom.error';
 import {
   createCustomer,
   createPaymentMethod,
   findCustomer,
   deletePayment,
   updatePayment,
-} from './braintree.service';
+} from 'common-connect/src/service/braintree.service';
 import { handleCustomerResponse, handleError } from '../utils/response.utils';
 import {
   CustomerResponse,
