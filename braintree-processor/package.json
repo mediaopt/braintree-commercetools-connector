@@ -1,7 +1,7 @@
 {
-  "name": "payment-integration-template",
+  "name": "payment-integration-braintree",
   "version": "4.2.0",
-  "description": "Payment provider integration template",
+  "description": "Braintree provider integration",
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/main.js",
