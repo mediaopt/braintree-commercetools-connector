@@ -1,4 +1,4 @@
-import { Static, Type } from "@sinclair/typebox";
+import { Static, Type } from '@sinclair/typebox';
 
 /**
  * Represents https://docs.commercetools.com/api/errors#errorobject

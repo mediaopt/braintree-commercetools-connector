@@ -1,12 +1,12 @@
-import autoLoad from "@fastify/autoload";
-import cors from "@fastify/cors";
-import fastifyFormBody from "@fastify/formbody";
-import Fastify from "fastify";
-import { randomUUID } from "node:crypto";
-import { join } from "path";
-import { config } from "../config/config";
-import { requestContextPlugin } from "../libs/fastify/context/context";
-import { errorHandler } from "../libs/fastify/error-handler";
+import autoLoad from '@fastify/autoload';
+import cors from '@fastify/cors';
+import fastifyFormBody from '@fastify/formbody';
+import Fastify from 'fastify';
+import { randomUUID } from 'node:crypto';
+import { join } from 'path';
+import { config } from '../config/config';
+import { requestContextPlugin } from '../libs/fastify/context/context';
+import { errorHandler } from '../libs/fastify/error-handler';
 
 /**
  * Setup Fastify server instance
@@ -19,8 +19,8 @@ export const setupFastify = async () => {
       level: config.loggerLevel,
     },
     genReqId: () => randomUUID().toString(),
-    requestIdLogLabel: "requestId",
-    requestIdHeader: "x-request-id",
+    requestIdLogLabel: 'requestId',
+    requestIdHeader: 'x-request-id',
   });
 
   // Setup error handler
@@ -28,14 +28,9 @@ export const setupFastify = async () => {
 
   // Enable CORS
   await server.register(cors, {
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "X-Correlation-ID",
-      "X-Request-ID",
-      "X-Session-ID",
-    ],
-    origin: "*",
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID', 'X-Request-ID', 'X-Session-ID'],
+    methods: ['GET', 'HEAD', 'POST', 'DELETE'],
+    origin: '*',
   });
 
   // Add content type parser for the content type application/x-www-form-urlencoded
@@ -45,7 +40,7 @@ export const setupFastify = async () => {
   await server.register(requestContextPlugin);
 
   await server.register(autoLoad, {
-    dir: join(__dirname, "plugins"),
+    dir: join(__dirname, 'plugins'),
   });
 
   return server;
