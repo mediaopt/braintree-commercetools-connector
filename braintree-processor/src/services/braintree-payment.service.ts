@@ -36,6 +36,7 @@ import { log } from '../libs/logger';
 import { CustomPaymentMethodService, PaymentMethod } from './ct-payment-method.service';
 
 export class MockPaymentService extends AbstractPaymentService {
+export class BraintreePaymentService extends AbstractPaymentService {
   private ctPaymentMethodService: CustomPaymentMethodService;
 
   constructor(opts: MockPaymentServiceOptions) {
@@ -328,7 +329,7 @@ export class MockPaymentService extends AbstractPaymentService {
         cart: ctCart,
       }),
       paymentMethodInfo: {
-        paymentInterface: getPaymentInterfaceFromContext() || 'mock',
+        paymentInterface: getPaymentInterfaceFromContext() || 'Braintree',
       },
       ...(ctCart.customerId && {
         customer: {
