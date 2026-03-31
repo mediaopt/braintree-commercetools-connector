@@ -5,4 +5,6 @@ module.exports = {
   testEnvironment: 'node',
   setupFiles: ['./test/jest.setup.ts'],
   roots: ['./test'],
+  transform: { '^.+\\.tsx?$': 'ts-jest' },
+  transformIgnorePatterns: ['node_modules/(?!(common-connect)/)'],
 };
