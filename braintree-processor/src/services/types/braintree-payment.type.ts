@@ -1,4 +1,4 @@
-import { PaymentRequestSchemaDTO } from '../../dtos/mock-payment.dto';
+import { PaymentRequestSchemaDTO } from '../../dtos/braintree-payment.dto';
 import { CommercetoolsCartService, CommercetoolsPaymentService } from '@commercetools/connect-payments-sdk';
 
 export type BraintreePaymentServiceOptions = {

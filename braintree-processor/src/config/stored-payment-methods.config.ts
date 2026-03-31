@@ -1,4 +1,4 @@
-import { PaymentMethodType } from '../dtos/mock-payment.dto';
+import { PaymentMethodType } from '../dtos/braintree-payment.dto';
 import { getConfig } from './config';
 
 export type StoredPaymentMethodsConfig = {
