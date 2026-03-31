@@ -11,14 +11,14 @@ import {
 } from './utils/mock-payment-results';
 import { mockGetCartResult } from './utils/mock-cart-data';
 import * as Config from '../src/config/config';
-import { CreatePaymentRequest, MockPaymentServiceOptions } from '../src/services/types/mock-payment.type';
+import { CreatePaymentRequest, BraintreePaymentServiceOptions } from '../src/services/types/braintree-payment.type';
 import { AbstractPaymentService } from '../src/services/abstract-payment.service';
-import { MockPaymentService } from '../src/services/mock-payment.service';
+import { BraintreePaymentService } from '../src/services/braintree-payment.service';
 import * as FastifyContext from '../src/libs/fastify/context/context';
 import * as StatusHandler from '@commercetools/connect-payments-sdk/dist/api/handlers/status.handler';
 
 import { HealthCheckResult } from '@commercetools/connect-payments-sdk';
-import { PaymentMethodType, PaymentOutcome } from '../src/dtos/mock-payment.dto';
+import { PaymentMethodType, PaymentOutcome } from '../src/dtos/braintree-payment.dto';
 import { TransactionDraftDTO } from '../src/dtos/operations/transaction.dto';
 
 interface FlexibleConfig {
@@ -35,13 +35,13 @@ function setupMockConfig(keysAndValues: Record<string, string>) {
   jest.spyOn(Config, 'getConfig').mockReturnValue(mockConfig as any);
 }
 
-describe('mock-payment.service', () => {
-  const opts: MockPaymentServiceOptions = {
+describe('braintree-payment.service', () => {
+  const opts: BraintreePaymentServiceOptions = {
     ctCartService: paymentSDK.ctCartService,
     ctPaymentService: paymentSDK.ctPaymentService,
   };
-  const paymentService: AbstractPaymentService = new MockPaymentService(opts);
-  const mockPaymentService: MockPaymentService = new MockPaymentService(opts);
+  const paymentService: AbstractPaymentService = new BraintreePaymentService(opts);
+  const braintreePaymentService: BraintreePaymentService = new BraintreePaymentService(opts);
   beforeEach(() => {
     jest.setTimeout(10000);
     jest.resetAllMocks();
@@ -85,7 +85,7 @@ describe('mock-payment.service', () => {
     };
 
     jest.spyOn(StatusHandler, 'healthCheckCommercetoolsPermissions').mockReturnValue(mockHealthCheckFunction);
-    const paymentService: AbstractPaymentService = new MockPaymentService(opts);
+    const paymentService: AbstractPaymentService = new BraintreePaymentService(opts);
     const result: StatusResponse = await paymentService.status();
 
     expect(result?.status).toBeDefined();
@@ -189,7 +189,7 @@ describe('mock-payment.service', () => {
     jest.spyOn(FastifyContext, 'getProcessorUrlFromContext').mockReturnValue('http://127.0.0.1');
     jest.spyOn(DefaultPaymentService.prototype, 'updatePayment').mockReturnValue(Promise.resolve(mockGetPaymentResult));
 
-    const result = await mockPaymentService.createPayment(createPaymentOpts);
+    const result = await braintreePaymentService.createPayment(createPaymentOpts);
     expect(result?.paymentReference).toStrictEqual('123456');
   });
 
@@ -208,7 +208,7 @@ describe('mock-payment.service', () => {
     jest.spyOn(FastifyContext, 'getProcessorUrlFromContext').mockReturnValue('http://127.0.0.1');
     jest.spyOn(DefaultPaymentService.prototype, 'updatePayment').mockReturnValue(Promise.resolve(mockGetPaymentResult));
 
-    const result = await mockPaymentService.createPayment(createPaymentOpts);
+    const result = await braintreePaymentService.createPayment(createPaymentOpts);
     expect(result?.paymentReference).toStrictEqual('123456');
   });
 
@@ -229,7 +229,7 @@ describe('mock-payment.service', () => {
     jest.spyOn(FastifyContext, 'getProcessorUrlFromContext').mockReturnValue('http://127.0.0.1');
     jest.spyOn(DefaultPaymentService.prototype, 'updatePayment').mockReturnValue(Promise.resolve(mockGetPaymentResult));
 
-    const result = await mockPaymentService.createPayment(createPaymentOpts);
+    const result = await braintreePaymentService.createPayment(createPaymentOpts);
     expect(result?.paymentReference).toStrictEqual('123456');
   });
 
@@ -247,7 +247,7 @@ describe('mock-payment.service', () => {
     jest.spyOn(DefaultCartService.prototype, 'addPayment').mockReturnValue(Promise.resolve(mockGetCartResult()));
     jest.spyOn(FastifyContext, 'getProcessorUrlFromContext').mockReturnValue('http://127.0.0.1');
 
-    const resultPromise = mockPaymentService.createPayment(createPaymentOpts);
+    const resultPromise = braintreePaymentService.createPayment(createPaymentOpts);
 
     await expect(resultPromise).rejects.toThrow('A value is required for field poNumber.');
   });
@@ -272,7 +272,7 @@ describe('mock-payment.service', () => {
         .spyOn(DefaultPaymentService.prototype, 'updatePayment')
         .mockReturnValue(Promise.resolve(mockUpdatePaymentResult));
 
-      const resultPromise = mockPaymentService.handleTransaction(createPaymentOpts);
+      const resultPromise = braintreePaymentService.handleTransaction(createPaymentOpts);
       expect(resultPromise).resolves.toStrictEqual({
         transactionStatus: {
           errors: [],
@@ -300,7 +300,7 @@ describe('mock-payment.service', () => {
         .spyOn(DefaultPaymentService.prototype, 'updatePayment')
         .mockReturnValue(Promise.resolve(mockUpdatePaymentResult));
 
-      const resultPromise = mockPaymentService.handleTransaction(createPaymentOpts);
+      const resultPromise = braintreePaymentService.handleTransaction(createPaymentOpts);
 
       expect(resultPromise).resolves.toStrictEqual({
         transactionStatus: {

@@ -1,10 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { paymentSDK } from '../../payment-sdk';
-import { paymentRoutes } from '../../routes/mock-payment.route';
-import { MockPaymentService } from '../../services/mock-payment.service';
+import { paymentRoutes } from '../../routes/braintree-payment.route';
+import { BraintreePaymentService } from '../../services/braintree-payment.service';
 
 export default async function (server: FastifyInstance) {
-  const mockPaymentService = new MockPaymentService({
+  const mockPaymentService = new BraintreePaymentService({
     ctCartService: paymentSDK.ctCartService,
     ctPaymentService: paymentSDK.ctPaymentService,
   });

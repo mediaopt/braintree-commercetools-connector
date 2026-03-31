@@ -1,7 +1,7 @@
 import { paymentSDK } from '../payment-sdk';
-import { MockPaymentService } from '../services/mock-payment.service';
+import { BraintreePaymentService } from '../services/braintree-payment.service';
 
-const paymentService = new MockPaymentService({
+const paymentService = new BraintreePaymentService({
   ctCartService: paymentSDK.ctCartService,
   ctPaymentService: paymentSDK.ctPaymentService,
 });

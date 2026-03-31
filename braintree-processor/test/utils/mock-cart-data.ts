@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 export const mockGetCartResult = () => {
   const cartId = randomUUID();
   const mockGetCartResult: Cart = {
+    priceRoundingMode: 'HalfEven',
     id: cartId,
     version: 1,
     lineItems: [lineItem],

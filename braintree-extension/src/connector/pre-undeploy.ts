@@ -7,12 +7,14 @@ import {
   BRAINTREE_CUSTOMER_EXTENSION_KEY,
   BRAINTREE_CUSTOMER_TYPE_KEY,
   BRAINTREE_EXTENSION_KEY,
-  BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
   BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY,
-  BRAINTREE_PAYMENT_TYPE_KEY,
   deleteExtensionIfExist,
   deleteOrUpdateCustomType,
 } from './actions';
+import {
+  BRAINTREE_PAYMENT_TYPE_KEY,
+  BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
+} from 'common-connect/src/constants';
 
 async function preUndeploy(): Promise<void> {
   const apiRoot = createApiRoot();

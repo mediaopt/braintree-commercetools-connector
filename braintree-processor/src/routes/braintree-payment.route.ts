@@ -6,12 +6,12 @@ import {
   PaymentResponseSchema,
   PaymentResponseSchemaDTO,
 } from '../dtos/mock-payment.dto';
-import { MockPaymentService } from '../services/mock-payment.service';
+import { BraintreePaymentService } from '../services/braintree-payment.service';
 import { StoredPaymentMethodsResponseSchema } from '../dtos/stored-payment-methods.dto';
 import { Type } from '@sinclair/typebox';
 
 type PaymentRoutesOptions = {
-  paymentService: MockPaymentService;
+  paymentService: BraintreePaymentService;
   sessionHeaderAuthHook: SessionHeaderAuthenticationHook;
 };
 
