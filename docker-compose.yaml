@@ -21,7 +21,7 @@ services:
     working_dir: /home/node/app
     depends_on:
       - processor
-    command:  /bin/sh -c 'npm install && npm run dev -- --host 0.0.0.0 --port 3000'
+    command: /bin/sh -c 'npm install && npm run dev -- --host 0.0.0.0 --port 3000'
     env_file:
       - ./braintree-enabler/.env
     environment:
@@ -33,6 +33,7 @@ services:
     image: node:lts-bookworm-slim
     volumes:
       - ./braintree-processor:/home/node/app
+      - ./common-connect:/home/node/common-connect
     working_dir: /home/node/app
     depends_on:
       - jwt-server
