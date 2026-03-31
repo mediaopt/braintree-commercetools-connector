@@ -32,7 +32,8 @@
     "@sinclair/typebox": "0.33.22",
     "dotenv": "17.2.3",
     "fastify": "^5.7.4",
-    "fastify-plugin": "5.1.0"
+    "fastify-plugin": "5.1.0",
+    "common-connect": "../common-connect"
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.0",
