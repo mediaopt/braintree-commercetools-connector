@@ -1,68 +1,69 @@
-import { BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY } from '../connector/actions';
-import { getCurrentTimestamp } from './data.utils';
 import { logger } from 'common-connect/src/utils/logger.utils';
 import { UpdateActions, CustomerResponse } from '../types/index.types';
 import { Customer } from '@commercetools/platform-sdk';
+import {
+  handleInterfaceInteraction,
+  stringifyData,
+} from 'common-connect/src/utils/customEntitites.utils';
+import { MessageFieldData } from 'common-connect/src/types/index.types';
 
-export const handleRequest = (
-  requestName: string,
-  request: string | object
-): UpdateActions => {
-  const updateActions: UpdateActions = [];
-  if (typeof request === 'object') {
-    removeEmptyProperties(request);
+const logCleanMessage = ({
+  messageName,
+  message,
+  messageType,
+}: MessageFieldData): UpdateActions => {
+  if (typeof message === 'object') {
+    removeEmptyProperties(message);
   }
-  updateActions.push({
-    action: 'addInterfaceInteraction',
-    type: {
-      typeId: 'type',
-      key: BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
+  logger.info(`${messageName} ${messageType}: ${JSON.stringify(message)}`);
+  return [
+    {
+      action: 'addInterfaceInteraction',
+      ...handleInterfaceInteraction({
+        messageName,
+        message,
+        messageType,
+      }),
     },
-    fields: {
-      type: requestName + 'Request',
-      data: stringifyData(request),
-      timestamp: getCurrentTimestamp(),
-    },
-  });
-  logger.info(`${requestName} request: ${JSON.stringify(request)}`);
-  return updateActions;
+  ];
 };
 
-function stringifyData(data: string | object) {
-  return typeof data === 'string' ? data : JSON.stringify(data);
-}
+export const handleRequest = (
+  messageName: string,
+  message: string | object
+): UpdateActions => {
+  logCleanMessage({
+    messageName,
+    message,
+    messageType: 'Request',
+  });
+  return logCleanMessage({
+    messageName,
+    message,
+    messageType: 'Request',
+  });
+};
 
 export const handlePaymentResponse = (
-  requestName: string,
-  response: string | object,
+  messageName: string,
+  message: string | object,
   transactionId?: string
 ): UpdateActions => {
-  const updateActions: UpdateActions = [];
-  if (typeof response === 'object') {
-    removeEmptyProperties(response);
-  }
-  updateActions.push({
-    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
-    transactionId: transactionId,
-    name: requestName + 'Response',
-    value: stringifyData(response),
-  });
-  updateActions.push({
-    action: 'addInterfaceInteraction',
-    type: {
-      typeId: 'type',
-      key: BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
-    },
-    fields: {
-      type: requestName + 'Response',
-      data: stringifyData(response),
-      timestamp: getCurrentTimestamp(),
-    },
+  const updateActions = logCleanMessage({
+    messageName,
+    message,
+    messageType: 'Response',
   });
   updateActions.push({
     action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
     transactionId: transactionId,
-    name: requestName + 'Request',
+    name: messageName + 'Response',
+    value: stringifyData(message),
+  });
+  updateActions.push({
+    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
+    transactionId: transactionId,
+    name: messageName + 'Request',
     value: null,
   });
   return updateActions;
