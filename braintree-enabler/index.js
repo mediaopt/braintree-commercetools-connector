@@ -115,12 +115,14 @@ async function loadMethods({ includeDropins }) {
   const enablerGeneral = new Enabler({
     processorUrl: __VITE_PROCESSOR_URL__,
     sessionId: sessionIdGeneral,
+    merchantAccountId: __BRAINTREE_MERCHANT_ACCOUNT_ID,
     currencyCode: "EUR",
     countryCode: "DE",
   });
   const enablerDropin = new Enabler({
     processorUrl: __VITE_PROCESSOR_URL__,
     sessionId: sessionIdDropin,
+    merchantAccountId: __BRAINTREE_MERCHANT_ACCOUNT_ID,
     currencyCode: "EUR",
     countryCode: "DE",
   });
@@ -236,7 +238,7 @@ btnLoadStored.addEventListener("click", async (e) => {
   });
   showSpinner();
   const builder = await enabler.createStoredPaymentMethodBuilder(
-    paymentMethodTypeToUseForSPM
+    paymentMethodTypeToUseForSPM,
   );
   const stored = await enabler.getStoredPaymentMethods({
     allowedMethodTypes: allowedStoredPaymentMethods,
@@ -251,7 +253,7 @@ btnLoadStored.addEventListener("click", async (e) => {
     for (const spm of stored.storedPaymentMethods) {
       if (
         confirm(
-          `Use stored payment method ending ****${spm.displayOptions.endDigits}?`
+          `Use stored payment method ending ****${spm.displayOptions.endDigits}?`,
         )
       ) {
         selectedSPM = spm;

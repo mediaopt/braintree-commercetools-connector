@@ -181,6 +181,11 @@ export type EnablerOptions = {
   sessionId: string;
 
   /**
+   * Optional Braintreee merchant account id. See https://developer.paypal.com/braintree/articles/control-panel/important-gateway-credentials#merchant-account-id
+   */
+  merchantAccountId?: string;
+
+  /**
    * The locale for the payment.
    */
   locale?: string;
