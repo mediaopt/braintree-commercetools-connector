@@ -12,3 +12,9 @@ export type Package = {
   notifyPayer?: boolean;
   items?: LineItem[];
 };
+
+export type MessageFieldData = {
+  messageName: string;
+  message: string | object;
+  messageType: "Request" | "Response";
+};

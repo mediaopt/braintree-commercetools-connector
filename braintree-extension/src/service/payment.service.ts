@@ -43,7 +43,7 @@ import {
   TransactionStatus,
 } from 'braintree';
 import { logger } from 'common-connect/src/utils/logger.utils';
-import { getCurrentTimestamp } from '../utils/data.utils';
+import { getCurrentTimestamp } from 'common-connect/src/utils/data.utils';
 const CHANNEL_COMMERCETOOLS = 'commercetoolsGmbH_SP_BT';
 
 const getPayPalOrderPaymentToken = (payment: Payment) => {
