@@ -1,15 +1,7 @@
-import {
-  RequestContextData,
-  setupPaymentSDK,
-  Logger,
-} from "@commercetools/connect-payments-sdk";
-import { config } from "./config/config";
-import {
-  getRequestContext,
-  updateRequestContext,
-} from "./libs/fastify/context/context";
-import { log } from "./libs/logger";
-import { Object } from "@sinclair/typebox";
+import { RequestContextData, setupPaymentSDK, Logger } from '@commercetools/connect-payments-sdk';
+import { config } from './config/config';
+import { getRequestContext, updateRequestContext } from './libs/fastify/context/context';
+import { log } from './libs/logger/index';
 
 export class AppLogger implements Logger {
   public debug = (obj: object, message: string) => {
@@ -29,7 +21,7 @@ export class AppLogger implements Logger {
 export const appLogger = new AppLogger();
 
 export const paymentSDK = setupPaymentSDK({
-  checkoutUrl: "", //todo - implement proper url
+  checkoutUrl: '', //todo - implement proper url
   apiUrl: config.apiUrl,
   authUrl: config.authUrl,
   clientId: config.clientId,
@@ -41,13 +33,13 @@ export const paymentSDK = setupPaymentSDK({
   getContextFn: (): RequestContextData => {
     const { correlationId, requestId, authentication } = getRequestContext();
     return {
-      correlationId: correlationId || "",
-      requestId: requestId || "",
+      correlationId: correlationId || '',
+      requestId: requestId || '',
       authentication,
     };
   },
   updateContextFn: (context: Partial<RequestContextData>) => {
-    const requestContext = (<any>Object).assign(
+    const requestContext = Object.assign(
       {},
       context.correlationId ? { correlationId: context.correlationId } : {},
       context.requestId ? { requestId: context.requestId } : {},

@@ -1,8 +1,8 @@
-import { Static, Type } from "@sinclair/typebox";
+import { Static, Type } from '@sinclair/typebox';
 
 const DropinType = Type.Enum({
-  EMBEDDED: "embedded",
-  HPP: "hpp",
+  EMBEDDED: 'embedded',
+  HPP: 'hpp',
 });
 
 export const SupportedPaymentDropinsData = Type.Object({
@@ -12,6 +12,10 @@ export const SupportedPaymentDropinsData = Type.Object({
 export const SupportedPaymentComponentsData = Type.Object({
   type: Type.String(),
   subtypes: Type.Optional(Type.Array(Type.String())),
+});
+
+export const SupportedExpressPaymentData = Type.Object({
+  type: Type.String(),
 });
 
 /**
@@ -37,8 +41,7 @@ export const SupportedPaymentComponentsData = Type.Object({
 export const SupportedPaymentComponentsSchema = Type.Object({
   dropins: Type.Array(SupportedPaymentDropinsData),
   components: Type.Array(SupportedPaymentComponentsData),
+  express: Type.Array(SupportedExpressPaymentData),
 });
 
-export type SupportedPaymentComponentsSchemaDTO = Static<
-  typeof SupportedPaymentComponentsSchema
->;
+export type SupportedPaymentComponentsSchemaDTO = Static<typeof SupportedPaymentComponentsSchema>;

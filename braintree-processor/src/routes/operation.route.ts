@@ -3,31 +3,25 @@ import {
   JWTAuthenticationHook,
   Oauth2AuthenticationHook,
   SessionHeaderAuthenticationHook,
-} from "@commercetools/connect-payments-sdk";
-import { Type } from "@sinclair/typebox";
-import { FastifyInstance, FastifyPluginOptions } from "fastify";
-import {
-  ConfigResponseSchema,
-  ConfigResponseSchemaDTO,
-} from "../dtos/operations/config.dto";
-import { SupportedPaymentComponentsSchema } from "../dtos/operations/payment-componets.dto";
+} from '@commercetools/connect-payments-sdk';
+import { Type } from '@sinclair/typebox';
+import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { ConfigResponseSchema, ConfigResponseSchemaDTO } from '../dtos/operations/config.dto';
+import { SupportedPaymentComponentsSchema } from '../dtos/operations/payment-componets.dto';
 import {
   PaymentIntentRequestSchema,
   PaymentIntentRequestSchemaDTO,
   PaymentIntentResponseSchema,
   PaymentIntentResponseSchemaDTO,
-} from "../dtos/operations/payment-intents.dto";
-import {
-  StatusResponseSchema,
-  StatusResponseSchemaDTO,
-} from "../dtos/operations/status.dto";
-import { AbstractPaymentService } from "../services/abstract-payment.service";
+} from '../dtos/operations/payment-intents.dto';
+import { StatusResponseSchema, StatusResponseSchemaDTO } from '../dtos/operations/status.dto';
+import { AbstractPaymentService } from '../services/abstract-payment.service';
 import {
   TransactionDraft,
   TransactionDraftDTO,
   TransactionResponse,
   TransactionResponseDTO,
-} from "../dtos/operations/transaction.dto";
+} from '../dtos/operations/transaction.dto';
 
 type OperationRouteOptions = {
   sessionHeaderAuthHook: SessionHeaderAuthenticationHook;
@@ -37,12 +31,9 @@ type OperationRouteOptions = {
   paymentService: AbstractPaymentService;
 };
 
-export const operationsRoute = async (
-  fastify: FastifyInstance,
-  opts: FastifyPluginOptions & OperationRouteOptions,
-) => {
+export const operationsRoute = async (fastify: FastifyInstance, opts: FastifyPluginOptions & OperationRouteOptions) => {
   fastify.get<{ Reply: ConfigResponseSchemaDTO }>(
-    "/config",
+    '/config',
     {
       preHandler: [opts.sessionHeaderAuthHook.authenticate()],
       schema: {
@@ -58,7 +49,7 @@ export const operationsRoute = async (
   );
 
   fastify.get<{ Reply: StatusResponseSchemaDTO }>(
-    "/status",
+    '/status',
     {
       preHandler: [opts.jwtAuthHook.authenticate()],
       schema: {
@@ -74,7 +65,7 @@ export const operationsRoute = async (
   );
 
   fastify.get(
-    "/payment-components",
+    '/payment-components',
     {
       preHandler: [opts.jwtAuthHook.authenticate()],
       schema: {
@@ -89,28 +80,21 @@ export const operationsRoute = async (
     },
   );
 
-  fastify.post<{
-    Body: PaymentIntentRequestSchemaDTO;
-    Reply: PaymentIntentResponseSchemaDTO;
-    Params: { id: string };
-  }>(
-    "/payment-intents/:id",
+  fastify.post<{ Body: PaymentIntentRequestSchemaDTO; Reply: PaymentIntentResponseSchemaDTO; Params: { id: string } }>(
+    '/payment-intents/:id',
     {
       preHandler: [
         opts.oauth2AuthHook.authenticate(),
-        opts.authorizationHook.authorize(
-          "manage_project",
-          "manage_checkout_payment_intents",
-        ),
+        opts.authorizationHook.authorize('manage_project', 'manage_checkout_payment_intents'),
       ],
       schema: {
         params: {
-          $id: "paramsSchema",
-          type: "object",
+          $id: 'paramsSchema',
+          type: 'object',
           properties: {
             id: Type.String(),
           },
-          required: ["id"],
+          required: ['id'],
         },
         body: PaymentIntentRequestSchema,
         response: {
@@ -131,14 +115,11 @@ export const operationsRoute = async (
 
   // Create transaction
   fastify.post<{ Body: TransactionDraftDTO; Reply: TransactionResponseDTO }>(
-    "/transactions",
+    '/transactions',
     {
       preHandler: [
         opts.oauth2AuthHook.authenticate(),
-        opts.authorizationHook.authorize(
-          "manage_project",
-          "manage_checkout_transactions",
-        ),
+        opts.authorizationHook.authorize('manage_project', 'manage_checkout_transactions'),
       ],
       schema: {
         body: TransactionDraft,
