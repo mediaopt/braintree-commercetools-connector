@@ -5,7 +5,7 @@ import {
   PaymentRequestSchemaDTO,
   PaymentResponseSchema,
   PaymentResponseSchemaDTO,
-} from '../dtos/mock-payment.dto';
+} from '../dtos/braintree-payment.dto';
 import { BraintreePaymentService } from '../services/braintree-payment.service';
 import { StoredPaymentMethodsResponseSchema } from '../dtos/stored-payment-methods.dto';
 import { Type } from '@sinclair/typebox';
