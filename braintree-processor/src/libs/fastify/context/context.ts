@@ -1,11 +1,8 @@
-import * as paymentSdk from "@commercetools/connect-payments-sdk";
-import {
-  fastifyRequestContext,
-  requestContext,
-} from "@fastify/request-context";
-import { randomUUID } from "crypto";
-import { FastifyInstance, FastifyRequest } from "fastify";
-import fp from "fastify-plugin";
+import * as paymentSdk from '@commercetools/connect-payments-sdk';
+import { fastifyRequestContext, requestContext } from '@fastify/request-context';
+import { randomUUID } from 'crypto';
+import { FastifyInstance, FastifyRequest } from 'fastify';
+import fp from 'fastify-plugin';
 
 export type ContextData = {
   anonymousId?: string;
@@ -22,11 +19,11 @@ export type ContextData = {
 };
 
 export const getRequestContext = (): Partial<ContextData> => {
-  return requestContext.get("request") ?? {};
+  return requestContext.get('request') ?? {};
 };
 
 export const setRequestContext = (ctx: ContextData) => {
-  requestContext.set("request", ctx);
+  requestContext.set('request', ctx);
 };
 
 export const updateRequestContext = (ctx: Partial<ContextData>) => {
@@ -39,50 +36,53 @@ export const updateRequestContext = (ctx: Partial<ContextData>) => {
 
 export const getCtSessionIdFromContext = (): string => {
   const contextData = getRequestContext() as ContextData;
-  return paymentSdk.getCtSessionIdFromContext(contextData) as string;
+  // SessionAuthentication stores sessionId as credentials
+  return contextData.authentication?.getCredentials() as string;
 };
 
 export const getCartIdFromContext = (): string => {
   const contextData = getRequestContext() as ContextData;
-  return paymentSdk.getCartIdFromContext(contextData) as string;
+  const principal = contextData.authentication?.getPrincipal() as any;
+  return principal?.cartId as string;
 };
 
 export const getAllowedPaymentMethodsFromContext = (): string[] => {
   const contextData = getRequestContext() as ContextData;
-  return paymentSdk.getAllowedPaymentMethodsFromContext(
-    contextData,
-  ) as string[];
+  const principal = contextData.authentication?.getPrincipal() as any;
+  return (principal?.allowedPaymentMethods as string[]) || [];
 };
 
 export const getPaymentInterfaceFromContext = (): string | undefined => {
   const contextData = getRequestContext() as ContextData;
-  return paymentSdk.getPaymentInterfaceFromContext(contextData);
+  const principal = contextData.authentication?.getPrincipal() as any;
+  return principal?.paymentInterface;
 };
 
 export const getProcessorUrlFromContext = (): string => {
   const contextData = getRequestContext() as ContextData;
-  return paymentSdk.getProcessorUrlFromContext(contextData) as string;
+  const principal = contextData.authentication?.getPrincipal() as any;
+  return principal?.processorUrl as string;
 };
 
 export const getMerchantReturnUrlFromContext = (): string | undefined => {
   const contextData = getRequestContext() as ContextData;
-  return paymentSdk.getMerchantReturnUrlFromContext(contextData);
+  const principal = contextData.authentication?.getPrincipal() as any;
+  return principal?.merchantReturnUrl;
 };
 
 export const getFutureOrderNumberFromContext = (): string | undefined => {
   const contextData = getRequestContext() as ContextData;
-  return paymentSdk.getFutureOrderNumberFromContext(contextData);
+  const principal = contextData.authentication?.getPrincipal() as any;
+  return principal?.futureOrderNumber;
 };
 
 export const requestContextPlugin = fp(async (fastify: FastifyInstance) => {
   // Enhance the request object with a correlationId property
-  fastify.decorateRequest("correlationId", "");
+  fastify.decorateRequest('correlationId', '');
 
   // Propagate the correlationId from the request header to the request object
-  fastify.addHook("onRequest", (req, reply, done) => {
-    req.correlationId = req.headers["x-correlation-id"]
-      ? (req.headers["x-correlation-id"] as string)
-      : undefined;
+  fastify.addHook('onRequest', (req, reply, done) => {
+    req.correlationId = req.headers['x-correlation-id'] ? (req.headers['x-correlation-id'] as string) : undefined;
     done();
   });
 
@@ -98,6 +98,6 @@ export const requestContextPlugin = fp(async (fastify: FastifyInstance) => {
         requestId: req.id,
       },
     }),
-    hook: "onRequest",
+    hook: 'onRequest',
   });
 });
