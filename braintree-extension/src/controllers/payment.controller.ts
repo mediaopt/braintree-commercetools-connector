@@ -1,5 +1,4 @@
-import CustomError from 'common-connect/src/errors/custom.error';
-import { logger } from 'common-connect/src/utils/logger.utils';
+import { CustomError, logger } from 'common-connect/dist';
 import {
   PaymentReference,
   Transaction as CommercetoolsTransaction,

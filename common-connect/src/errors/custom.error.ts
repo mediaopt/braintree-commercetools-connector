@@ -4,7 +4,7 @@ type ErrorItem = {
   referencedBy?: string;
 };
 
-class CustomError extends Error {
+export class CustomError extends Error {
   statusCode: number | string;
   message: string;
   errors?: ErrorItem[];
@@ -12,7 +12,7 @@ class CustomError extends Error {
   constructor(
     statusCode: number | string,
     message: string,
-    errors?: ErrorItem[]
+    errors?: ErrorItem[],
   ) {
     super(message);
     this.statusCode = statusCode;
@@ -22,5 +22,3 @@ class CustomError extends Error {
     }
   }
 }
-
-export default CustomError;

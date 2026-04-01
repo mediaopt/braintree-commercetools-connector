@@ -12,7 +12,7 @@ import {
   PaymentMethodUpdateRequest,
   BraintreeGateway,
 } from "braintree";
-import CustomError from "../errors/custom.error";
+import { CustomError } from "../errors/custom.error";
 import { Stream } from "stream";
 import { TransactionGateway } from "../interfaces/transaction.interface";
 import { Package } from "../types/index.types";

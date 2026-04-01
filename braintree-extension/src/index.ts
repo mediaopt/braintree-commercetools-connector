@@ -9,7 +9,7 @@ import bodyParser from 'body-parser';
 import braintreeExtensionRouter from './routes/extension.route';
 
 // Import logger
-import { logger } from 'common-connect/src/utils/logger.utils';
+import { logger } from 'common-connect/dist';
 
 import { readConfiguration } from './utils/config.utils';
 import { errorMiddleware } from './middleware/error.middleware';
