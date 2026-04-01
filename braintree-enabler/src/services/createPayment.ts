@@ -9,15 +9,15 @@ import {
 export const createPayment = async (
   requestHeader: RequestHeader,
   url: string,
-  cartInformation: CartInformation,
-  shippingMethodId?: string
+  merchantAccountId?: string,
 ) => {
   try {
+    console.log(url);
     const result = await makeRequest<CreatePaymentResponse, {}>(
       requestHeader,
       url,
       "POST",
-      { ...cartInformation, shippingMethodId: shippingMethodId }
+      { merchantAccountId },
     );
 
     return result;

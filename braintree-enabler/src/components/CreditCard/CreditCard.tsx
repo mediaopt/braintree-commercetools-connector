@@ -43,7 +43,7 @@ export const CreditCard: FC<CreditCardProps> = ({
       shippingMethodId={shippingMethodId}
     >
       <CreditCardButton
-        disabled={true} //{isPayButtonDisabled(cartInformation) && !isPureVault}
+        disabled={false} //{isPayButtonDisabled(cartInformation) && !isPureVault}
         buttonText={buttonText}
         fullWidth={fullWidth}
         showPostalCode={showPostalCode}

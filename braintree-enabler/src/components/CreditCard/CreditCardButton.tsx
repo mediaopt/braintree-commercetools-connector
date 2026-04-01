@@ -8,7 +8,7 @@ import {
   PayButtonProps,
 } from "../PayButton";
 import { GeneralCreditCardProps } from "../../types";
-import { useHandleGetClientToken } from "../../app/useHandleGetClientToken";
+import { useHandleInitPayment } from "../../app/useHandleInitPayment";
 
 type CreditCardButton = GeneralCreditCardProps & PayButtonProps;
 
@@ -29,9 +29,9 @@ export const CreditCardButton: FC<CreditCardButton> = ({
   shippingMethodId,
   isPureVault,
 }: CreditCardButton) => {
-  // const { clientToken } = usePayment();
-  //
-  // useHandleGetClientToken(disabled, undefined, shippingMethodId, isPureVault);
+  const { clientToken } = usePayment();
+
+  useHandleInitPayment(disabled, undefined, shippingMethodId, isPureVault);
 
   const FALLBACK_TEXT = isPureVault
     ? VAULT_BUTTON_TEXT_FALLBACK

@@ -105,9 +105,11 @@ async function loadMethods({ includeDropins }) {
   const token = await fetchDevJwt();
   const res = await fetch(
     `${__VITE_PROCESSOR_URL__}/operations/payment-components`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
   );
-  const paymentMethods = await res.json();
+  const paymentMethods = { components: [{ type: "card" }], express: [] }; //await res.json();
 
   const sessionIdGeneral = await getSessionId(cartId, false);
   const sessionIdDropin = await getSessionId(cartId, true);
@@ -115,14 +117,14 @@ async function loadMethods({ includeDropins }) {
   const enablerGeneral = new Enabler({
     processorUrl: __VITE_PROCESSOR_URL__,
     sessionId: sessionIdGeneral,
-    merchantAccountId: __BRAINTREE_MERCHANT_ACCOUNT_ID,
+    merchantAccountId: __BRAINTREE_MERCHANT_ACCOUNT_ID__,
     currencyCode: "EUR",
     countryCode: "DE",
   });
   const enablerDropin = new Enabler({
     processorUrl: __VITE_PROCESSOR_URL__,
     sessionId: sessionIdDropin,
-    merchantAccountId: __BRAINTREE_MERCHANT_ACCOUNT_ID,
+    merchantAccountId: __BRAINTREE_MERCHANT_ACCOUNT_ID__,
     currencyCode: "EUR",
     countryCode: "DE",
   });
@@ -151,7 +153,7 @@ async function loadMethods({ includeDropins }) {
                 alert("You must agree to the terms and conditions.");
                 return Promise.reject("error-occurred");
               }
-              return Promise.resolve(); // change to true, to test payment flow
+              return Promise.resolve(true); // change to true, to test payment flow
             },
           }),
       ...(category === "express"
@@ -232,6 +234,7 @@ btnLoadStored.addEventListener("click", async (e) => {
   const sessionIdSavedPayments = await getSessionId(cartId, false);
   const enabler = new Enabler({
     processorUrl: __VITE_PROCESSOR_URL__,
+    merchantAccountId: __BRAINTREE_MERCHANT_ACCOUNT_ID__,
     sessionId: sessionIdSavedPayments,
     currencyCode: "EUR",
     countryCode: "DE",

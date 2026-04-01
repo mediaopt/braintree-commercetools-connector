@@ -1,17 +1,17 @@
 import { useEffect } from "react";
 import { usePayment } from "./usePayment";
 
-export const useHandleGetClientToken = (
+export const useHandleInitPayment = (
   disabled: boolean,
   merchantAccountId?: string,
   shippingMethodId?: string,
-  vaultPayment?: boolean
+  vaultPayment?: boolean,
 ) => {
-  const { handleGetClientToken } = usePayment();
+  const { handleInitPayment } = usePayment();
 
   useEffect(() => {
     if (disabled) return;
 
-    handleGetClientToken(merchantAccountId, vaultPayment);
+    handleInitPayment(merchantAccountId, vaultPayment);
   }, [disabled, shippingMethodId]);
 };
