@@ -7,11 +7,11 @@ import {
   TypeUpdateAction,
 } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/type';
 import { ExtensionDraft, LocalizedString } from '@commercetools/platform-sdk';
-import { logger } from 'common-connect/dist';
 import {
+  logger,
   BRAINTREE_PAYMENT_TYPE_KEY,
   BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
-} from 'common-connect/src/constants';
+} from 'common-connect/dist';
 export const BRAINTREE_EXTENSION_KEY = 'braintree-extension';
 export const BRAINTREE_CUSTOMER_EXTENSION_KEY = 'braintree-customer-extension';
 

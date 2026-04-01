@@ -14,7 +14,7 @@ import {
 import {
   BRAINTREE_PAYMENT_TYPE_KEY,
   BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
-} from 'common-connect/src/constants';
+} from 'common-connect/dist';
 
 async function preUndeploy(): Promise<void> {
   const apiRoot = createApiRoot();
