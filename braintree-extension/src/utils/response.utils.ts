@@ -1,7 +1,7 @@
 import { UpdateActions, CustomerResponse } from '../types/index.types';
 import { Customer } from '@commercetools/platform-sdk';
 
-import { MessageFieldData } from 'common-connect/src/types/index.types';
+import { MessageFieldData } from 'common-connect/dist';
 import {
   logger,
   handleInterfaceInteraction,

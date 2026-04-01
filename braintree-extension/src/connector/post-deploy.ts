@@ -16,7 +16,7 @@ import {
 import {
   BRAINTREE_PAYMENT_TYPE_KEY,
   BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
-} from 'common-connect/src/constants';
+} from 'common-connect/dist';
 
 const CONNECT_APPLICATION_URL_KEY = 'CONNECT_SERVICE_URL';
 
