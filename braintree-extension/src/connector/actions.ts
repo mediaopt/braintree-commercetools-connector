@@ -7,7 +7,7 @@ import {
   TypeUpdateAction,
 } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/type';
 import { ExtensionDraft, LocalizedString } from '@commercetools/platform-sdk';
-import { logger } from 'common-connect/src/utils/logger.utils';
+import { logger } from 'common-connect/dist';
 import {
   BRAINTREE_PAYMENT_TYPE_KEY,
   BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,

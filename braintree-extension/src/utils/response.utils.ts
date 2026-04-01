@@ -1,11 +1,12 @@
-import { logger } from 'common-connect/src/utils/logger.utils';
 import { UpdateActions, CustomerResponse } from '../types/index.types';
 import { Customer } from '@commercetools/platform-sdk';
+
+import { MessageFieldData } from 'common-connect/src/types/index.types';
 import {
+  logger,
   handleInterfaceInteraction,
   stringifyData,
-} from 'common-connect/src/utils/customEntitites.utils';
-import { MessageFieldData } from 'common-connect/src/types/index.types';
+} from 'common-connect/dist';
 
 const logCleanMessage = ({
   messageName,

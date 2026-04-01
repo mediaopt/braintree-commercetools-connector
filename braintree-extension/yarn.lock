@@ -293,9 +293,9 @@
   integrity sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA==
 
 "@commercetools-backend/loggers@^27.0.0":
-  version "27.0.0"
-  resolved "https://registry.npmjs.org/@commercetools-backend/loggers/-/loggers-27.0.0.tgz"
-  integrity sha512-R+qbmlxfWTzgJz8gDvIFbeG9OT3DbtEAE/doMO2GZziPAXLZ4b4mlt1heBh2jLONxNIO8Oaayj6RBbfJQZKImg==
+  version "27.2.0"
+  resolved "https://registry.npmjs.org/@commercetools-backend/loggers/-/loggers-27.2.0.tgz"
+  integrity sha512-obMYBylVI4QUMj4ItZZVg5hbrptQoXEmzVN5+6q6riZq7GEu2Mmcetv+wmvxZX4hhco5yP3qVM2iuh5xTQcQGA==
   dependencies:
     "@babel/runtime" "^7.22.15"
     "@babel/runtime-corejs3" "^7.22.15"
@@ -1676,7 +1676,7 @@ color@^5.0.2:
     color-convert "^3.1.3"
     color-string "^2.1.3"
 
-common-connect@../common-connect:
+"common-connect@file:../common-connect":
   version "1.0.0"
   dependencies:
     "@commercetools-backend/loggers" "27.1.0"

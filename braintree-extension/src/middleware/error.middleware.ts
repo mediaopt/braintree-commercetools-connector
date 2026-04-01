@@ -1,5 +1,5 @@
 import { ErrorRequestHandler, NextFunction, Request, Response } from 'express';
-import CustomError from 'common-connect/src/errors/custom.error';
+import { CustomError } from 'common-connect/dist';
 
 /**
  * Middleware for error handling

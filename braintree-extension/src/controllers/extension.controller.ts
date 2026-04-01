@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { apiSuccess } from '../api/success.api';
-import CustomError from 'common-connect/src/errors/custom.error';
+import { CustomError } from 'common-connect/dist';
 import { paymentController } from './payment.controller';
 import { customerController } from './customer.controller';
 import { ExtensionInput } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/extension';
