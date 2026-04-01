@@ -34,12 +34,13 @@ import { getStoredPaymentMethodsConfig } from '../config/stored-payment-methods.
 import { StoredPaymentMethod, StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
 import { log } from '../libs/logger';
 import { CustomPaymentMethodService, PaymentMethod } from './ct-payment-method.service';
+import { handleInterfaceInteraction, getClientToken } from 'common-connect/dist';
+import { handleCustomFieldResponse } from '../utils/customEntities.utils';
 
-export class MockPaymentService extends AbstractPaymentService {
 export class BraintreePaymentService extends AbstractPaymentService {
   private ctPaymentMethodService: CustomPaymentMethodService;
 
-  constructor(opts: MockPaymentServiceOptions) {
+  constructor(opts: BraintreePaymentServiceOptions) {
     super(opts.ctCartService, opts.ctPaymentService);
     this.ctPaymentMethodService = new CustomPaymentMethodService({
       ctAPI: paymentSDK.ctAPI,
@@ -342,6 +343,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           anonymousId: ctCart.anonymousId,
         }),
     });
+    //TODO - add braintree customer id here
 
     await this.ctCartService.addPayment({
       resource: {
@@ -350,59 +352,76 @@ export class BraintreePaymentService extends AbstractPaymentService {
       },
       paymentId: ctPayment.id,
     });
-
-    // Fetch the required data and then validate it before making the request to the PSP.
-    const storedPaymentMethodDataOptions = await this.handleStoredPaymentMethod(request, ctCart);
-
-    // Perform request to PSP
-
-    // Depending on the PSP integration the creation of the CT stored payment method could happen in one of two ways:
-    // 1. sync based on the response from the PSP when the payment is created and authorized.
-    // 2. async via a webhook/notification from the PSP after the payment is created and authorized.
-    if (
-      request.data.paymentOutcome === PaymentOutcome.AUTHORIZED &&
-      ctCart.customerId &&
-      storedPaymentMethodDataOptions.storePaymentMethod
-    ) {
-      // In this example it will be directly created as described in option 1.
-      await this.ctPaymentMethodService.save({
-        customerId: ctCart.customerId,
-        method: request.data.paymentMethod.type,
-        paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
-        interfaceAccount: getStoredPaymentMethodsConfig().config.interfaceAccount,
-        token: randomUUID(), // This value should always come from the PSP after they have authorized the payment
-      });
-    }
-
-    const pspReference = randomUUID().toString();
-
-    const updatedPayment = await this.ctPaymentService.updatePayment({
+    const tokenResponse = await getClientToken({
+      merchantAccountId: request.data.merchantAccountId,
+    });
+    const customFields = handleCustomFieldResponse('getClientToken', tokenResponse); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
+    const updateInterfaceInteractions = handleInterfaceInteraction({
+      messageName: 'getClientToken',
+      message: request,
+      messageType: 'Request',
+    });
+    const updatePayment = await this.ctPaymentService.updatePayment({
       id: ctPayment.id,
-      pspReference: pspReference,
-      paymentMethod: request.data.paymentMethod.type,
-      transaction: {
-        type: 'Authorization',
-        amount: ctPayment.amountPlanned,
-        interactionId: pspReference,
-        state: this.convertPaymentResultCode(request.data.paymentOutcome),
-      },
-      ...(request.data.paymentMethod.type === PaymentMethodType.PURCHASE_ORDER && {
-        customFields: {
-          type: {
-            key: launchpadPurchaseOrderCustomType.key,
-            typeId: 'type',
-          },
-          fields: {
-            [launchpadPurchaseOrderCustomType.purchaseOrderNumber]: request.data.paymentMethod.poNumber,
-            [launchpadPurchaseOrderCustomType.invoiceMemo]: request.data.paymentMethod.invoiceMemo,
-          },
-        },
-      }),
+      customFields,
+      pspInteractions: [updateInterfaceInteractions],
     });
 
-    return {
-      paymentReference: updatedPayment.id,
-    };
+    const updatedPayment = await this.ctPaymentService.updatePayment(updatePayment);
+    return { paymentReference: updatedPayment.id };
+
+    // // Fetch the required data and then validate it before making the request to the PSP.
+    // const storedPaymentMethodDataOptions = await this.handleStoredPaymentMethod(request, ctCart);
+    //
+    // // Perform request to PSP
+    //
+    // // Depending on the PSP integration the creation of the CT stored payment method could happen in one of two ways:
+    // // 1. sync based on the response from the PSP when the payment is created and authorized.
+    // // 2. async via a webhook/notification from the PSP after the payment is created and authorized.
+    // if (
+    //   request.data.paymentOutcome === PaymentOutcome.AUTHORIZED &&
+    //   ctCart.customerId &&
+    //   storedPaymentMethodDataOptions.storePaymentMethod
+    // ) {
+    //   // In this example it will be directly created as described in option 1.
+    //   await this.ctPaymentMethodService.save({
+    //     customerId: ctCart.customerId ?? '',
+    //     method: request.data.paymentMethod.type,
+    //     paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
+    //     interfaceAccount: getStoredPaymentMethodsConfig().config.interfaceAccount,
+    //     token: randomUUID(), // This value should always come from the PSP after they have authorized the payment
+    //   });
+    // }
+    //
+    // const pspReference = randomUUID().toString();
+    //
+    // const updatedctPayment = await this.ctPaymentService.updatePayment({
+    //   id: ctPayment.id,
+    //   pspReference: pspReference,
+    //   paymentMethod: request.data.paymentMethod.type,
+    //   transaction: {
+    //     type: 'Authorization',
+    //     amount: ctPayment.amountPlanned,
+    //     interactionId: pspReference,
+    //     state: this.convertPaymentResultCode(request.data.paymentOutcome),
+    //   },
+    //   ...(request.data.paymentMethod.type === PaymentMethodType.PURCHASE_ORDER && {
+    //     customFields: {
+    //       type: {
+    //         key: launchpadPurchaseOrderCustomType.key,
+    //         typeId: 'type',
+    //       },
+    //       fields: {
+    //         [launchpadPurchaseOrderCustomType.purchaseOrderNumber]: request.data.paymentMethod.poNumber,
+    //         [launchpadPurchaseOrderCustomType.invoiceMemo]: request.data.paymentMethod.invoiceMemo,
+    //       },
+    //     },
+    //   }),
+    // });
+    //
+    // return {
+    //   paymentReference: updatedctPayment.id,
+    // };
   }
 
   /**
@@ -410,96 +429,96 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * Depending on how the PSP integration works the return value of this function could differ or other requirements surrounding the API calls.
    * However the core principle of logic and validations would be the same.
    */
-  async handleStoredPaymentMethod(
-    request: CreatePaymentRequest,
-    ctCart: Cart,
-  ): Promise<{ storePaymentMethod?: boolean; token?: string }> {
-    // Feature itself must be enabled on connector level by the merchant
-    if (!getStoredPaymentMethodsConfig().enabled) {
-      return {};
-    }
-
-    // The payment method must be allowed to be tokenised
-    if (!getStoredPaymentMethodsConfig().config.allowedPaymentMethods.includes(request.data.paymentMethod.type)) {
-      return {};
-    }
-
-    // Now it's important to validate what the user wants to do with regards to stored-payment-methods. It could either be:
-    // 1. Nothing;
-    // 2. Tokenise a payment method;
-    // 3. Pay with a stored-payment-method.
-    // Those values come from the enabler UI where the decided what to do.
-
-    const storePaymentMethodFirstTime = request.data.paymentMethod.storePaymentMethod !== undefined;
-
-    const storedPaymentMethodId = request.data.paymentMethod.storedPaymentMethodId;
-    const payWithExistingStoredPaymentMethod = storedPaymentMethodId !== undefined;
-
-    if (!storePaymentMethodFirstTime && !payWithExistingStoredPaymentMethod) {
-      // User does not want to do anything related to stored-payment-methods.
-      return {};
-    }
-
-    if (storePaymentMethodFirstTime && payWithExistingStoredPaymentMethod) {
-      // This scenario should never happen. If the enabler indicates it wants to pay and tokenise at the same time there is most likely an implementation error.
-      return {};
-    }
-
-    // The cart needs to have a customerId set if the incoming request indicated that it wants to either pay or tokenise
-    if (!ctCart.customerId) {
-      throw new ErrorRequiredField('customerId', {
-        privateMessage: 'The customerId is not set on the cart yet the customer wants to tokenize the payment',
-        privateFields: {
-          cart: {
-            id: ctCart.id,
-            typeId: 'cart',
-          },
-        },
-      });
-    }
-
-    if (storePaymentMethodFirstTime) {
-      // The user has indicated that it wants to tokenise the payment. Forward this intent to the PSP.
-      return { storePaymentMethod: storePaymentMethodFirstTime };
-    } else if (payWithExistingStoredPaymentMethod) {
-      // The user has selected a existing stored-payment-method to pay with from the enabler/UI.
-
-      // It's important to verify if the given payment-method id from the enabler request actually belongs to the `customerId` that is set on the `cart`.
-      // This can be achieved by fetching the payment-method from CT using the payment-methods service from the connect-payments-sdk.
-
-      const paymentMethod = await this.ctPaymentMethodService.get({
-        id: storedPaymentMethodId,
-        customerId: ctCart.customerId,
-      });
-
-      // Due note that it could be that the PSP integration works by sending the actual token value from the enabler components to the `/payments` API in the processor.
-      // In this case one of the two following approaches can be chosen to achieve the same validation:
-      // const paymentMethod = await this.ctPaymentMethodService.getByTokenValue({
-      //   customerId: ctCart.customerId,
-      //   paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
-      //   interfaceAccount: getStoredPaymentMethodsConfig().config.interfaceAccount,
-      //   tokenValue: '<value from the incoming request body>',
-      // });
-      //
-      // ### OR
-      //
-      // const belongsToCustomer = await this.ctPaymentMethodService.doesTokenBelongsToCustomer({
-      //   customerId: ctCart.customerId,
-      //   paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
-      //   interfaceAccount: getStoredPaymentMethodsConfig().config.interfaceAccount,
-      //   tokenValue: '<value from the request body>',
-      // });
-      //
-      // if (!belongsToCustomer) {
-      //   // Take appropiate action
-      // }
-
-      // Send the "paymentMethod.token.value" attribute to the PSP in order to pay with an tokenised payment method
-      return { token: paymentMethod.token?.value };
-    }
-
-    return {};
-  }
+  // async handleStoredPaymentMethod(
+  //   request: CreatePaymentRequest,
+  //   ctCart: Cart,
+  // ): Promise<{ storePaymentMethod?: boolean; token?: string }> {
+  //   // Feature itself must be enabled on connector level by the merchant
+  //   if (!getStoredPaymentMethodsConfig().enabled) {
+  //     return {};
+  //   }
+  //
+  //   // The payment method must be allowed to be tokenised
+  //   // if (!getStoredPaymentMethodsConfig().config.allowedPaymentMethods.includes(request.data.paymentMethod.type)) {
+  //   //   return {};
+  //   // }
+  //
+  //   // Now it's important to validate what the user wants to do with regards to stored-payment-methods. It could either be:
+  //   // 1. Nothing;
+  //   // 2. Tokenise a payment method;
+  //   // 3. Pay with a stored-payment-method.
+  //   // Those values come from the enabler UI where the decided what to do.
+  //
+  //   const storePaymentMethodFirstTime = request.data.paymentMethod.storePaymentMethod !== undefined;
+  //
+  //   const storedPaymentMethodId = request.data.paymentMethod.storedPaymentMethodId;
+  //   const payWithExistingStoredPaymentMethod = storedPaymentMethodId !== undefined;
+  //
+  //   if (!storePaymentMethodFirstTime && !payWithExistingStoredPaymentMethod) {
+  //     // User does not want to do anything related to stored-payment-methods.
+  //     return {};
+  //   }
+  //
+  //   if (storePaymentMethodFirstTime && payWithExistingStoredPaymentMethod) {
+  //     // This scenario should never happen. If the enabler indicates it wants to pay and tokenise at the same time there is most likely an implementation error.
+  //     return {};
+  //   }
+  //
+  //   // The cart needs to have a customerId set if the incoming request indicated that it wants to either pay or tokenise
+  //   if (!ctCart.customerId) {
+  //     throw new ErrorRequiredField('customerId', {
+  //       privateMessage: 'The customerId is not set on the cart yet the customer wants to tokenize the payment',
+  //       privateFields: {
+  //         cart: {
+  //           id: ctCart.id,
+  //           typeId: 'cart',
+  //         },
+  //       },
+  //     });
+  //   }
+  //
+  //   if (storePaymentMethodFirstTime) {
+  //     // The user has indicated that it wants to tokenise the payment. Forward this intent to the PSP.
+  //     return { storePaymentMethod: storePaymentMethodFirstTime };
+  //   } else if (payWithExistingStoredPaymentMethod) {
+  //     // The user has selected a existing stored-payment-method to pay with from the enabler/UI.
+  //
+  //     // It's important to verify if the given payment-method id from the enabler request actually belongs to the `customerId` that is set on the `cart`.
+  //     // This can be achieved by fetching the payment-method from CT using the payment-methods service from the connect-payments-sdk.
+  //
+  //     const paymentMethod = await this.ctPaymentMethodService.get({
+  //       id: storedPaymentMethodId,
+  //       customerId: ctCart.customerId,
+  //     });
+  //
+  //     // Due note that it could be that the PSP integration works by sending the actual token value from the enabler components to the `/payments` API in the processor.
+  //     // In this case one of the two following approaches can be chosen to achieve the same validation:
+  //     // const paymentMethod = await this.ctPaymentMethodService.getByTokenValue({
+  //     //   customerId: ctCart.customerId,
+  //     //   paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
+  //     //   interfaceAccount: getStoredPaymentMethodsConfig().config.interfaceAccount,
+  //     //   tokenValue: '<value from the incoming request body>',
+  //     // });
+  //     //
+  //     // ### OR
+  //     //
+  //     // const belongsToCustomer = await this.ctPaymentMethodService.doesTokenBelongsToCustomer({
+  //     //   customerId: ctCart.customerId,
+  //     //   paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
+  //     //   interfaceAccount: getStoredPaymentMethodsConfig().config.interfaceAccount,
+  //     //   tokenValue: '<value from the request body>',
+  //     // });
+  //     //
+  //     // if (!belongsToCustomer) {
+  //     //   // Take appropiate action
+  //     // }
+  //
+  //     // Send the "paymentMethod.token.value" attribute to the PSP in order to pay with an tokenised payment method
+  //     return { token: paymentMethod.token?.value };
+  //   }
+  //
+  //   return {};
+  // }
 
   /**
    * Returns "cart.customerId" from the cart that is present in the context. If the "cart.customerId" is not set then a "ErrorRequiredField" will be thrown.
@@ -688,10 +707,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   private validatePaymentMethod(request: CreatePaymentRequest): void {
-    const { paymentMethod } = request.data;
+    const merchantAccountId = request.data.merchantAccountId;
 
-    if (paymentMethod.type === PaymentMethodType.PURCHASE_ORDER && !paymentMethod.poNumber) {
-      throw new ErrorRequiredField('poNumber');
-    }
+    // if (paymentMethod.type === PaymentMethodType.PURCHASE_ORDER && !paymentMethod.poNumber) {
+    //   throw new ErrorRequiredField('poNumber');
+    // }
   }
 }
