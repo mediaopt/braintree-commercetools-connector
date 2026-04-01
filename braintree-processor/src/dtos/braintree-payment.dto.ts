@@ -19,20 +19,21 @@ export const PaymentResponseSchema = Type.Object({
 export const PaymentOutcomeSchema = Type.Enum(PaymentOutcome);
 
 export const PaymentRequestSchema = Type.Object({
-  paymentMethod: Type.Object({
-    type: Type.Enum(PaymentMethodType),
-    poNumber: Type.Optional(Type.String()),
-    invoiceMemo: Type.Optional(Type.String()),
-    storedPaymentMethodId: Type.Optional(
-      Type.String({ description: 'The ID of the stored-payment-method used to pay with.' }),
-    ),
-    storePaymentMethod: Type.Optional(
-      Type.Boolean({
-        description: 'True if the user has given consent to storing/tokenising the payment method.',
-      }),
-    ),
-  }),
-  paymentOutcome: PaymentOutcomeSchema,
+  merchantAccountId: Type.Optional(Type.String()),
+  // paymentMethod: Type.Object({
+  //   type: Type.Enum(PaymentMethodType),
+  //   poNumber: Type.Optional(Type.String()),
+  //   invoiceMemo: Type.Optional(Type.String()),
+  //   storedPaymentMethodId: Type.Optional(
+  //     Type.String({ description: 'The ID of the stored-payment-method used to pay with.' }),
+  //   ),
+  //   storePaymentMethod: Type.Optional(
+  //     Type.Boolean({
+  //       description: 'True if the user has given consent to storing/tokenising the payment method.',
+  //     }),
+  //   ),
+  // }),
+  // paymentOutcome: PaymentOutcomeSchema,
 });
 
 export type PaymentRequestSchemaDTO = Static<typeof PaymentRequestSchema>;
