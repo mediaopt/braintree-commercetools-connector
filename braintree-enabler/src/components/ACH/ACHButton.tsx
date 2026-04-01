@@ -2,7 +2,7 @@ import { FC } from "react";
 
 import { usePayment } from "../../app/usePayment";
 import { PayButtonProps, PAY_BUTTON_TEXT_FALLBACK } from "../PayButton";
-import { useHandleGetClientToken } from "../../app/useHandleGetClientToken";
+import { useHandleInitPayment } from "../../app/useHandleInitPayment";
 
 import { CartInformationProps, GeneralACHProps } from "../../types";
 
@@ -24,7 +24,7 @@ export const ACHButton: FC<ACHButtonProps> = ({
 }: ACHButtonProps) => {
   const { clientToken } = usePayment();
 
-  useHandleGetClientToken(disabled, undefined, shippingMethodId);
+  useHandleInitPayment(disabled, undefined, shippingMethodId);
 
   return clientToken ? (
     <ACHMask

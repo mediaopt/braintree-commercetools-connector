@@ -3,7 +3,7 @@ import { useEffect, useState, FC } from "react";
 import { useNotifications } from "../../app/useNotifications";
 import { usePayment } from "../../app/usePayment";
 import { PayButtonProps } from "../PayButton";
-import { useHandleGetClientToken } from "../../app/useHandleGetClientToken";
+import { useHandleInitPayment } from "../../app/useHandleInitPayment";
 import { ApplePayTypes } from "../../types";
 
 import { ApplePayMask } from "./ApplePayMask";
@@ -39,7 +39,7 @@ export const ApplePayButton: FC<ApplePayButtonProps> = ({
     }
   }, []);
 
-  useHandleGetClientToken(disabled, undefined, shippingMethodId);
+  useHandleInitPayment(disabled, undefined, shippingMethodId);
   return clientToken && applyPaySupport ? (
     <ApplePayMask
       fullWidth={fullWidth}
