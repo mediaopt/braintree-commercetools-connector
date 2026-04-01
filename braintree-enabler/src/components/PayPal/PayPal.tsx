@@ -38,9 +38,6 @@ export const PayPal: FC<PayPalComponentProps> = ({
   tagline,
   height,
   shippingOptions,
-  taxAmount,
-  shippingAmount,
-  discountAmount,
   shippingMethodId,
   isPureVault,
 }: PayPalComponentProps) => {
@@ -50,10 +47,6 @@ export const PayPal: FC<PayPalComponentProps> = ({
       sessionId={sessionId}
       purchaseCallback={purchaseCallback}
       cartInformation={cartInformation}
-      taxAmount={taxAmount}
-      shippingAmount={shippingAmount}
-      discountAmount={discountAmount}
-      shippingMethodId={shippingMethodId}
     >
       <PayPalButton
         disabled={isPayButtonDisabled(cartInformation) && !isPureVault}

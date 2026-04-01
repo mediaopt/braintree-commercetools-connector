@@ -6,7 +6,7 @@ import {
   LocalPaymentComponentsProp,
   LocalPaymentMethodsType,
 } from "../../types";
-import { useHandleGetClientToken } from "../../app/useHandleGetClientToken";
+import { useHandleInitPayment } from "../../app/useHandleInitPayment";
 import { LocalPaymentMethodMask } from "./LocalPaymentMethodMask";
 
 type LocalPaymentMethod = LocalPaymentComponentsProp &
@@ -32,7 +32,7 @@ export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
 }: LocalPaymentMethod) => {
   const { clientToken } = usePayment();
 
-  useHandleGetClientToken(disabled, merchantAccountId, shippingMethodId);
+  useHandleInitPayment(disabled, merchantAccountId, shippingMethodId);
 
   return clientToken ? (
     <LocalPaymentMethodMask

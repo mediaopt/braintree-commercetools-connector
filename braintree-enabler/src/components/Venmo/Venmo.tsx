@@ -10,13 +10,12 @@ import { GeneralComponentsProps, VenmoTypes } from "../../types";
 export type VenmoProps = VenmoTypes & GeneralComponentsProps;
 
 export const Venmo: FC<VenmoProps> = ({
+  processorUrl,
+  sessionId,
+  purchaseCallback,
   mobileWebFallBack,
   paymentMethodUsage,
   desktopFlow,
-  createPaymentUrl,
-  getClientTokenUrl,
-  purchaseUrl,
-  purchaseCallback,
   cartInformation,
   fullWidth,
   buttonText,
@@ -32,20 +31,17 @@ export const Venmo: FC<VenmoProps> = ({
   shippingAmount,
   discountAmount,
   shippingMethodId,
-  requestHeader,
 }: VenmoProps) => {
   return (
     <RenderTemplate
-      requestHeader={requestHeader}
-      getClientTokenUrl={getClientTokenUrl}
-      createPaymentUrl={createPaymentUrl}
-      purchaseUrl={purchaseUrl}
-      purchaseCallback={purchaseCallback}
+      processorUrl={processorUrl}
+      sessionId={sessionId}
       cartInformation={cartInformation}
       taxAmount={taxAmount}
       shippingAmount={shippingAmount}
       discountAmount={discountAmount}
       shippingMethodId={shippingMethodId}
+      purchaseCallback={purchaseCallback}
     >
       <VenmoButton
         disabled={isPayButtonDisabled(cartInformation)}

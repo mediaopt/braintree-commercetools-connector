@@ -10,9 +10,8 @@ import { GeneralComponentsProps, GooglePayTypes } from "../../types";
 type GooglePayComponentProps = GeneralComponentsProps & GooglePayTypes;
 
 export const GooglePay: FC<GooglePayComponentProps> = ({
-  createPaymentUrl,
-  getClientTokenUrl,
-  purchaseUrl,
+  processorUrl,
+  sessionId,
   purchaseCallback,
   cartInformation,
   fullWidth,
@@ -32,14 +31,11 @@ export const GooglePay: FC<GooglePayComponentProps> = ({
   shippingAmount,
   discountAmount,
   shippingMethodId,
-  requestHeader,
 }: GooglePayComponentProps) => {
   return (
     <RenderTemplate
-      requestHeader={requestHeader}
-      getClientTokenUrl={getClientTokenUrl}
-      createPaymentUrl={createPaymentUrl}
-      purchaseUrl={purchaseUrl}
+      processorUrl={processorUrl}
+      sessionId={sessionId}
       purchaseCallback={purchaseCallback}
       cartInformation={cartInformation}
       taxAmount={taxAmount}

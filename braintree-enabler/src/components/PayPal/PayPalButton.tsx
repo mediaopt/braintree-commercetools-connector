@@ -6,7 +6,7 @@ import {
   PAY_BUTTON_TEXT_FALLBACK,
   VAULT_BUTTON_TEXT_FALLBACK,
 } from "../PayButton";
-import { useHandleGetClientToken } from "../../app/useHandleGetClientToken";
+import { useHandleInitPayment } from "../../app/useHandleInitPayment";
 
 import { PayPalMask } from "./PayPalMask";
 
@@ -43,7 +43,7 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
 }) => {
   const { clientToken } = usePayment();
 
-  useHandleGetClientToken(disabled, undefined, shippingMethodId, isPureVault);
+  useHandleInitPayment(disabled, undefined, shippingMethodId, isPureVault);
 
   const FALLBACK_TEXT = isPureVault
     ? VAULT_BUTTON_TEXT_FALLBACK

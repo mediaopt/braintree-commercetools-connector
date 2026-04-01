@@ -2,7 +2,7 @@ import { FC } from "react";
 
 import { usePayment } from "../../app/usePayment";
 import { PayButtonProps } from "../PayButton";
-import { useHandleGetClientToken } from "../../app/useHandleGetClientToken";
+import { useHandleInitPayment } from "../../app/useHandleInitPayment";
 
 import { GooglePayMask } from "./GooglePayMask";
 import { GooglePayTypes } from "../../types";
@@ -27,7 +27,7 @@ export const GooglePayButton: FC<GooglePayButtonProps> = ({
 }: GooglePayButtonProps) => {
   const { clientToken } = usePayment();
 
-  useHandleGetClientToken(disabled, undefined, shippingMethodId);
+  useHandleInitPayment(disabled, undefined, shippingMethodId);
 
   return clientToken ? (
     <GooglePayMask
