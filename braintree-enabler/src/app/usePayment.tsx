@@ -11,12 +11,11 @@ import {
   VaultManager,
   vaultManager,
 } from "braintree-web";
-import { getClientToken, createPayment } from "../services";
+import { createPayment } from "../services";
 import { Result } from "../components/Result";
 
 import {
   GeneralComponentsProps,
-  ClientTokenResponse,
   CreatePaymentResponse,
   PaymentInfo,
   CartInformationInitial,
@@ -40,7 +39,7 @@ type HandlePurchaseType = (
 type PaymentContextT = {
   gettingClientToken: boolean;
   clientToken: string;
-  handleGetClientToken: (
+  handleInitPayment: (
     merchantAccountId?: string,
     vaultPayment?: boolean,
   ) => void;
@@ -70,7 +69,7 @@ const PaymentInfoInitialObject = {
 const PaymentContext = createContext<PaymentContextT>({
   gettingClientToken: false,
   clientToken: "",
-  handleGetClientToken: () => {},
+  handleInitPayment: () => {},
   setLocalPaymentId: () => new Promise<number>(() => 0),
   handlePurchase: () => {},
   handlePureVault: () => {},
@@ -89,11 +88,6 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   sessionId,
   purchaseCallback,
   children,
-  cartInformation,
-  taxAmount,
-  shippingAmount,
-  discountAmount,
-  shippingMethodId,
 }) => {
   const [gettingClientToken, setGettingClientToken] = useState(false);
   const [showResult, setShowResult] = useState(false);
@@ -111,7 +105,6 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   >([]);
   const {
     createPaymentUrl,
-    getClientTokenUrl,
     purchaseUrl,
     createPaymentForVault,
     vaultPaymentMethodUrl,
@@ -122,7 +115,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   const { isLoading } = useLoader();
 
   const value = useMemo(() => {
-    const handleGetClientToken = async (
+    const handleInitPayment = async (
       merchantAccountId?: string,
       vaultPayment?: boolean,
     ) => {
@@ -136,62 +129,62 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
         const createPaymentResult = (await createPayment(
           requestHeader,
           createPaymentEndpoint,
-          cartInformation,
-          shippingMethodId,
+          merchantAccountId,
         )) as CreatePaymentResponse;
 
-        if (!createPaymentResult.braintreeCustomerId && vaultPayment) {
-          isLoading(false);
-          setGettingClientToken(false);
-          notify("Error", "User not found");
-          return;
-        }
-
-        setCustomerVersion(createPaymentResult.customerVersion);
-        setBraintreeCustomerId(createPaymentResult.braintreeCustomerId);
-        if (
-          createPaymentResult &&
-          createPaymentResult.id &&
-          createPaymentResult.version
-        ) {
-          const clientTokenresult = (await getClientToken(
-            requestHeader,
-            getClientTokenUrl,
-            createPaymentResult.id,
-            createPaymentResult.version,
-            createPaymentResult.braintreeCustomerId,
-            merchantAccountId,
-          )) as ClientTokenResponse;
-
-          if (!clientTokenresult) {
-            isLoading(false);
-            setGettingClientToken(false);
-            notify("Error", "There is an error in getting client token!");
-            return;
-          }
-
-          const { amountPlanned, lineItems, shippingMethod } =
-            createPaymentResult;
-
-          setPaymentInfo({
-            id: createPaymentResult.id,
-            version: clientTokenresult.paymentVersion,
-            amount: amountPlanned.centAmount / 100,
-            currency: amountPlanned.currencyCode,
-            lineItems: lineItems,
-            shippingMethod: shippingMethod,
-            cartInformation: cartInformation,
-          });
-
-          if (clientTokenresult.clientToken) {
-            setClientToken(clientTokenresult.clientToken);
-            setGettingClientToken(false);
-            isLoading(false);
-            return;
-          }
-        }
-
-        notify("Error", "There is an error in getting client token!");
+        // if (!createPaymentResult.braintreeCustomerId && vaultPayment) {
+        //   isLoading(false);
+        //   setGettingClientToken(false);
+        //   notify("Error", "User not found");
+        //   return;
+        // }
+        //
+        // setCustomerVersion(createPaymentResult.customerVersion);
+        // setBraintreeCustomerId(createPaymentResult.braintreeCustomerId);
+        // if (
+        //   createPaymentResult &&
+        //   createPaymentResult.id &&
+        //   createPaymentResult.version
+        // ) {
+        //   const clientTokenresult = (await getClientToken(
+        //     requestHeader,
+        //     getClientTokenUrl,
+        //     createPaymentResult.id,
+        //     createPaymentResult.version,
+        //     createPaymentResult.braintreeCustomerId,
+        //     merchantAccountId,
+        //   )) as ClientTokenResponse;
+        //
+        //   if (!clientTokenresult) {
+        //     isLoading(false);
+        //     setGettingClientToken(false);
+        //     notify("Error", "There is an error in getting client token!");
+        //     return;
+        //   }
+        //
+        //   const { amountPlanned, lineItems, shippingMethod } =
+        //     createPaymentResult;
+        //
+        //   setPaymentInfo({
+        //     id: createPaymentResult.id,
+        //     version: clientTokenresult.paymentVersion,
+        //     amount: amountPlanned.centAmount / 100,
+        //     currency: amountPlanned.currencyCode,
+        //     lineItems: lineItems,
+        //     shippingMethod: shippingMethod,
+        //     cartInformation: cartInformation,
+        //   });
+        //
+        //   if (clientTokenresult.clientToken) {
+        //     setClientToken(clientTokenresult.clientToken);
+        //     setGettingClientToken(false);
+        //     isLoading(false);
+        //     return;
+        //   }
+        // }
+        //
+        // notify("Error", "There is an error in getting client token!");
+        console.log(createPaymentResult);
       } catch (error) {
         notify("Error", "Authentication Error!");
         console.error(error);
@@ -334,7 +327,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
       sessionId,
       gettingClientToken,
       clientToken,
-      handleGetClientToken,
+      handleInitPayment,
       setLocalPaymentId,
       handlePurchase,
       handlePureVault,

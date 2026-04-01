@@ -12,11 +12,6 @@ export const RenderTemplate: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   processorUrl,
   sessionId,
   purchaseCallback,
-  cartInformation,
-  taxAmount,
-  shippingAmount,
-  discountAmount,
-  shippingMethodId,
 }) => {
   return (
     <NotificationsProvider>
@@ -25,11 +20,6 @@ export const RenderTemplate: FC<PropsWithChildren<GeneralComponentsProps>> = ({
           processorUrl={processorUrl}
           sessionId={sessionId}
           purchaseCallback={purchaseCallback}
-          cartInformation={cartInformation}
-          taxAmount={taxAmount}
-          shippingAmount={shippingAmount}
-          discountAmount={discountAmount}
-          shippingMethodId={shippingMethodId}
         >
           <RenderPurchase>{children}</RenderPurchase>
         </PaymentProvider>
