@@ -12,7 +12,6 @@ export const CreditCard: FC<CreditCardProps> = ({
   processorUrl,
   sessionId,
   purchaseCallback,
-  cartInformation,
   fullWidth,
   buttonText,
   showPostalCode = false,
@@ -36,14 +35,12 @@ export const CreditCard: FC<CreditCardProps> = ({
       processorUrl={processorUrl}
       sessionId={sessionId}
       purchaseCallback={purchaseCallback}
-      cartInformation={cartInformation}
       taxAmount={taxAmount}
       shippingAmount={shippingAmount}
       discountAmount={discountAmount}
       shippingMethodId={shippingMethodId}
     >
       <CreditCardButton
-        disabled={false} //{isPayButtonDisabled(cartInformation) && !isPureVault}
         buttonText={buttonText}
         fullWidth={fullWidth}
         showPostalCode={showPostalCode}
@@ -56,7 +53,6 @@ export const CreditCard: FC<CreditCardProps> = ({
         useKount={useKount}
         lineItems={lineItems}
         shipping={shipping}
-        shippingMethodId={shippingMethodId}
         isPureVault={isPureVault}
       />
     </RenderTemplate>

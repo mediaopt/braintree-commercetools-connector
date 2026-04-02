@@ -1,7 +1,6 @@
 import { FC } from "react";
 
 import { RenderTemplate } from "../RenderTemplate";
-import { isPayButtonDisabled } from "../PayButton";
 
 import { VenmoButton } from "./VenmoButton";
 
@@ -16,7 +15,6 @@ export const Venmo: FC<VenmoProps> = ({
   mobileWebFallBack,
   paymentMethodUsage,
   desktopFlow,
-  cartInformation,
   fullWidth,
   buttonText,
   allowNewBrowserTab,
@@ -30,21 +28,17 @@ export const Venmo: FC<VenmoProps> = ({
   taxAmount,
   shippingAmount,
   discountAmount,
-  shippingMethodId,
 }: VenmoProps) => {
   return (
     <RenderTemplate
       processorUrl={processorUrl}
       sessionId={sessionId}
-      cartInformation={cartInformation}
       taxAmount={taxAmount}
       shippingAmount={shippingAmount}
       discountAmount={discountAmount}
-      shippingMethodId={shippingMethodId}
       purchaseCallback={purchaseCallback}
     >
       <VenmoButton
-        disabled={isPayButtonDisabled(cartInformation)}
         buttonText={buttonText}
         fullWidth={fullWidth}
         mobileWebFallBack={mobileWebFallBack}
@@ -58,7 +52,6 @@ export const Venmo: FC<VenmoProps> = ({
         useKount={useKount}
         lineItems={lineItems}
         shipping={shipping}
-        shippingMethodId={shippingMethodId}
       />
     </RenderTemplate>
   );

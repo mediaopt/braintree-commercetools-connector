@@ -339,6 +339,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const ctCart = await this.ctCartService.getCart({
       id: getCartIdFromContext(),
     });
+    this.validateCartRequiredData(ctCart, request.data.isPureVault);
 
     const customerPaymentInfo: { customer: CustomerResourceIdentifier } | { anonymousId?: string } = ctCart.customerId
       ? {
@@ -363,11 +364,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
         cart: ctCart,
       }),
       paymentMethodInfo: {
-        paymentInterface: getPaymentInterfaceFromContext() || 'Braintree',
+        paymentInterface: getPaymentInterfaceFromContext() || 'Braintree', //todo - check if a more relevant interface exists
       },
       ...customerPaymentInfo,
     });
-    //TODO - add braintree customer id here
 
     await this.ctCartService.addPayment({
       resource: {
@@ -378,6 +378,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     });
     const tokenResponse = await getClientToken({
       merchantAccountId: request.data.merchantAccountId,
+      customerId: braintreeCustomerId,
     });
     const customFields = handleCustomFieldResponse('getClientToken', tokenResponse); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
     const updateInterfaceInteractions = handleInterfaceInteraction({
@@ -735,6 +736,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
       default:
         return 'Initial';
     }
+  }
+
+  private validateCartRequiredData(ctCart: Cart, isPureVault?: boolean): void {
+    if (isPureVault) return;
+    if (!ctCart.customerEmail || !ctCart.billingAddress || !ctCart.shippingAddress)
+      throw new ErrorInvalidOperation('Required data missing: email or address');
   }
 
   private validatePaymentMethod(request: CreatePaymentRequest): void {

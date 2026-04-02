@@ -23,6 +23,7 @@ import {
 } from "../../types";
 import { useLoader } from "../../app/useLoader";
 import { renderMaskButtonClasses } from "../../styles";
+import { processorUrls } from "../constants";
 
 type LocalPaymentMethodMaskType = LocalPaymentMethodsType &
   GeneralPayButtonProps &
@@ -31,7 +32,7 @@ type LocalPaymentMethodMaskType = LocalPaymentMethodsType &
 export const LocalPaymentMethodMask: FC<
   PropsWithChildren<LocalPaymentMethodMaskType>
 > = ({
-  saveLocalPaymentIdUrl,
+  processorUrl,
   paymentType,
   countryCode,
   currencyCode,
@@ -55,6 +56,7 @@ export const LocalPaymentMethodMask: FC<
     usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
+  const { saveLocalPaymentIdUrl } = processorUrls(processorUrl);
 
   const invokePayment = (e: MouseEvent<HTMLButtonElement>): void => {
     let overridePaymentVersion: number;
@@ -84,7 +86,7 @@ export const LocalPaymentMethodMask: FC<
             (result) => {
               overridePaymentVersion = result;
               start();
-            }
+            },
           );
         },
       },
@@ -109,14 +111,14 @@ export const LocalPaymentMethodMask: FC<
             handlePurchase(
               payload.nonce,
               handlePurchaseOptions,
-              overridePaymentVersion
+              overridePaymentVersion,
             );
           } else {
             isLoading(false);
             notify("Error", "No payload received");
           }
         }
-      }
+      },
     );
   };
 
@@ -153,13 +155,13 @@ export const LocalPaymentMethodMask: FC<
                 if (!dataCollectorErr && dataCollectorInstance) {
                   setDeviceData(dataCollectorInstance.deviceData);
                 }
-              }
+              },
             );
             setLocalPaymentInstance(paymentInstance);
             isLoading(false);
-          }
+          },
         );
-      }
+      },
     );
   }, [clientToken, merchantAccountId]);
 
@@ -170,7 +172,7 @@ export const LocalPaymentMethodMask: FC<
       className={renderMaskButtonClasses(
         fullWidth,
         !!localPaymentInstance,
-        !localPaymentInstance
+        !localPaymentInstance,
       )}
     >
       {buttonText}

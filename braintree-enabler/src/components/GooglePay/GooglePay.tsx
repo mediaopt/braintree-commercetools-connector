@@ -13,7 +13,6 @@ export const GooglePay: FC<GooglePayComponentProps> = ({
   processorUrl,
   sessionId,
   purchaseCallback,
-  cartInformation,
   fullWidth,
   buttonText,
   environment,
@@ -37,7 +36,6 @@ export const GooglePay: FC<GooglePayComponentProps> = ({
       processorUrl={processorUrl}
       sessionId={sessionId}
       purchaseCallback={purchaseCallback}
-      cartInformation={cartInformation}
       taxAmount={taxAmount}
       shippingAmount={shippingAmount}
       discountAmount={discountAmount}

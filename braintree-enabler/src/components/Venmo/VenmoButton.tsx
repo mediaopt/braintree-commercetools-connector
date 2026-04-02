@@ -1,15 +1,13 @@
 import { FC } from "react";
 
 import { usePayment } from "../../app/usePayment";
-import { PayButtonProps, PAY_BUTTON_TEXT_FALLBACK } from "../PayButton";
-import { useHandleInitPayment } from "../../app/useHandleInitPayment";
+import { PAY_BUTTON_TEXT_FALLBACK } from "../PayButton";
 
 import { VenmoMask } from "./VenmoMask";
-import { VenmoTypes } from "../../types";
-type VenmoButton = VenmoTypes & PayButtonProps;
+import { GeneralPayButtonProps, VenmoTypes } from "../../types";
+type VenmoButton = VenmoTypes & GeneralPayButtonProps;
 
 export const VenmoButton: FC<VenmoButton> = ({
-  disabled,
   fullWidth = true,
   buttonText,
   desktopFlow,
@@ -23,11 +21,10 @@ export const VenmoButton: FC<VenmoButton> = ({
   useKount,
   lineItems,
   shipping,
-  shippingMethodId,
 }: VenmoButton) => {
-  const { clientToken } = usePayment();
+  const { clientToken, handleInitPayment } = usePayment();
 
-  useHandleInitPayment(disabled, undefined, shippingMethodId);
+  handleInitPayment();
 
   return clientToken ? (
     <VenmoMask

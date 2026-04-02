@@ -3,7 +3,6 @@ import { FC } from "react";
 import { Intent } from "paypal-checkout-components";
 
 import { RenderTemplate } from "../RenderTemplate";
-import { isPayButtonDisabled } from "../PayButton";
 
 import { PayPalButton } from "./PayPalButton";
 
@@ -18,7 +17,6 @@ export const PayPal: FC<PayPalComponentProps> = ({
   buttonColor,
   buttonLabel,
   purchaseCallback,
-  cartInformation,
   fullWidth,
   buttonText,
   payLater,
@@ -38,7 +36,6 @@ export const PayPal: FC<PayPalComponentProps> = ({
   tagline,
   height,
   shippingOptions,
-  shippingMethodId,
   isPureVault,
 }: PayPalComponentProps) => {
   return (
@@ -46,10 +43,9 @@ export const PayPal: FC<PayPalComponentProps> = ({
       processorUrl={processorUrl}
       sessionId={sessionId}
       purchaseCallback={purchaseCallback}
-      cartInformation={cartInformation}
     >
       <PayPalButton
-        disabled={isPayButtonDisabled(cartInformation) && !isPureVault}
+        isPureVault={isPureVault}
         buttonText={buttonText}
         fullWidth={fullWidth}
         flow={flow}
@@ -72,8 +68,6 @@ export const PayPal: FC<PayPalComponentProps> = ({
         tagline={tagline}
         height={height}
         shippingOptions={shippingOptions}
-        shippingMethodId={shippingMethodId}
-        isPureVault={isPureVault}
       />
     </RenderTemplate>
   );

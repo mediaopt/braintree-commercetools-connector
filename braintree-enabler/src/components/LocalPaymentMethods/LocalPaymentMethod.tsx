@@ -13,7 +13,6 @@ export const LocalPaymentMethod: FC<LocalPaymentMethodType> = ({
   processorUrl,
   sessionId,
   purchaseCallback,
-  cartInformation,
   paymentType,
   countryCode,
   currencyCode,
@@ -35,7 +34,6 @@ export const LocalPaymentMethod: FC<LocalPaymentMethodType> = ({
       processorUrl={processorUrl}
       sessionId={sessionId}
       purchaseCallback={purchaseCallback}
-      cartInformation={cartInformation}
       taxAmount={taxAmount}
       shippingAmount={shippingAmount}
       discountAmount={discountAmount}

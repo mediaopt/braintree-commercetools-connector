@@ -2,20 +2,18 @@ import { FC } from "react";
 
 import { usePayment } from "../../app/usePayment";
 import {
-  PayButtonProps,
   PAY_BUTTON_TEXT_FALLBACK,
   VAULT_BUTTON_TEXT_FALLBACK,
 } from "../PayButton";
-import { useHandleInitPayment } from "../../app/useHandleInitPayment";
 
 import { PayPalMask } from "./PayPalMask";
 
-import { PayPalProps } from "../../types";
+import { GeneralPayButtonProps, PayPalProps } from "../../types";
 
-type PayPalButtonProps = PayPalProps & PayButtonProps;
+type PayPalButtonProps = PayPalProps & GeneralPayButtonProps;
 
 export const PayPalButton: FC<PayPalButtonProps> = ({
-  disabled,
+  isPureVault,
   fullWidth = true,
   buttonText,
   flow,
@@ -38,12 +36,10 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
   tagline,
   height,
   shippingOptions,
-  shippingMethodId,
-  isPureVault,
 }) => {
-  const { clientToken } = usePayment();
+  const { clientToken, handleInitPayment } = usePayment();
 
-  useHandleInitPayment(disabled, undefined, shippingMethodId, isPureVault);
+  handleInitPayment(isPureVault);
 
   const FALLBACK_TEXT = isPureVault
     ? VAULT_BUTTON_TEXT_FALLBACK

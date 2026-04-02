@@ -1,7 +1,6 @@
 import { FC } from "react";
 
 import { RenderTemplate } from "../RenderTemplate";
-import { isPayButtonDisabled } from "../PayButton";
 
 import { ACHButton } from "./ACHButton";
 
@@ -13,7 +12,6 @@ export const ACH: FC<ACHProps> = ({
   processorUrl,
   sessionId,
   purchaseCallback,
-  cartInformation,
   fullWidth,
   buttonText,
   mandateText,
@@ -30,7 +28,6 @@ export const ACH: FC<ACHProps> = ({
       processorUrl={processorUrl}
       sessionId={sessionId}
       purchaseCallback={purchaseCallback}
-      cartInformation={cartInformation}
       taxAmount={taxAmount}
       shippingAmount={shippingAmount}
       discountAmount={discountAmount}
@@ -38,15 +35,12 @@ export const ACH: FC<ACHProps> = ({
     >
       <ACHButton
         processorUrl={processorUrl}
-        disabled={isPayButtonDisabled(cartInformation)}
         buttonText={buttonText}
         fullWidth={fullWidth}
-        cartInformation={cartInformation}
         mandateText={mandateText}
         useKount={useKount}
         lineItems={lineItems}
         shipping={shipping}
-        shippingMethodId={shippingMethodId}
       />
     </RenderTemplate>
   );
