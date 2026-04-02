@@ -1,7 +1,7 @@
 import { RequestContextData, setupPaymentSDK, Logger } from '@commercetools/connect-payments-sdk';
 import { config } from './config/config';
 import { getRequestContext, updateRequestContext } from './libs/fastify/context/context';
-import { log } from './libs/logger/index';
+import { log } from './libs/logger';
 
 export class AppLogger implements Logger {
   public debug = (obj: object, message: string) => {
