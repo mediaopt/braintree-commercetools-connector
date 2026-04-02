@@ -14,6 +14,15 @@ export enum PaymentMethodType {
 
 export const PaymentResponseSchema = Type.Object({
   paymentReference: Type.String(),
+  clientToken: Type.String(),
+  currency: Type.String(),
+  amount: Type.Number(),
+  email: Type.Optional(Type.String()),
+  braintreeCustomerId: Type.Optional(Type.String()),
+
+  //discountAmount
+  //taxAmount
+  //shippingAmount
 });
 
 export const PaymentOutcomeSchema = Type.Enum(PaymentOutcome);

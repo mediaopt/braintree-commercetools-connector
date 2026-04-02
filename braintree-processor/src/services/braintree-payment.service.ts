@@ -6,6 +6,7 @@ import {
   TransactionState,
   ErrorInvalidOperation,
   Cart,
+  Customer,
 } from '@commercetools/connect-payments-sdk';
 import {
   CancelPaymentRequest,
@@ -36,6 +37,7 @@ import { log } from '../libs/logger';
 import { CustomPaymentMethodService, PaymentMethod } from './ct-payment-method.service';
 import { handleInterfaceInteraction, getClientToken } from 'common-connect/dist';
 import { handleCustomFieldResponse } from '../utils/customEntities.utils';
+import { CustomerResourceIdentifier } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/customer';
 
 export class BraintreePaymentService extends AbstractPaymentService {
   private ctPaymentMethodService: CustomPaymentMethodService;
@@ -195,6 +197,19 @@ export class BraintreePaymentService extends AbstractPaymentService {
     };
   }
 
+  public async getCtCustomer(ctCustomerId: string): Promise<Customer | void> {
+    return await paymentSDK.ctAPI.client
+      .customers()
+      .withId({ ID: ctCustomerId })
+      .get()
+      .execute()
+      .then((response) => response.body)
+      .catch((err) => {
+        log.warn(`Customer not found ${ctCustomerId}`, { error: err });
+        return;
+      });
+  }
+
   /**
    * Capture payment
    *
@@ -325,6 +340,24 @@ export class BraintreePaymentService extends AbstractPaymentService {
       id: getCartIdFromContext(),
     });
 
+    const customerPaymentInfo: { customer: CustomerResourceIdentifier } | { anonymousId?: string } = ctCart.customerId
+      ? {
+          customer: {
+            typeId: 'customer',
+            id: ctCart.customerId,
+          },
+        }
+      : {
+          anonymousId: ctCart.anonymousId,
+        };
+
+    let braintreeCustomerId: string | undefined;
+
+    if (ctCart.customerId) {
+      const customer = await this.getCtCustomer(ctCart.customerId);
+      braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
+    }
+
     const ctPayment = await this.ctPaymentService.createPayment({
       amountPlanned: await this.ctCartService.getPaymentAmount({
         cart: ctCart,
@@ -332,16 +365,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       paymentMethodInfo: {
         paymentInterface: getPaymentInterfaceFromContext() || 'Braintree',
       },
-      ...(ctCart.customerId && {
-        customer: {
-          typeId: 'customer',
-          id: ctCart.customerId,
-        },
-      }),
-      ...(!ctCart.customerId &&
-        ctCart.anonymousId && {
-          anonymousId: ctCart.anonymousId,
-        }),
+      ...customerPaymentInfo,
     });
     //TODO - add braintree customer id here
 
@@ -368,7 +392,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
     });
 
     const updatedPayment = await this.ctPaymentService.updatePayment(updatePayment);
-    return { paymentReference: updatedPayment.id };
+    return {
+      paymentReference: updatedPayment.id,
+      clientToken: tokenResponse,
+      currency: ctPayment.amountPlanned.currencyCode,
+      amount: ctPayment.amountPlanned.centAmount / 100,
+      email: ctCart.customerEmail,
+      braintreeCustomerId,
+    };
 
     // // Fetch the required data and then validate it before making the request to the PSP.
     // const storedPaymentMethodDataOptions = await this.handleStoredPaymentMethod(request, ctCart);
