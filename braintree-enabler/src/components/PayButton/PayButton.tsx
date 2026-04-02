@@ -4,21 +4,16 @@ import { usePayment } from "../../app/usePayment";
 
 import { GeneralPayButtonProps } from "../../types";
 
-export type PayButtonProps = {
-  disabled: boolean;
-  shippingMethodId?: string;
-} & GeneralPayButtonProps;
-
 export const PAY_BUTTON_TEXT_FALLBACK = "Purchase";
 export const VAULT_BUTTON_TEXT_FALLBACK = "Save for future use";
 
-export const PayButton: FC<PropsWithChildren<PayButtonProps>> = ({
-  disabled,
+export const PayButton: FC<PropsWithChildren<GeneralPayButtonProps>> = ({
   fullWidth = true,
   buttonText = PAY_BUTTON_TEXT_FALLBACK,
 }) => {
   const { handleInitPayment } = usePayment();
 
+  //todo - rewrite button tests taking into account new error functionality
   return (
     <button
       className={classNames({
@@ -26,7 +21,6 @@ export const PayButton: FC<PropsWithChildren<PayButtonProps>> = ({
         "w-full": fullWidth,
       })}
       onClick={() => handleInitPayment()}
-      disabled={disabled}
     >
       {buttonText}
     </button>

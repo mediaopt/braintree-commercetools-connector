@@ -4,7 +4,7 @@ import {
   createContext,
   useMemo,
   useContext,
-  useState, useEffect
+  useState,
 } from "react";
 import {
   FetchPaymentMethodsPayload,
@@ -18,7 +18,6 @@ import {
   GeneralComponentsProps,
   CreatePaymentResponse,
   PaymentInfo,
-  CartInformationInitial,
   TransactionSaleResponse,
   RequestHeader,
 } from "../types";
@@ -39,10 +38,7 @@ type HandlePurchaseType = (
 type PaymentContextT = {
   gettingClientToken: boolean;
   clientToken: string;
-  handleInitPayment: (
-    merchantAccountId?: string,
-    vaultPayment?: boolean,
-  ) => void;
+  handleInitPayment: (isPureVault?: boolean) => void;
   setLocalPaymentId: (
     localPaymentId: string,
     saveLocalPaymentUrl: string,
@@ -87,6 +83,7 @@ const PaymentContext = createContext<PaymentContextT>({
 export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   processorUrl,
   sessionId,
+  merchantAccountId,
   purchaseCallback,
   children,
 }) => {
@@ -101,13 +98,6 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>(
     PaymentInfoInitialObject,
   );
-  const [disabled, setDisabled]=useState(true)
-
-  useEffect(() => {
-    setDisabled( !paymentInfo.email ||
-      !paymentInfo.billing ||
-      !paymentInfo.shipping)
-  }, []);
 
   const [vaultedPaymentMethods, setVaultedPaymentMethods] = useState<
     FetchPaymentMethodsPayload[]
@@ -124,10 +114,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   const { isLoading } = useLoader();
 
   const value = useMemo(() => {
-    const handleInitPayment = async (
-      merchantAccountId?: string,
-      vaultPayment?: boolean,
-    ) => {
+    const handleInitPayment = async (vaultPayment?: boolean) => {
       setGettingClientToken(true);
       isLoading(true);
       try {
@@ -138,9 +125,10 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
         const createPaymentResult = (await createPayment(
           requestHeader,
           createPaymentEndpoint,
-          merchantAccountId,
+          merchantAccountId, //todo - check if merchant account id is for local payment method only and shouldn't be passed anywhere else
         )) as CreatePaymentResponse;
         setClientToken(createPaymentResult.clientToken);
+        setBraintreeCustomerId(createPaymentResult.braintreeCustomerId);
 
         // if (!createPaymentResult.braintreeCustomerId && vaultPayment) {
         //   isLoading(false);

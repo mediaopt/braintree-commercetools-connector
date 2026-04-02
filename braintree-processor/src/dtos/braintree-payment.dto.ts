@@ -29,6 +29,8 @@ export const PaymentOutcomeSchema = Type.Enum(PaymentOutcome);
 
 export const PaymentRequestSchema = Type.Object({
   merchantAccountId: Type.Optional(Type.String()),
+  isPureVault: Type.Optional(Type.Boolean()),
+
   // paymentMethod: Type.Object({
   //   type: Type.Enum(PaymentMethodType),
   //   poNumber: Type.Optional(Type.String()),

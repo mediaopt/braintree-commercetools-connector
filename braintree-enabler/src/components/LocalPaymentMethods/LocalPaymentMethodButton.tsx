@@ -1,21 +1,20 @@
 import { FC } from "react";
 
 import { usePayment } from "../../app/usePayment";
-import { PAY_BUTTON_TEXT_FALLBACK, PayButtonProps } from "../PayButton";
+import { PAY_BUTTON_TEXT_FALLBACK } from "../PayButton";
 import {
+  GeneralPayButtonProps,
   LocalPaymentComponentsProp,
   LocalPaymentMethodsType,
 } from "../../types";
-import { useHandleInitPayment } from "../../app/useHandleInitPayment";
 import { LocalPaymentMethodMask } from "./LocalPaymentMethodMask";
 
 type LocalPaymentMethod = LocalPaymentComponentsProp &
   LocalPaymentMethodsType &
-  PayButtonProps;
+  GeneralPayButtonProps;
 
 export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
   processorUrl,
-  disabled,
   fullWidth = true,
   buttonText = PAY_BUTTON_TEXT_FALLBACK,
   paymentType,
@@ -27,12 +26,10 @@ export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
   shippingAddressRequired,
   useKount,
   lineItems,
-  shipping,
-  shippingMethodId,
+  shipping
 }: LocalPaymentMethod) => {
-  const { clientToken } = usePayment();
-
-  useHandleInitPayment(disabled, merchantAccountId, shippingMethodId);
+  const { clientToken, handleInitPayment } = usePayment();
+  handleInitPayment();
 
   return clientToken ? (
     <LocalPaymentMethodMask

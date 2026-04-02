@@ -5,15 +5,12 @@ import { CreditCardMask } from "./CreditCardMask";
 import {
   PAY_BUTTON_TEXT_FALLBACK,
   VAULT_BUTTON_TEXT_FALLBACK,
-  PayButtonProps,
 } from "../PayButton";
-import { GeneralCreditCardProps } from "../../types";
-import { useHandleInitPayment } from "../../app/useHandleInitPayment";
+import { GeneralCreditCardProps, GeneralPayButtonProps } from "../../types";
 
-type CreditCardButton = GeneralCreditCardProps & PayButtonProps;
+type CreditCardButton = GeneralCreditCardProps & GeneralPayButtonProps;
 
 export const CreditCardButton: FC<CreditCardButton> = ({
-  disabled,
   fullWidth = true,
   buttonText,
   showPostalCode,
@@ -26,19 +23,16 @@ export const CreditCardButton: FC<CreditCardButton> = ({
   useKount,
   lineItems,
   shipping,
-  shippingMethodId,
   isPureVault,
 }: CreditCardButton) => {
-  const { clientToken } = usePayment();
-
-  useHandleInitPayment(disabled, undefined, shippingMethodId, isPureVault);
+  const { clientToken, handleInitPayment } = usePayment();
+  handleInitPayment(isPureVault);
 
   const FALLBACK_TEXT = isPureVault
     ? VAULT_BUTTON_TEXT_FALLBACK
     : PAY_BUTTON_TEXT_FALLBACK;
 
-  return (
-    // clientToken ? (
+  return clientToken ? (
     <CreditCardMask
       fullWidth={fullWidth}
       buttonText={buttonText ?? FALLBACK_TEXT}
@@ -54,7 +48,7 @@ export const CreditCardButton: FC<CreditCardButton> = ({
       shipping={shipping}
       isPureVault={isPureVault}
     />
-    // ) : (
-    //   <></>
+  ) : (
+    <></>
   );
 };

@@ -50,6 +50,7 @@ type LineItemsShipping = {
 };
 
 export type GeneralPayButtonProps = {
+  merchantAccountId?: string;
   fullWidth?: boolean;
   buttonText?: string;
 } & UseKount &
