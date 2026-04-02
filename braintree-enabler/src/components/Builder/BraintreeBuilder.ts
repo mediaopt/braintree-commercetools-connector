@@ -6,8 +6,17 @@ import {
 } from "../../payment-enabler/interfaces/enabler";
 import { BaseOptions } from "../../payment-enabler/interfaces/baseOptions";
 import { GeneralComponentsProps } from "../../types";
-import { CreditCard } from "../CreditCard/CreditCard";
+import { CreditCard } from "../CreditCard";
+import { PayPal } from "../PayPal";
 import { createElement } from "react";
+import {
+  ButtonColorOption,
+  ButtonLabelOption,
+  ButtonShapeOption,
+  ButtonSizeOption,
+  FlowType,
+  Intent,
+} from "paypal-checkout-components";
 
 class BraintreeComponent implements PaymentComponent {
   private root: Root | null = null;
@@ -25,11 +34,25 @@ class BraintreeComponent implements PaymentComponent {
     element.innerHTML = "";
     this.root = createRoot(element as HTMLElement);
     this.root.render(
-      createElement(CreditCard, {
+      createElement(PayPal, {
         ...this.baseOptions,
         ...this.config,
-        fullWidth: true,
-      } as GeneralComponentsProps),
+        flow: "checkout" as FlowType,
+        buttonColor: "blue" as ButtonColorOption,
+        buttonLabel: "pay" as ButtonLabelOption,
+        payLater: true,
+        payLaterButtonColor: "blue" as ButtonColorOption,
+        locale: "en_GB",
+        intent: "capture" as Intent,
+        useKount: true,
+        shape: "pill" as ButtonShapeOption,
+        size: "small" as ButtonSizeOption,
+        tagline: true,
+        height: 55,
+        purchaseCallback: (result, options) => {
+          console.log(`do something, ${result}, ${options}`);
+        },
+      }),
     );
   }
 

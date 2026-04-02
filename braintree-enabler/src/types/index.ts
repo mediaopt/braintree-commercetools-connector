@@ -68,8 +68,7 @@ export type GeneralComponentsProps = RequiredSessionData & {
   discountAmount?: string;
   purchaseCallback: (result: any, options?: any) => void;
   shippingMethodId?: string;
-} & CartInformationProps &
-  GeneralPayButtonProps &
+} & GeneralPayButtonProps & //CartInformationProps &
   UseKount &
   LineItemsShipping;
 
@@ -94,6 +93,7 @@ export type CreatePaymentResponse = {
   shippingMethod: object; // @todo add better types maybe?
   braintreeCustomerId: string;
   customerVersion?: number;
+  clientToken: string;
 };
 
 export type TransactionSaleResponse = {
