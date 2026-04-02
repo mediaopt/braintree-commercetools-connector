@@ -4,7 +4,7 @@ import {
   createContext,
   useMemo,
   useContext,
-  useState,
+  useState, useEffect
 } from "react";
 import {
   FetchPaymentMethodsPayload,
@@ -61,9 +61,10 @@ const PaymentInfoInitialObject = {
   id: "",
   amount: 0,
   currency: "",
-  lineItems: [],
-  shippingMethod: {},
-  cartInformation: CartInformationInitial,
+  // lineItems: [],
+  // shippingMethod: {},
+  // cartInformation: CartInformationInitial,
+  clientToken: "",
 };
 
 const PaymentContext = createContext<PaymentContextT>({
@@ -100,6 +101,14 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>(
     PaymentInfoInitialObject,
   );
+  const [disabled, setDisabled]=useState(true)
+
+  useEffect(() => {
+    setDisabled( !paymentInfo.email ||
+      !paymentInfo.billing ||
+      !paymentInfo.shipping)
+  }, []);
+
   const [vaultedPaymentMethods, setVaultedPaymentMethods] = useState<
     FetchPaymentMethodsPayload[]
   >([]);
@@ -131,6 +140,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
           createPaymentEndpoint,
           merchantAccountId,
         )) as CreatePaymentResponse;
+        setClientToken(createPaymentResult.clientToken);
 
         // if (!createPaymentResult.braintreeCustomerId && vaultPayment) {
         //   isLoading(false);
@@ -252,17 +262,17 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
     ) => {
       const additional = options ?? {};
 
-      if (taxAmount) {
-        additional.taxAmount = taxAmount;
-      }
-
-      if (shippingAmount) {
-        additional.shippingAmount = shippingAmount;
-      }
-
-      if (discountAmount) {
-        additional.discountAmount = discountAmount;
-      }
+      // if (taxAmount) {
+      //   additional.taxAmount = taxAmount;
+      // }
+      //
+      // if (shippingAmount) {
+      //   additional.shippingAmount = shippingAmount;
+      // }
+      //
+      // if (discountAmount) {
+      //   additional.discountAmount = discountAmount;
+      // }
 
       const requestBody = {
         paymentVersion: overridePaymentVersion || paymentInfo.version,
