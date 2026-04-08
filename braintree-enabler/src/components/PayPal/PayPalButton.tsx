@@ -1,4 +1,4 @@
-import { FC } from "react";
+import { FC, useEffect } from "react";
 
 import { usePayment } from "../../app/usePayment";
 import {
@@ -39,7 +39,9 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
 }) => {
   const { clientToken, handleInitPayment } = usePayment();
 
-  handleInitPayment(isPureVault);
+  useEffect(() => {
+    if (!clientToken) handleInitPayment(isPureVault);
+  }, [clientToken]);
 
   const FALLBACK_TEXT = isPureVault
     ? VAULT_BUTTON_TEXT_FALLBACK
