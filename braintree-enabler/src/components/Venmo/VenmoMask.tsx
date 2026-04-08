@@ -44,7 +44,7 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
   lineItems,
   shipping,
 }: VenmoMaskType) => {
-  const { handlePurchase, paymentInfo, clientToken } = usePayment();
+  const { handleTransactionSale, paymentInfo, clientToken } = usePayment();
   const { notify } = useNotifications();
   const [displayButton, setDisplayButton] = useState(false);
   const [venmoDisabled, setVenmoDisabled] = useState(false);
@@ -64,7 +64,7 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
   };
 
   const handleVenmoSuccess = (payload: VenmoTokenizePayload) => {
-    handlePurchase(payload.nonce, {
+    handleTransactionSale(payload.nonce, {
       deviceData: deviceData,
       lineItems: lineItems,
       shipping: shipping,
@@ -115,7 +115,7 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
               return;
             }
             setDeviceData(dataCollectorInstance.deviceData);
-          }
+          },
         );
 
         let venmoFlowOption: any =
@@ -149,7 +149,7 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
               }
               notify(
                 "Warning",
-                "Browser does not support Venmo - will be ignored due to settings"
+                "Browser does not support Venmo - will be ignored due to settings",
               );
             }
 
@@ -178,9 +178,9 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
               // });
               return;
             }
-          }
+          },
         );
-      }
+      },
     );
   }, [
     paymentInfo,
@@ -196,8 +196,7 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
         disabled={venmoDisabled}
         type="submit"
         className={classNames({
-          "justify-center align-center rounded-md px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-white bg-blue-500 hover:bg-blue-600  shadow-sm":
-            true,
+          "justify-center align-center rounded-md px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-white bg-blue-500 hover:bg-blue-600  shadow-sm": true,
           "w-full": fullWidth,
           hidden: !displayButton,
         })}

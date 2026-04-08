@@ -32,18 +32,12 @@ const logCleanMessage = ({
 export const handleRequest = (
   messageName: string,
   message: string | object
-): UpdateActions => {
+): UpdateActions =>
   logCleanMessage({
     messageName,
     message,
     messageType: 'Request',
   });
-  return logCleanMessage({
-    messageName,
-    message,
-    messageType: 'Request',
-  });
-};
 
 export const handlePaymentResponse = (
   messageName: string,

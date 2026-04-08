@@ -22,7 +22,7 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
   lineItems,
   shipping,
 }: GooglePayTypes) => {
-  const { handlePurchase, paymentInfo, clientToken } = usePayment();
+  const { handleTransactionSale, paymentInfo, clientToken } = usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
   const GoogleApiVersion: number = 2;
@@ -108,11 +108,11 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
                                   notify("Error", err.message);
                                   return;
                                 }
-                                handlePurchase(result.nonce, {
+                                handleTransactionSale(result.nonce, {
                                   lineItems: lineItems,
                                   shipping: shipping,
                                 });
-                              }
+                              },
                             );
                           })
                           .catch(function (err) {
@@ -125,7 +125,7 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
                     });
                     if (googlePayButtonContainer.current) {
                       googlePayButtonContainer.current.appendChild(
-                        googlePayButton
+                        googlePayButton,
                       );
                     }
                   } else {
@@ -135,9 +135,9 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
                 .catch(function (err) {
                   notify("Error", err.message);
                 });
-            }
+            },
           );
-        }
+        },
       );
       isLoading(false);
     });

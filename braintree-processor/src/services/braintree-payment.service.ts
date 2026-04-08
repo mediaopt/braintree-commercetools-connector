@@ -5,8 +5,10 @@ import {
   TransactionType,
   TransactionState,
   ErrorInvalidOperation,
+  Transaction as CTTransaction,
   Cart,
   Customer,
+  Payment,
 } from '@commercetools/connect-payments-sdk';
 import {
   CancelPaymentRequest,
@@ -26,7 +28,12 @@ import { AbstractPaymentService } from './abstract-payment.service';
 import { getConfig } from '../config/config';
 import { appLogger, paymentSDK } from '../payment-sdk';
 import { CreatePaymentRequest, BraintreePaymentServiceOptions } from './types/braintree-payment.type';
-import { PaymentMethodType, PaymentOutcome, PaymentResponseSchemaDTO } from '../dtos/braintree-payment.dto';
+import {
+  PaymentMethodType,
+  PaymentOutcome,
+  PaymentResponseSchemaDTO,
+  TransactionSaleRequestSchemaDTO,
+} from '../dtos/braintree-payment.dto';
 import { getCartIdFromContext, getPaymentInterfaceFromContext } from '../libs/fastify/context/context';
 import { randomUUID } from 'crypto';
 import { launchpadPurchaseOrderCustomType } from '../custom-types/custom-types';
@@ -35,8 +42,17 @@ import { getStoredPaymentMethodsConfig } from '../config/stored-payment-methods.
 import { StoredPaymentMethod, StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
 import { log } from '../libs/logger';
 import { CustomPaymentMethodService, PaymentMethod } from './ct-payment-method.service';
-import { handleInterfaceInteraction, getClientToken } from 'common-connect/dist';
-import { handleCustomFieldResponse } from '../utils/customEntities.utils';
+import {
+  handleInterfaceInteraction,
+  getClientToken,
+  mapCommercetoolsMoneyToBraintreeMoney,
+  mapRequestToBraintreeTransactionSale,
+  transactionSale,
+  mapBraintreeTransactionToCommercetoolsTransaction,
+  submitForSettlement,
+  getPaymentMethodHint,
+} from 'common-connect/dist';
+import { handleCustomTransactionFields, handleCustomFieldResponse } from '../utils/customEntities.utils';
 import { CustomerResourceIdentifier } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/customer';
 
 export class BraintreePaymentService extends AbstractPaymentService {
@@ -333,6 +349,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * @param request - contains paymentType defined in composable commerce
    * @returns Promise with mocking data containing operation status and PSP reference
    */
+
   public async createPayment(request: CreatePaymentRequest): Promise<PaymentResponseSchemaDTO> {
     this.validatePaymentMethod(request);
 
@@ -359,6 +376,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
       braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
     }
 
+    //todo - add verification if this payment already exists and can be returned
+
     const ctPayment = await this.ctPaymentService.createPayment({
       amountPlanned: await this.ctCartService.getPaymentAmount({
         cart: ctCart,
@@ -376,28 +395,33 @@ export class BraintreePaymentService extends AbstractPaymentService {
       },
       paymentId: ctPayment.id,
     });
+    const requestInteraction = handleInterfaceInteraction({
+      messageName: 'getClientToken',
+      message: request,
+      messageType: 'Request',
+    });
     const tokenResponse = await getClientToken({
       merchantAccountId: request.data.merchantAccountId,
       customerId: braintreeCustomerId,
     });
     const customFields = handleCustomFieldResponse('getClientToken', tokenResponse); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
-    const updateInterfaceInteractions = handleInterfaceInteraction({
+    const responseInteraction = handleInterfaceInteraction({
       messageName: 'getClientToken',
-      message: request,
-      messageType: 'Request',
-    });
-    const updatePayment = await this.ctPaymentService.updatePayment({
-      id: ctPayment.id,
-      customFields,
-      pspInteractions: [updateInterfaceInteractions],
+      message: tokenResponse,
+      messageType: 'Response',
     });
 
-    const updatedPayment = await this.ctPaymentService.updatePayment(updatePayment);
+    const updatedPayment = await this.ctPaymentService.updatePayment({
+      id: ctPayment.id,
+      customFields,
+      pspInteractions: [requestInteraction, responseInteraction],
+    });
+
     return {
-      paymentReference: updatedPayment.id,
+      ctPaymentId: updatedPayment.id,
       clientToken: tokenResponse,
       currency: ctPayment.amountPlanned.currencyCode,
-      amount: ctPayment.amountPlanned.centAmount / 100,
+      braintreeAmount: mapCommercetoolsMoneyToBraintreeMoney(ctPayment.amountPlanned),
       email: ctCart.customerEmail,
       braintreeCustomerId,
     };
@@ -455,6 +479,91 @@ export class BraintreePaymentService extends AbstractPaymentService {
     //   paymentReference: updatedctPayment.id,
     // };
   }
+
+  public async transactionSale({
+    ctPaymentId,
+    paymentNonce,
+    paymentToken,
+  }: TransactionSaleRequestSchemaDTO): Promise<{ message: string; success: boolean }> {
+    const ctPayment = await this.ctPaymentService.getPayment({ id: ctPaymentId });
+    const transactionRequest = mapRequestToBraintreeTransactionSale(
+      ctPayment,
+      undefined,
+      undefined,
+      paymentNonce,
+      paymentToken,
+    ); //todo - handle other params
+    const requestInteraction = handleInterfaceInteraction({
+      messageName: 'transactionSale',
+      message: transactionRequest,
+      messageType: 'Request',
+    });
+    const response = await transactionSale(transactionRequest);
+    const customFields = handleCustomFieldResponse('transactionSale', response); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
+    const responseInteraction = handleInterfaceInteraction({
+      messageName: 'transactionSale',
+      message: response,
+      messageType: 'Response',
+    });
+    handleCustomTransactionFields(customFields, response, ctPayment);
+    await this.ctPaymentService.updatePayment({
+      id: ctPayment.id,
+      customFields,
+      pspInteractions: [requestInteraction, responseInteraction],
+      transaction: mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response),
+      pspReference: response.id, //TODO - verify that pspReference do sets interaction id
+    });
+    return { message: 'success', success: true };
+  }
+
+  //see alse extension module submitForSettlement
+  public async settlement(request: { ctPaymentId: string; transactionId?: string }): Promise<void> {
+    const ctPayment = await this.ctPaymentService.getPayment({ id: request.ctPaymentId });
+    let relevantTransaction: CTTransaction;
+    if (request.transactionId) {
+      const targetTransaction = ctPayment.transactions.find(({ id }) => id === request.transactionId);
+      if (!targetTransaction)
+        throw new ErrorInvalidOperation(
+          `Payment ${request.ctPaymentId} doesn't have a transaction with this id ${request.transactionId}`,
+        );
+      else {
+        if (targetTransaction.type !== 'Authorization')
+          throw new ErrorInvalidOperation(
+            `Transaction with this id ${request.transactionId} can't be settled due to it's type`, //todo - verify which statuses can actually be settled
+          );
+      }
+      relevantTransaction = targetTransaction;
+    } else {
+      const targetTransactions = ctPayment.transactions.filter(({ type }) => type === 'Authorization');
+      if (!targetTransactions.length)
+        throw new ErrorInvalidOperation(
+          `Payment ${request.ctPaymentId} doesn't have a transaction with a type suitable for settlement`,
+        );
+      relevantTransaction = targetTransactions[targetTransactions.length - 1];
+    }
+    const requestInteraction = handleInterfaceInteraction({
+      messageName: 'submitForSettlement',
+      message: request,
+      messageType: 'Request',
+    });
+    const response = await submitForSettlement(relevantTransaction.id); //for submitting part of the transaction extension through the API should be used
+    const responseInteraction = handleInterfaceInteraction({
+      messageName: 'submitForSettlement',
+      message: response,
+      messageType: 'Response',
+    });
+    const paymentMethodHint = getPaymentMethodHint(response);
+    await this.ctPaymentService.updatePayment({
+      id: ctPayment.id,
+      pspInteractions: [requestInteraction, responseInteraction],
+      transaction: mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response), //todo - get sure that charge is properly mapped
+      pspReference: response.id, //TODO - verify that pspReference do sets interaction id
+      paymentMethodInfo: { method: `${response.paymentInstrumentType} ${paymentMethodHint || ''}`.trim() },
+      //todo - find out what are the alternatives for status interface code and text
+    });
+  }
+
+  //todo - verify that payPalOrderRequest was never used through frontend flow
 
   /**
    * Before the create payment request to the PSP is made the input needs to be validated first and then passed to the PSP to either tokenise or pay with a token.

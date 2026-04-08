@@ -12,11 +12,11 @@ export enum PaymentMethodType {
   PURCHASE_ORDER = 'purchaseorder',
 }
 
-export const PaymentResponseSchema = Type.Object({
-  paymentReference: Type.String(),
+export const InitPaymentResponseSchema = Type.Object({
+  ctPaymentId: Type.String(),
   clientToken: Type.String(),
   currency: Type.String(),
-  amount: Type.Number(),
+  braintreeAmount: Type.String(),
   email: Type.Optional(Type.String()),
   braintreeCustomerId: Type.Optional(Type.String()),
 
@@ -27,7 +27,7 @@ export const PaymentResponseSchema = Type.Object({
 
 export const PaymentOutcomeSchema = Type.Enum(PaymentOutcome);
 
-export const PaymentRequestSchema = Type.Object({
+export const InitPaymentRequestSchema = Type.Object({
   merchantAccountId: Type.Optional(Type.String()),
   isPureVault: Type.Optional(Type.Boolean()),
 
@@ -47,5 +47,13 @@ export const PaymentRequestSchema = Type.Object({
   // paymentOutcome: PaymentOutcomeSchema,
 });
 
-export type PaymentRequestSchemaDTO = Static<typeof PaymentRequestSchema>;
-export type PaymentResponseSchemaDTO = Static<typeof PaymentResponseSchema>;
+export type PaymentRequestSchemaDTO = Static<typeof InitPaymentRequestSchema>;
+export type PaymentResponseSchemaDTO = Static<typeof InitPaymentResponseSchema>;
+
+export const TransactionSaleRequestSchema = Type.Object({
+  ctPaymentId: Type.String(),
+  paymentNonce: Type.Optional(Type.String()),
+  paymentToken: Type.Optional(Type.String()),
+});
+
+export type TransactionSaleRequestSchemaDTO = Static<typeof TransactionSaleRequestSchema>;

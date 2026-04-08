@@ -26,7 +26,7 @@ export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
     useState<ApplePay>();
 
   const { isLoading } = useLoader();
-  const { handlePurchase, paymentInfo, clientToken } = usePayment();
+  const { handleTransactionSale, paymentInfo, clientToken } = usePayment();
   const { notify } = useNotifications();
 
   const applePayButtonContainer = useRef<HTMLDivElement>(null);
@@ -56,9 +56,9 @@ export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
             }
 
             setApplePayInstanceState(applePayInstance);
-          }
+          },
         );
-      }
+      },
     );
     isLoading(false);
   }, [clientToken]);
@@ -97,7 +97,7 @@ export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
                       return;
                     }
                     session.completeMerchantValidation(merchantSession);
-                  }
+                  },
                 );
               };
 
@@ -111,21 +111,21 @@ export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
                       notify("Error", "Error tokenizing Apple Pay");
 
                       session.completePayment(
-                        window.ApplePaySession.STATUS_FAILURE
+                        window.ApplePaySession.STATUS_FAILURE,
                       );
                       return;
                     }
 
                     if (payload)
-                      handlePurchase(payload.nonce, {
+                      handleTransactionSale(payload.nonce, {
                         lineItems: lineItems,
                         shipping: shipping,
                       });
 
                     session.completePayment(
-                      window.ApplePaySession.STATUS_SUCCESS
+                      window.ApplePaySession.STATUS_SUCCESS,
                     );
-                  }
+                  },
                 );
               };
 
@@ -133,7 +133,7 @@ export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
             } else {
               notify(
                 "Error",
-                "There is an error in Apple Pay create payment request"
+                "There is an error in Apple Pay create payment request",
               );
             }
           }}

@@ -83,7 +83,7 @@ export type ClientTokenResponse = {
 };
 
 export type CreatePaymentResponse = {
-  id: string;
+  ctPaymentId: string;
   version: number;
   amountPlanned: {
     centAmount: number;
@@ -107,9 +107,9 @@ export type TransactionSaleResponse = {
 };
 
 export type PaymentInfo = {
-  id: string;
+  ctPaymentId: string;
   version: number;
-  amount: number;
+  braintreeAmount: number;
   currency: string;
   lineItems: Array<any>;
   shippingMethod: {};

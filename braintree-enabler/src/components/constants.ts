@@ -1,6 +1,6 @@
 export const processorUrls = (processorUrl: string) => ({
   createPaymentUrl: `${processorUrl}/payments`,
-  purchaseUrl: `${processorUrl}/payment/createPurchase`,
+  transactionSaleUrl: `${processorUrl}/payments/transactionSale`,
   createPaymentForVault: `${processorUrl}/payment/createPaymentForVault`,
   vaultPaymentMethodUrl: `${processorUrl}/payment/vaultPaymentMethod`,
   saveLocalPaymentIdUrl: `${processorUrl}/payment/setLocalPaymentId`,

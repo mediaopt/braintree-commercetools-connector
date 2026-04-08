@@ -52,7 +52,7 @@ export const LocalPaymentMethodMask: FC<
 
   const paymentButton = useRef<HTMLButtonElement>(null);
 
-  const { handlePurchase, paymentInfo, clientToken, setLocalPaymentId } =
+  const { handleTransactionSale, paymentInfo, clientToken, setLocalPaymentId } =
     usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
@@ -108,7 +108,7 @@ export const LocalPaymentMethodMask: FC<
             if (merchantAccountId) {
               handlePurchaseOptions.merchantAccountId = merchantAccountId;
             }
-            handlePurchase(
+            handleTransactionSale(
               payload.nonce,
               handlePurchaseOptions,
               overridePaymentVersion,
