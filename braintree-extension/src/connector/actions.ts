@@ -25,7 +25,7 @@ export const BRAINTREE_CUSTOMER_TYPE_KEY = 'braintree-customer-type';
 
 export const BRAINTREE_API_PAYMENT_ENDPOINTS = [
   'getClientToken',
-  'transactionSale',
+  'transactionSaleUrl',
   'refund',
   'submitForSettlement',
   'void',

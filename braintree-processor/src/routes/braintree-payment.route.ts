@@ -1,10 +1,12 @@
 import { SessionHeaderAuthenticationHook } from '@commercetools/connect-payments-sdk';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import {
-  PaymentRequestSchema,
+  InitPaymentRequestSchema,
   PaymentRequestSchemaDTO,
-  PaymentResponseSchema,
+  InitPaymentResponseSchema,
   PaymentResponseSchemaDTO,
+  TransactionSaleRequestSchema,
+  TransactionSaleRequestSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { BraintreePaymentService } from '../services/braintree-payment.service';
 import { StoredPaymentMethodsResponseSchema } from '../dtos/stored-payment-methods.dto';
@@ -21,9 +23,9 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
     {
       preHandler: [opts.sessionHeaderAuthHook.authenticate()],
       schema: {
-        body: PaymentRequestSchema,
+        body: InitPaymentRequestSchema,
         response: {
-          200: PaymentResponseSchema,
+          200: InitPaymentResponseSchema,
         },
       },
     },
@@ -33,6 +35,28 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
       });
 
       return reply.status(200).send(resp);
+    },
+  );
+
+  fastify.post<{
+    Body: TransactionSaleRequestSchemaDTO;
+    Reply: { status: string };
+  }>(
+    '/payments/transactionSale',
+    {
+      preHandler: [opts.sessionHeaderAuthHook.authenticate()],
+      schema: {
+        body: TransactionSaleRequestSchema,
+        response: {
+          200: Type.Object({
+            status: Type.String(),
+          }),
+        },
+      },
+    },
+    async (request, reply) => {
+      await opts.paymentService.transactionSale(request.body);
+      return reply.status(200).send({ status: 'Transaction sale processed' });
     },
   );
 

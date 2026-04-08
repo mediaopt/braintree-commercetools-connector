@@ -64,7 +64,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   const [deviceData, setDeviceData] = useState("");
 
   const {
-    handlePurchase,
+    handleTransactionSale,
     paymentInfo,
     clientToken,
     handlePureVault,
@@ -103,7 +103,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
       };
     }
     const additionalFundingMethods = Object.keys(
-      additionalFundingSources ?? {}
+      additionalFundingSources ?? {},
     );
 
     additionalFundingMethods.map((additionalFundingMethod) => {
@@ -147,7 +147,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
             if (!dataCollectorErr && dataCollectorInstance) {
               setDeviceData(dataCollectorInstance.deviceData);
             }
-          }
+          },
         );
 
         paypalCheckout.create(
@@ -162,16 +162,15 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
             }
 
             paypalCheckoutInstance.loadPayPalSDK(
-              { vault: true }, //FIXME - restore proper call
-              // isVault
-              //   ? { vault: true }
-              //   : {
-              //       currency: paymentInfo.currency,
-              //       intent: intent,
-              //       ...enableFunding,
-              //     },
+              isVault
+                ? { vault: true }
+                : ({
+                    currency: paymentInfo.currency,
+                    intent: intent,
+                    ...enableFunding,
+                  } as PayPalCheckoutLoadPayPalSDKOptions),
               () => {
-                const paypal = global.paypal;
+                //const paypal = global.paypal;
 
                 const handleOnApprove = (data: any, actions: any) => {
                   return paypalCheckoutInstance.tokenizePayment(
@@ -181,26 +180,26 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                       // if (isPureVault) {
                       //   handlePureVault(payload.nonce);
                       // } else {
-                      //   handlePurchase(payload.nonce, {
-                      //     deviceData: deviceData,
-                      //     lineItems: lineItems,
-                      //     shipping: shipping,
-                      //     account: {
-                      //       email: payload.details.email,
-                      //     },
-                      //     billing: {
-                      //       firstName: payload.details.firstName,
-                      //       lastName: payload.details.lastName,
-                      //       streetName: payload.details.shippingAddress.line1,
-                      //       streetNumber: payload.details.shippingAddress.line1,
-                      //       city: payload.details.shippingAddress.city,
-                      //       country: payload.details.countryCode,
-                      //       postalCode:
-                      //         payload.details.shippingAddress.postalCode,
-                      //     },
-                      //   });
+                      handleTransactionSale(payload.nonce, {
+                        deviceData: deviceData,
+                        // lineItems: lineItems,
+                        // shipping: shipping,
+                        account: {
+                          email: payload.details.email,
+                        },
+                        billing: {
+                          firstName: payload.details.firstName,
+                          lastName: payload.details.lastName,
+                          streetName: payload.details.shippingAddress.line1,
+                          streetNumber: payload.details.shippingAddress.line1,
+                          city: payload.details.shippingAddress.city,
+                          country: payload.details.countryCode,
+                          postalCode:
+                            payload.details.shippingAddress.postalCode,
+                        },
+                      });
                       // }
-                    }
+                    },
                   );
                 };
                 const handleOnClose = (data: any) => {
@@ -211,7 +210,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                 };
 
                 if (isVault) {
-                  // @ts-ignore
                   // @ts-ignore
                   paypal
                     .Buttons({
@@ -242,6 +240,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                     .render("#paypal-button");
                 } else {
                   FUNDING_SOURCES.forEach((fundingSource) => {
+                    // @ts-ignore
                     paypal
                       .Buttons({
                         style: {
@@ -265,14 +264,14 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
 
                           const shippingOption = shippingOptions.find(
                             (shippingOption) =>
-                              shippingOption.countryCode === countryCode
+                              shippingOption.countryCode === countryCode,
                           );
 
                           if (shippingOption) {
                             if (lineItems) {
                               const shippingLineItemIndex =
                                 lineItems?.findIndex(
-                                  (lineItem) => lineItem.name === "Shipping"
+                                  (lineItem) => lineItem.name === "Shipping",
                                 );
 
                               const shippingAmountString =
@@ -317,7 +316,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           return paypalCheckoutInstance.createPayment({
                             flow: flow,
                             locale: locale,
-                            amount: paymentInfo.amount,
+                            amount: paymentInfo.braintreeAmount,
                             currency: paymentInfo.currency,
                             intent: intent,
                             enableShippingAddress: enableShippingAddress,
@@ -336,11 +335,11 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                   });
                 }
                 isLoading(false);
-              }
+              },
             );
-          }
+          },
         );
-      }
+      },
     );
   }, [
     paymentInfo,
@@ -372,7 +371,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
 
   const handleVaultedPurchase = async () => {
     isLoading(true);
-    await handlePurchase(selectedAccount, {
+    await handleTransactionSale(selectedAccount, {
       deviceData: deviceData,
       lineItems: lineItems,
       shipping: shipping,
@@ -419,7 +418,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
             className={`${renderMaskButtonClasses(
               fullWidth ?? false,
               true,
-              false
+              false,
             )} mb-5`}
           >
             {buttonText}

@@ -77,7 +77,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   shipping,
 }: ACHMaskProps) => {
   const {
-    handlePurchase,
+    handleTransactionSale,
     clientToken,
     handleGetVaultedPaymentMethods,
     requestHeader,
@@ -268,7 +268,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
 
   const handleVaultedPurchase = async () => {
     isLoading(true);
-    await handlePurchase(selectedAccount, {
+    await handleTransactionSale(selectedAccount, {
       deviceData: deviceData,
       lineItems: lineItems,
       shipping: shipping,

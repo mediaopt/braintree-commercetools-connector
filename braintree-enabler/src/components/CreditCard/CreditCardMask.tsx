@@ -64,7 +64,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   isPureVault = false,
 }) => {
   const {
-    handlePurchase,
+    handleTransactionSale,
     handlePureVault,
     paymentInfo,
     handleGetVaultedPaymentMethods,
@@ -126,7 +126,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
 
   const verifyCardAndHandlePurchase = (
     threeDSecureParameters: ThreeDSecureVerifyOptions,
-    shouldVault?: boolean
+    shouldVault?: boolean,
   ) => {
     const options: {
       deviceData: string;
@@ -154,23 +154,23 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           return;
         }
         if (response.threeDSecureInfo.liabilityShifted) {
-          handlePurchase(response.nonce, options);
+          handleTransactionSale(response.nonce, options);
         } else if (response.threeDSecureInfo.liabilityShiftPossible) {
           if (continueOnLiabilityShiftPossible) {
-            handlePurchase(response.nonce, options);
+            handleTransactionSale(response.nonce, options);
           } else {
             notify(
               "Warning",
-              "Failed the 3D Secure verification. Please use a different payment method."
+              "Failed the 3D Secure verification. Please use a different payment method.",
             );
           }
         } else {
           if (continueOnNoThreeDS) {
-            handlePurchase(response.nonce, options);
+            handleTransactionSale(response.nonce, options);
           } else {
             notify(
               "Warning",
-              "3D Secure is not available for your card. Please use a different payment method."
+              "3D Secure is not available for your card. Please use a different payment method.",
             );
           }
         }
@@ -183,7 +183,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           } else if (error.code.indexOf("THREEDS_LOOKUP_VALIDATION") === 0) {
             notify(
               "Error",
-              "Validation error - check your input or try a different payment"
+              "Validation error - check your input or try a different payment",
             );
           } else {
             notify("Error", "Something went wrong - try again");
@@ -292,8 +292,8 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
             borderClassToggle.map((classToggle) =>
               FieldKeyMap[fieldsKey].current?.classList.toggle(
                 classToggle,
-                !validField
-              )
+                !validField,
+              ),
             );
           }
           setInvalidInput(!isValid);
@@ -309,7 +309,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
             if (!dataCollectorErr && dataCollectorInstance) {
               setDeviceData(dataCollectorInstance.deviceData);
             }
-          }
+          },
         );
 
         var tokenize = function (event: any) {
@@ -325,7 +325,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
                 isLoading(false);
                 notify(
                   "Error",
-                  "Something went wrong. Check your card details and try again."
+                  "Something went wrong. Check your card details and try again.",
                 );
                 return;
               }
@@ -343,16 +343,16 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
                 };
                 verifyCardAndHandlePurchase(
                   threeDSecureParameters,
-                  shouldVault
+                  shouldVault,
                 );
               }
-            }
+            },
           );
         };
         form.addEventListener("submit", tokenize, false);
         handleGetVaultedPaymentMethodsByType("CreditCard");
         isLoading(false);
-      }
+      },
     );
   }, [client, threeDS]);
 
@@ -538,7 +538,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
                 className={renderMaskButtonClasses(
                   fullWidth,
                   !(emptyInputs && invalidInput),
-                  emptyInputs || invalidInput
+                  emptyInputs || invalidInput,
                 )}
                 value={buttonText}
                 id="submit"

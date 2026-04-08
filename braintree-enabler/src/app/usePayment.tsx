@@ -29,11 +29,11 @@ import { makeVaultRequest } from "../services/makeVaultRequest";
 import { processorUrls } from "../components/constants";
 import { sessionHeader } from "../helpers/sessionHeader";
 
-type HandlePurchaseType = (
+type HandleTransactionSaleType = (
   paymentNonce: string,
   options?: { [index: string]: any },
   overridePaymentVersion?: number,
-) => void;
+) => Promise<void>;
 
 type PaymentContextT = {
   gettingClientToken: boolean;
@@ -43,7 +43,7 @@ type PaymentContextT = {
     localPaymentId: string,
     saveLocalPaymentUrl: string,
   ) => Promise<number>;
-  handlePurchase: HandlePurchaseType;
+  handleTransactionSale: HandleTransactionSaleType;
   handlePureVault: (paymentNonce: string) => void;
   paymentInfo: PaymentInfo;
   vaultedPaymentMethods: FetchPaymentMethodsPayload[];
@@ -54,8 +54,8 @@ type PaymentContextT = {
 
 const PaymentInfoInitialObject = {
   version: 0,
-  id: "",
-  amount: 0,
+  ctPaymentId: "",
+  braintreeAmount: 0,
   currency: "",
   // lineItems: [],
   // shippingMethod: {},
@@ -68,7 +68,7 @@ const PaymentContext = createContext<PaymentContextT>({
   clientToken: "",
   handleInitPayment: () => {},
   setLocalPaymentId: () => new Promise<number>(() => 0),
-  handlePurchase: () => {},
+  handleTransactionSale: () => Promise.resolve(),
   handlePureVault: () => {},
   paymentInfo: PaymentInfoInitialObject,
   vaultedPaymentMethods: [],
@@ -104,7 +104,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   >([]);
   const {
     createPaymentUrl,
-    purchaseUrl,
+    transactionSaleUrl,
     createPaymentForVault,
     vaultPaymentMethodUrl,
   } = processorUrls(processorUrl);
@@ -129,6 +129,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
         )) as CreatePaymentResponse;
         setClientToken(createPaymentResult.clientToken);
         setBraintreeCustomerId(createPaymentResult.braintreeCustomerId);
+        setPaymentInfo(createPaymentResult);
 
         // if (!createPaymentResult.braintreeCustomerId && vaultPayment) {
         //   isLoading(false);
@@ -182,7 +183,6 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
         // }
         //
         // notify("Error", "There is an error in getting client token!");
-        console.log(createPaymentResult);
       } catch (error) {
         notify("Error", "Authentication Error!");
         console.error(error);
@@ -233,7 +233,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
       const response = (await setLocalPaymentIdRequest(
         requestHeader,
         saveLocalPaymentUrl,
-        paymentInfo.id,
+        paymentInfo.ctPaymentId,
         paymentInfo.version,
         localPaymentId,
       )) as { paymentVersion: number };
@@ -243,7 +243,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
       return response.paymentVersion;
     };
 
-    const handlePurchase: HandlePurchaseType = async (
+    const handleTransactionSale: HandleTransactionSaleType = async (
       paymentNonce,
       options?,
       overridePaymentVersion?,
@@ -264,7 +264,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
 
       const requestBody = {
         paymentVersion: overridePaymentVersion || paymentInfo.version,
-        paymentId: paymentInfo.id,
+        ctPaymentId: paymentInfo.ctPaymentId,
         paymentMethodNonce: paymentNonce,
         ...additional,
       };
@@ -272,7 +272,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
       isLoading(true);
       const response = (await makeTransactionSaleRequest(
         requestHeader,
-        purchaseUrl,
+        transactionSaleUrl,
         requestBody,
       )) as TransactionSaleResponse;
       isLoading(false);
@@ -327,7 +327,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
       clientToken,
       handleInitPayment,
       setLocalPaymentId,
-      handlePurchase,
+      handleTransactionSale,
       handlePureVault,
       paymentInfo,
       vaultedPaymentMethods,
