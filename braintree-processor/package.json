@@ -21,7 +21,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@commercetools-backend/loggers": "27.1.0",
+    "@commercetools-backend/loggers": "27.2.0",
     "@commercetools/connect-payments-sdk": "0.27.2",
     "@fastify/autoload": "6.3.1",
     "@fastify/cors": "11.1.0",
@@ -34,7 +34,8 @@
     "dotenv": "17.2.3",
     "fastify": "^5.7.4",
     "fastify-plugin": "5.1.0",
-    "common-connect": "../common-connect"
+    "common-connect": "../common-connect",
+    "braintree": "^3.13.0"
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.0",
@@ -58,10 +59,10 @@
     "prettier": "3.7.4",
     "ts-jest": "29.4.6",
     "ts-node": "10.9.2",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@types/braintree": "^3.3.7"
   },
   "overrides": {
-    "path-to-regexp": "3.3.0",
-    "lodash": "^4.17.23"
+    "path-to-regexp": "3.3.0"
   }
 }
