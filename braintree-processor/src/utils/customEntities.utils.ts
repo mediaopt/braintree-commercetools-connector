@@ -1,6 +1,6 @@
 import { BRAINTREE_PAYMENT_TYPE_KEY } from 'common-connect/dist';
 import { CustomFieldsDraft, Payment } from '@commercetools/connect-payments-sdk';
-import { Transaction, PaymentInstrumentType } from 'braintree';
+import { Transaction } from 'braintree';
 
 type RestrictedFields = Required<CustomFieldsDraft>;
 

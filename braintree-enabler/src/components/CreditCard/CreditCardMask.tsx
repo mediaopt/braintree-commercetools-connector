@@ -334,10 +334,10 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
                 handlePureVault(payload.nonce);
               } else {
                 let threeDSecureParameters: ThreeDSecureVerifyOptions = {
-                  amount: `${paymentInfo.amount}`,
+                  amount: `${paymentInfo.braintreeAmount}`,
                   nonce: payload.nonce,
                   bin: payload.details.bin,
-                  email: paymentInfo.cartInformation.account.email,
+                  email: paymentInfo.email,
                   billingAddress: threeDSBillingAddress,
                   additionalInformation: threeDSAdditionalInformation,
                 };
@@ -382,10 +382,10 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     }
     isLoading(true);
     let threeDSecureParameters: ThreeDSecureVerifyOptions = {
-      amount: `${paymentInfo.amount}`,
+      amount: `${paymentInfo.braintreeAmount}`,
       nonce: selectedCard!.nonce,
       bin: selectedCard!.bin,
-      email: paymentInfo.cartInformation.account.email,
+      email: paymentInfo.email,
       billingAddress: threeDSBillingAddress,
       additionalInformation: threeDSAdditionalInformation,
     };
@@ -478,7 +478,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           <div
             ref={ccNumberRef}
             id="card-number"
-            className={`${HOSTED_FIELDS} px-3`}
+            className={`h-12 box-border w-full inline-block shadow-none font-semibold text-sm rounded-md border border-violet-50 leading-5 bg-slate-50 mb-3 px-3`}
           ></div>
 
           {showCardHoldersName && (

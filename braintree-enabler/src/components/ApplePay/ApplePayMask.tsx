@@ -76,7 +76,7 @@ export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
             const paymentRequest = applePayInstanceState?.createPaymentRequest({
               total: {
                 label: applePayDisplayName,
-                amount: paymentInfo.amount.toString(),
+                amount: paymentInfo.braintreeAmount.toString(),
               },
 
               requiredBillingContactFields: ["postalAddress"],
