@@ -69,12 +69,12 @@ export const LocalPaymentMethodMask: FC<
     localPaymentInstance.startPayment(
       {
         paymentType: paymentType,
-        amount: paymentInfo.amount,
+        amount: paymentInfo.braintreeAmount,
         fallback: {
           url: fallbackUrl,
           buttonText: fallbackButtonText,
         },
-        email: paymentInfo.cartInformation.account.email,
+        email: paymentInfo.email,
         givenName: paymentInfo.cartInformation.billing.firstName,
         surname: paymentInfo.cartInformation.billing.lastName,
         countryCode: countryCode,
@@ -123,6 +123,7 @@ export const LocalPaymentMethodMask: FC<
   };
 
   useEffect(() => {
+    if (!clientToken) return;
     braintreeClient.create(
       {
         authorization: clientToken,

@@ -51,9 +51,7 @@ type BankDetails = {
   businessName?: string;
 };
 
-type ACHMaskProps = CartInformationProps &
-  GeneralPayButtonProps &
-  GeneralACHProps;
+type ACHMaskProps = GeneralPayButtonProps & GeneralACHProps;
 
 type LimitedVaultedPaymentDetails = {
   accountType: string;
@@ -70,7 +68,6 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   processorUrl,
   fullWidth = true,
   buttonText,
-  cartInformation,
   mandateText,
   useKount,
   lineItems,
@@ -151,6 +148,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   }, [clientToken]);
 
   const handleSubmit = (e: FormEvent) => {
+    if (!clientToken) return;
     e.preventDefault();
 
     if (formButtonDisabled) return;

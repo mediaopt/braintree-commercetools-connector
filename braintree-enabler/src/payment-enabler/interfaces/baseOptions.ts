@@ -3,13 +3,13 @@ import { PaymentResult } from "./enabler";
 import { GeneralComponentsProps } from "../../types";
 
 export type BaseOptions = GeneralComponentsProps & {
-  //required
-  //sdk: Client;
-
   processorUrl: string;
   sessionId: string;
   merchantAccountId?: string;
-  purchaseCallback: (result: PaymentResult) => void;
+  purchaseCallback?: (result: PaymentResult, options: any) => void;
+  useKount: boolean;
+  fullWidth: boolean;
+  buttonText: string;
 
   //optional
   // countryCode?: string;

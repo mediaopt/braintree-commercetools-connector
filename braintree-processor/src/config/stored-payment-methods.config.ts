@@ -22,7 +22,7 @@ export const getStoredPaymentMethodsConfig = (): StoredPaymentMethodsConfig => {
     config: {
       paymentInterface: getConfig().storedPaymentMethodsPaymentInterface,
       interfaceAccount: getConfig().storedPaymentMethodsInterfaceAccount,
-      allowedPaymentMethods: [PaymentMethodType.CARD],
+      allowedPaymentMethods: [PaymentMethodType.CREDIT_CARD],
     },
   };
 

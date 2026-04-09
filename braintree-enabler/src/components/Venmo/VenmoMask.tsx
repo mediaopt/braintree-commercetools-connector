@@ -94,6 +94,7 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
   };
 
   useEffect(() => {
+    if (!clientToken) return;
     braintreeClient.create(
       {
         authorization: clientToken,

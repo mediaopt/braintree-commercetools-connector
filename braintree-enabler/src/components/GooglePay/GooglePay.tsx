@@ -1,7 +1,6 @@
 import { FC } from "react";
 
 import { RenderTemplate } from "../RenderTemplate";
-import { isPayButtonDisabled } from "../PayButton";
 
 import { GooglePayButton } from "./GooglePayButton";
 
@@ -42,7 +41,6 @@ export const GooglePay: FC<GooglePayComponentProps> = ({
       shippingMethodId={shippingMethodId}
     >
       <GooglePayButton
-        disabled={isPayButtonDisabled(cartInformation)}
         buttonText={buttonText}
         fullWidth={fullWidth}
         googleMerchantId={googleMerchantId}
@@ -56,7 +54,6 @@ export const GooglePay: FC<GooglePayComponentProps> = ({
         acquirerCountryCode={acquirerCountryCode}
         lineItems={lineItems}
         shipping={shipping}
-        shippingMethodId={shippingMethodId}
       />
     </RenderTemplate>
   );

@@ -1,6 +1,5 @@
 import { FC } from "react";
 
-import { usePayment } from "../../app/usePayment";
 import { PAY_BUTTON_TEXT_FALLBACK } from "../PayButton";
 import {
   GeneralPayButtonProps,
@@ -26,12 +25,9 @@ export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
   shippingAddressRequired,
   useKount,
   lineItems,
-  shipping
+  shipping,
 }: LocalPaymentMethod) => {
-  const { clientToken, handleInitPayment } = usePayment();
-  handleInitPayment();
-
-  return clientToken ? (
+  return (
     <LocalPaymentMethodMask
       processorUrl={processorUrl}
       paymentType={paymentType}
@@ -47,7 +43,5 @@ export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
       lineItems={lineItems}
       shipping={shipping}
     />
-  ) : (
-    <></>
   );
 };

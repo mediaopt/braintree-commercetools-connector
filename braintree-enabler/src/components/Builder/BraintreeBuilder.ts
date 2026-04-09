@@ -5,23 +5,70 @@ import {
   PaymentComponentBuilder,
 } from "../../payment-enabler/interfaces/enabler";
 import { BaseOptions } from "../../payment-enabler/interfaces/baseOptions";
-import { GeneralComponentsProps } from "../../types";
 import { CreditCard } from "../CreditCard";
 import { PayPal } from "../PayPal";
 import { createElement } from "react";
 import {
-  ButtonColorOption,
-  ButtonLabelOption,
-  ButtonShapeOption,
-  ButtonSizeOption,
-  FlowType,
-  Intent,
-} from "paypal-checkout-components";
+  ACHDefaultStyleProps,
+  ApplePayDefaultStyleProps,
+  PayPalDefaultStyleProps,
+} from "./defaultStyles";
+import { FlowType } from "paypal-checkout-components";
+import { ACH } from "../ACH";
+import { ApplePay } from "../ApplePay";
+import { GooglePay } from "../GooglePay";
+import { Venmo } from "../Venmo";
+import { BraintreePaymentMethodType } from "./types";
+
+const componentWithCustomOptions = (
+  paymentMethodType: BraintreePaymentMethodType,
+  customOptions: BaseOptions & ComponentOptions,
+) => {
+  switch (paymentMethodType) {
+    case "ACH":
+      return createElement(ACH, { ...ACHDefaultStyleProps, ...customOptions });
+    case "ApplePay":
+      return createElement(ApplePay, {
+        ...ApplePayDefaultStyleProps,
+        ...customOptions,
+      });
+    case "GooglePay":
+      return createElement(GooglePay, {
+        totalPriceStatus: "FINAL", //todo - move params to options and config and add to options a possobility to set styles params
+        googleMerchantId: "merchant-id-from-google",
+        acquirerCountryCode: "DE",
+        environment: "TEST",
+        ...customOptions,
+      });
+    // case "LocalPaymentMethods":
+    //   return createElement(<></>)
+    case "PayPal":
+      return createElement(PayPal, {
+        ...PayPalDefaultStyleProps,
+        flow: "checkout" as FlowType, //fallback flow if is not set by config or options
+        ...customOptions,
+      });
+    case "Venmo":
+      return createElement(Venmo, {
+        desktopFlow: "desktopWebLogin",
+        mobileWebFallBack: true,
+        paymentMethodUsage: "multi_use",
+        useTestNonce: true,
+        setVenmoUserName: (venmoName) => console.log(venmoName),
+        ignoreBowserSupport: true,
+        ...customOptions,
+      });
+
+    default:
+      return createElement(CreditCard, customOptions);
+  }
+};
 
 class BraintreeComponent implements PaymentComponent {
   private root: Root | null = null;
 
   constructor(
+    private paymentMethodType: BraintreePaymentMethodType,
     private baseOptions: BaseOptions,
     private config: ComponentOptions,
   ) {}
@@ -33,27 +80,11 @@ class BraintreeComponent implements PaymentComponent {
     }
     element.innerHTML = "";
     this.root = createRoot(element as HTMLElement);
-    this.root.render(
-      createElement(PayPal, {
-        ...this.baseOptions,
-        ...this.config,
-        flow: "checkout" as FlowType,
-        buttonColor: "blue" as ButtonColorOption,
-        buttonLabel: "pay" as ButtonLabelOption,
-        payLater: true,
-        payLaterButtonColor: "blue" as ButtonColorOption,
-        locale: "en_GB",
-        intent: "capture" as Intent,
-        useKount: true,
-        shape: "pill" as ButtonShapeOption,
-        size: "small" as ButtonSizeOption,
-        tagline: true,
-        height: 55,
-        purchaseCallback: (result, options) => {
-          console.log(`do something, ${result}, ${options}`);
-        },
-      }),
-    );
+    const componentRender = componentWithCustomOptions(this.paymentMethodType, {
+      ...this.baseOptions,
+      ...this.config,
+    });
+    this.root.render(componentRender);
   }
 
   async submit({
@@ -91,9 +122,12 @@ class BraintreeComponent implements PaymentComponent {
 export class BraintreeBuilder implements PaymentComponentBuilder {
   public componentHasSubmit = true;
 
-  constructor(private baseOptions: BaseOptions) {}
+  constructor(
+    private type: BraintreePaymentMethodType,
+    private baseOptions: BaseOptions,
+  ) {}
 
   build(config: ComponentOptions): PaymentComponent {
-    return new BraintreeComponent(this.baseOptions, config);
+    return new BraintreeComponent(this.type, this.baseOptions, config);
   }
 }

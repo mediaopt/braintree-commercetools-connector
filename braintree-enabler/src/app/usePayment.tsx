@@ -5,6 +5,7 @@ import {
   useMemo,
   useContext,
   useState,
+  useEffect,
 } from "react";
 import {
   FetchPaymentMethodsPayload,
@@ -28,6 +29,7 @@ import { setLocalPaymentIdRequest } from "../services/setLocalPaymentId";
 import { makeVaultRequest } from "../services/makeVaultRequest";
 import { processorUrls } from "../components/constants";
 import { sessionHeader } from "../helpers/sessionHeader";
+import { LoadingOverlay } from "../components/LoadingOverlay";
 
 type HandleTransactionSaleType = (
   paymentNonce: string,
@@ -37,8 +39,7 @@ type HandleTransactionSaleType = (
 
 type PaymentContextT = {
   gettingClientToken: boolean;
-  clientToken: string;
-  handleInitPayment: (isPureVault?: boolean) => void;
+  clientToken?: string;
   setLocalPaymentId: (
     localPaymentId: string,
     saveLocalPaymentUrl: string,
@@ -60,13 +61,12 @@ const PaymentInfoInitialObject = {
   // lineItems: [],
   // shippingMethod: {},
   // cartInformation: CartInformationInitial,
-  clientToken: "",
+  clientToken: undefined,
 };
 
 const PaymentContext = createContext<PaymentContextT>({
   gettingClientToken: false,
-  clientToken: "",
-  handleInitPayment: () => {},
+  clientToken: undefined,
   setLocalPaymentId: () => new Promise<number>(() => 0),
   handleTransactionSale: () => Promise.resolve(),
   handlePureVault: () => {},
@@ -92,7 +92,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   const [resultSuccess, setResultSuccess] = useState<boolean>();
   const [resultMessage, setResultMessage] = useState<string>();
 
-  const [clientToken, setClientToken] = useState("");
+  const [clientToken, setClientToken] = useState<string>();
   const [braintreeCustomerId, setBraintreeCustomerId] = useState("");
   const [customerVersion, setCustomerVersion] = useState<number>();
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>(
@@ -113,7 +113,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
 
-  const value = useMemo(() => {
+  useEffect(() => {
     const handleInitPayment = async (vaultPayment?: boolean) => {
       setGettingClientToken(true);
       isLoading(true);
@@ -130,59 +130,6 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
         setClientToken(createPaymentResult.clientToken);
         setBraintreeCustomerId(createPaymentResult.braintreeCustomerId);
         setPaymentInfo(createPaymentResult);
-
-        // if (!createPaymentResult.braintreeCustomerId && vaultPayment) {
-        //   isLoading(false);
-        //   setGettingClientToken(false);
-        //   notify("Error", "User not found");
-        //   return;
-        // }
-        //
-        // setCustomerVersion(createPaymentResult.customerVersion);
-        // setBraintreeCustomerId(createPaymentResult.braintreeCustomerId);
-        // if (
-        //   createPaymentResult &&
-        //   createPaymentResult.id &&
-        //   createPaymentResult.version
-        // ) {
-        //   const clientTokenresult = (await getClientToken(
-        //     requestHeader,
-        //     getClientTokenUrl,
-        //     createPaymentResult.id,
-        //     createPaymentResult.version,
-        //     createPaymentResult.braintreeCustomerId,
-        //     merchantAccountId,
-        //   )) as ClientTokenResponse;
-        //
-        //   if (!clientTokenresult) {
-        //     isLoading(false);
-        //     setGettingClientToken(false);
-        //     notify("Error", "There is an error in getting client token!");
-        //     return;
-        //   }
-        //
-        //   const { amountPlanned, lineItems, shippingMethod } =
-        //     createPaymentResult;
-        //
-        //   setPaymentInfo({
-        //     id: createPaymentResult.id,
-        //     version: clientTokenresult.paymentVersion,
-        //     amount: amountPlanned.centAmount / 100,
-        //     currency: amountPlanned.currencyCode,
-        //     lineItems: lineItems,
-        //     shippingMethod: shippingMethod,
-        //     cartInformation: cartInformation,
-        //   });
-        //
-        //   if (clientTokenresult.clientToken) {
-        //     setClientToken(clientTokenresult.clientToken);
-        //     setGettingClientToken(false);
-        //     isLoading(false);
-        //     return;
-        //   }
-        // }
-        //
-        // notify("Error", "There is an error in getting client token!");
       } catch (error) {
         notify("Error", "Authentication Error!");
         console.error(error);
@@ -190,7 +137,10 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
       setGettingClientToken(false);
       isLoading(false);
     };
+    handleInitPayment();
+  }, []);
 
+  const value = useMemo(() => {
     const handleGetVaultedPaymentMethods = () => {
       if (!clientToken || vaultedPaymentMethods.length)
         return new Promise<FetchPaymentMethodsPayload[]>(() => {
@@ -325,7 +275,6 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
       sessionId,
       gettingClientToken,
       clientToken,
-      handleInitPayment,
       setLocalPaymentId,
       handleTransactionSale,
       handlePureVault,
@@ -341,8 +290,10 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
     <PaymentContext.Provider value={value}>
       {showResult ? (
         <Result success={resultSuccess} message={resultMessage} />
-      ) : (
+      ) : clientToken ? (
         children
+      ) : (
+        <LoadingOverlay />
       )}
     </PaymentContext.Provider>
   );
