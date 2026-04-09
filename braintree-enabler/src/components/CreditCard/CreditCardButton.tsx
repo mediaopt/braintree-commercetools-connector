@@ -1,6 +1,5 @@
-import { FC, useEffect } from "react";
+import { FC } from "react";
 
-import { usePayment } from "../../app/usePayment";
 import { CreditCardMask } from "./CreditCardMask";
 import {
   PAY_BUTTON_TEXT_FALLBACK,
@@ -25,16 +24,11 @@ export const CreditCardButton: FC<CreditCardButton> = ({
   shipping,
   isPureVault,
 }: CreditCardButton) => {
-  const { clientToken, handleInitPayment } = usePayment();
-  useEffect(() => {
-    if (!clientToken) handleInitPayment(isPureVault);
-  }, [clientToken]);
-
   const FALLBACK_TEXT = isPureVault
     ? VAULT_BUTTON_TEXT_FALLBACK
     : PAY_BUTTON_TEXT_FALLBACK;
 
-  return clientToken ? (
+  return (
     <CreditCardMask
       fullWidth={fullWidth}
       buttonText={buttonText ?? FALLBACK_TEXT}
@@ -50,7 +44,5 @@ export const CreditCardButton: FC<CreditCardButton> = ({
       shipping={shipping}
       isPureVault={isPureVault}
     />
-  ) : (
-    <></>
   );
 };

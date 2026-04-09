@@ -11,7 +11,7 @@ export const PayButton: FC<PropsWithChildren<GeneralPayButtonProps>> = ({
   fullWidth = true,
   buttonText = PAY_BUTTON_TEXT_FALLBACK,
 }) => {
-  const { handleInitPayment } = usePayment();
+  //const { handleInitPayment } = usePayment();
 
   //todo - rewrite button tests taking into account new error functionality
   return (
@@ -20,7 +20,7 @@ export const PayButton: FC<PropsWithChildren<GeneralPayButtonProps>> = ({
         "justify-center align-center rounded-md px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-white bg-blue-500 hover:bg-blue-600  shadow-sm": true,
         "w-full": fullWidth,
       })}
-      onClick={() => handleInitPayment()}
+      //onClick={() => handleInitPayment()}
     >
       {buttonText}
     </button>

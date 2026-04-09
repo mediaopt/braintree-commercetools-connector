@@ -6,10 +6,13 @@ export enum PaymentOutcome {
 }
 
 export enum PaymentMethodType {
-  CARD = 'card',
-  CUSTOM_TEST_METHOD = 'customtestmethod',
-  INVOICE = 'invoice',
-  PURCHASE_ORDER = 'purchaseorder',
+  ACH = 'ACH',
+  APPLE_PAY = 'ApplePay',
+  CREDIT_CARD = 'CreditCard',
+  GOOGLE_PAY = 'GooglePay',
+  LOCAL_PAYMENT_METHOD = 'LocalPaymentMethod',
+  PAYPAL = 'PayPal',
+  VENMO = 'Venmo',
 }
 
 export const InitPaymentResponseSchema = Type.Object({
@@ -32,7 +35,7 @@ export const InitPaymentRequestSchema = Type.Object({
   isPureVault: Type.Optional(Type.Boolean()),
 
   // paymentMethod: Type.Object({
-  //   type: Type.Enum(PaymentMethodType),
+  //   type: Type.Enum(BraintreePaymentMethodType),
   //   poNumber: Type.Optional(Type.String()),
   //   invoiceMemo: Type.Optional(Type.String()),
   //   storedPaymentMethodId: Type.Optional(

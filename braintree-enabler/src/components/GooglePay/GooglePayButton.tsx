@@ -1,7 +1,5 @@
 import { FC } from "react";
 
-import { usePayment } from "../../app/usePayment";
-
 import { GooglePayMask } from "./GooglePayMask";
 import { GeneralPayButtonProps, GooglePayTypes } from "../../types";
 
@@ -21,10 +19,7 @@ export const GooglePayButton: FC<GooglePayButtonProps> = ({
   lineItems,
   shipping,
 }: GooglePayButtonProps) => {
-  const { clientToken, handleInitPayment } = usePayment();
-  handleInitPayment()
-
-  return clientToken ? (
+  return (
     <GooglePayMask
       environment={environment}
       totalPriceStatus={totalPriceStatus}
@@ -39,7 +34,5 @@ export const GooglePayButton: FC<GooglePayButtonProps> = ({
       lineItems={lineItems}
       shipping={shipping}
     />
-  ) : (
-    <></>
   );
 };

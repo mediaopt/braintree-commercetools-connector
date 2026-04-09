@@ -85,13 +85,15 @@ export type ClientTokenResponse = {
 export type CreatePaymentResponse = {
   ctPaymentId: string;
   version: number;
-  amountPlanned: {
-    centAmount: number;
-    currencyCode: string;
-    fractionDigits: number;
-  };
-  lineItems: [object]; // @todo add better types maybe?
-  shippingMethod: object; // @todo add better types maybe?
+  braintreeAmount: number;
+  currency: string;
+  // amountPlanned: {
+  //   centAmount: number;
+  //   currencyCode: string;
+  //   fractionDigits: number;
+  // };
+  // lineItems: [object]; // @todo add better types maybe?
+  // shippingMethod: object; // @todo add better types maybe?
   braintreeCustomerId: string;
   customerVersion?: number;
   clientToken: string;
@@ -111,9 +113,10 @@ export type PaymentInfo = {
   version: number;
   braintreeAmount: number;
   currency: string;
-  lineItems: Array<any>;
-  shippingMethod: {};
-} & CartInformationProps;
+  email: string;
+  // lineItems: Array<any>;
+  // shippingMethod: {};
+}; //& CartInformationProps;
 
 export type CartInformation = {
   account: {

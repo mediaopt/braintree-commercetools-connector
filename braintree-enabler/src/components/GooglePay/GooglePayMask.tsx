@@ -32,6 +32,7 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
   const googlePayButtonContainer = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!clientToken) return;
     isLoading(true);
     loadScript("https://pay.google.com/gp/p/js/pay.js").then((resolve) => {
       if (!resolve) {
@@ -84,7 +85,8 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
                             transactionInfo: {
                               currencyCode: paymentInfo.currency,
                               totalPriceStatus: totalPriceStatus,
-                              totalPrice: paymentInfo.amount.toString(),
+                              totalPrice:
+                                paymentInfo.braintreeAmount.toString(),
                             },
                           });
 

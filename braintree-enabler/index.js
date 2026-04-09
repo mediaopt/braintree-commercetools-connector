@@ -109,8 +109,7 @@ async function loadMethods({ includeDropins }) {
       headers: { Authorization: `Bearer ${token}` },
     },
   );
-  const paymentMethods = { components: [{ type: "card" }], express: [] }; //await res.json();
-
+  const paymentMethods = await res.json();
   const sessionIdGeneral = await getSessionId(cartId, false);
   const sessionIdDropin = await getSessionId(cartId, true);
 

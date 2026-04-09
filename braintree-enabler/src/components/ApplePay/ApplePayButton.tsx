@@ -1,7 +1,6 @@
 import { useEffect, useState, FC } from "react";
 
 import { useNotifications } from "../../app/useNotifications";
-import { usePayment } from "../../app/usePayment";
 import { ApplePayTypes, GeneralPayButtonProps } from "../../types";
 
 import { ApplePayMask } from "./ApplePayMask";
@@ -17,8 +16,6 @@ export const ApplePayButton: FC<ApplePayButtonProps> = ({
   shipping,
 }: ApplePayButtonProps) => {
   const [applyPaySupport, setApplyPaySupport] = useState(false);
-  const { clientToken, handleInitPayment } = usePayment();
-
   const { notify } = useNotifications();
 
   useEffect(() => {
@@ -35,8 +32,7 @@ export const ApplePayButton: FC<ApplePayButtonProps> = ({
     }
   }, []);
 
-  handleInitPayment();
-  return clientToken && applyPaySupport ? (
+  return applyPaySupport ? (
     <ApplePayMask
       fullWidth={fullWidth}
       applePayDisplayName={applePayDisplayName}

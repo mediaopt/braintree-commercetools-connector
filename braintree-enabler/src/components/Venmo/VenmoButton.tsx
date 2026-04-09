@@ -1,6 +1,5 @@
 import { FC } from "react";
 
-import { usePayment } from "../../app/usePayment";
 import { PAY_BUTTON_TEXT_FALLBACK } from "../PayButton";
 
 import { VenmoMask } from "./VenmoMask";
@@ -22,11 +21,7 @@ export const VenmoButton: FC<VenmoButton> = ({
   lineItems,
   shipping,
 }: VenmoButton) => {
-  const { clientToken, handleInitPayment } = usePayment();
-
-  handleInitPayment();
-
-  return clientToken ? (
+  return (
     <VenmoMask
       fullWidth={fullWidth}
       buttonText={buttonText ?? PAY_BUTTON_TEXT_FALLBACK}
@@ -42,7 +37,5 @@ export const VenmoButton: FC<VenmoButton> = ({
       lineItems={lineItems}
       shipping={shipping}
     />
-  ) : (
-    <></>
   );
 };

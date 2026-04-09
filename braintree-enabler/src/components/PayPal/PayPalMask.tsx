@@ -18,6 +18,7 @@ import {
 } from "../../types";
 
 import { HOSTED_FIELDS_LABEL, renderMaskButtonClasses } from "../../styles";
+import { PayPalCheckoutLoadPayPalSDKOptions } from "braintree-web/paypal-checkout";
 
 type PayPalMaskProps = GeneralPayButtonProps & PayPalProps;
 
@@ -73,25 +74,26 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
 
-  useEffect(() => {
-    if (isPureVault) {
-      return;
-    }
-    const filteredPaymentMethods: Array<LimitedVaultedPayment> = [];
-    handleGetVaultedPaymentMethods().then((paymentMethods) => {
-      paymentMethods.forEach((paymentMethod) => {
-        if (paymentMethod.type === "PayPalAccount") {
-          filteredPaymentMethods.push({
-            nonce: paymentMethod.nonce,
-            details: paymentMethod.details as LimitedVaultedPaymentDetails,
-          });
-        }
-      });
-      setLimitedVaultedPaymentMethods(filteredPaymentMethods);
-    });
-  }, [clientToken]);
+  // useEffect(() => {
+  //   if (isPureVault) {
+  //     return;
+  //   }
+  //   const filteredPaymentMethods: Array<LimitedVaultedPayment> = [];
+  //   handleGetVaultedPaymentMethods().then((paymentMethods) => {
+  //     paymentMethods.forEach((paymentMethod) => {
+  //       if (paymentMethod.type === "PayPalAccount") {
+  //         filteredPaymentMethods.push({
+  //           nonce: paymentMethod.nonce,
+  //           details: paymentMethod.details as LimitedVaultedPaymentDetails,
+  //         });
+  //       }
+  //     });
+  //     setLimitedVaultedPaymentMethods(filteredPaymentMethods);
+  //   });
+  // }, [clientToken]);
 
   useEffect(() => {
+    if (!clientToken) return;
     isLoading(true);
 
     const isVault: boolean = flow === ("vault" as FlowType);
@@ -176,7 +178,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                   return paypalCheckoutInstance.tokenizePayment(
                     data,
                     function (err: any, payload: any) {
-                      handlePureVault(payload.nonce);
+                      //handlePureVault(payload.nonce);
                       // if (isPureVault) {
                       //   handlePureVault(payload.nonce);
                       // } else {
@@ -302,7 +304,8 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
 
                             return paypalCheckoutInstance.updatePayment({
                               amount:
-                                paymentInfo.amount + shippingOption.amount,
+                                paymentInfo.braintreeAmount +
+                                shippingOption.amount,
                               currency: paymentInfo.currency,
                               lineItems: lineItems,
                               paymentId: data.paymentId,

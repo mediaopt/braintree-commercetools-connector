@@ -1,6 +1,5 @@
-import { FC, useEffect } from "react";
+import { FC } from "react";
 
-import { usePayment } from "../../app/usePayment";
 import {
   PAY_BUTTON_TEXT_FALLBACK,
   VAULT_BUTTON_TEXT_FALLBACK,
@@ -37,17 +36,11 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
   height,
   shippingOptions,
 }) => {
-  const { clientToken, handleInitPayment } = usePayment();
-
-  useEffect(() => {
-    if (!clientToken) handleInitPayment(isPureVault);
-  }, [clientToken]);
-
   const FALLBACK_TEXT = isPureVault
     ? VAULT_BUTTON_TEXT_FALLBACK
     : PAY_BUTTON_TEXT_FALLBACK;
 
-  return clientToken ? (
+  return (
     <PayPalMask
       fullWidth={fullWidth}
       buttonText={buttonText ?? FALLBACK_TEXT}
@@ -73,7 +66,5 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
       shippingOptions={shippingOptions}
       isPureVault={isPureVault}
     />
-  ) : (
-    <></>
   );
 };

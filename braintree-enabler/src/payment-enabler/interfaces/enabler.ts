@@ -208,6 +208,21 @@ export type EnablerOptions = {
    * @param paymentReference - The payment reference.
    */
   onError?: (error: any, context?: { paymentReference?: string }) => void;
+
+  /**
+   * fallback style for Braintree payment buttons
+   */
+  fullWidth?: boolean;
+
+  /**
+   * fallback button text for Braintree payment buttons
+   */
+  buttonText?: string;
+
+  /**
+   * callback action set on the shop level, can be overwritten by processor
+   */
+  purchaseCallback?: (result: PaymentResult, options: any) => void;
 };
 
 /**

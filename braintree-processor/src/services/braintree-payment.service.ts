@@ -192,23 +192,18 @@ export class BraintreePaymentService extends AbstractPaymentService {
     return {
       dropins: [],
       components: [
-        {
-          type: PaymentMethodType.CARD,
-        },
-        {
-          type: PaymentMethodType.CUSTOM_TEST_METHOD,
-        },
-        {
-          type: PaymentMethodType.INVOICE,
-        },
-        {
-          type: PaymentMethodType.PURCHASE_ORDER,
-        },
+        { type: PaymentMethodType.ACH },
+        { type: PaymentMethodType.APPLE_PAY },
+        { type: PaymentMethodType.CREDIT_CARD },
+        { type: PaymentMethodType.GOOGLE_PAY },
+        { type: PaymentMethodType.PAYPAL },
+        { type: PaymentMethodType.VENMO },
+        { type: PaymentMethodType.LOCAL_PAYMENT_METHOD, subtypes: ['IDEALO', 'BLIK'] },
       ],
       express: [
-        {
-          type: 'sample',
-        },
+        // {
+        //   type: 'sample',
+        // },
       ],
     };
   }
@@ -461,7 +456,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     //     interactionId: pspReference,
     //     state: this.convertPaymentResultCode(request.data.paymentOutcome),
     //   },
-    //   ...(request.data.paymentMethod.type === PaymentMethodType.PURCHASE_ORDER && {
+    //   ...(request.data.paymentMethod.type === BraintreePaymentMethodType.PURCHASE_ORDER && {
     //     customFields: {
     //       type: {
     //         key: launchpadPurchaseOrderCustomType.key,
@@ -856,7 +851,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
   private validatePaymentMethod(request: CreatePaymentRequest): void {
     const merchantAccountId = request.data.merchantAccountId;
 
-    // if (paymentMethod.type === PaymentMethodType.PURCHASE_ORDER && !paymentMethod.poNumber) {
+    // if (paymentMethod.type === BraintreePaymentMethodType.PURCHASE_ORDER && !paymentMethod.poNumber) {
     //   throw new ErrorRequiredField('poNumber');
     // }
   }
