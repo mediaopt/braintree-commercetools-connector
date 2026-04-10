@@ -70,7 +70,7 @@ export interface PaymentEnabler {
    */
   createExpressBuilder: (
     type: string,
-  ) => Promise<PaymentExpressBuilder | never>;
+  ) => Promise<PaymentComponentBuilder | never>; //todo - check if PaymentExpressBuilder makes sense
 
   /**
    * Indicates if the stored payment methods is enabled. The actual value should not be determined in the enabled but instead must come from the processor.

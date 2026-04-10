@@ -12,17 +12,19 @@ import {
   ACHDefaultStyleProps,
   ApplePayDefaultStyleProps,
   PayPalDefaultStyleProps,
+  PayPalExpressStyleProps,
 } from "./defaultStyles";
-import { FlowType } from "paypal-checkout-components";
 import { ACH } from "../ACH";
 import { ApplePay } from "../ApplePay";
 import { GooglePay } from "../GooglePay";
 import { Venmo } from "../Venmo";
 import { BraintreePaymentMethodType } from "./types";
+import { FlowType } from "paypal-checkout-components";
 
 const componentWithCustomOptions = (
   paymentMethodType: BraintreePaymentMethodType,
   customOptions: BaseOptions & ComponentOptions,
+  builderType?: "dropin" | "express",
 ) => {
   switch (paymentMethodType) {
     case "ACH":
@@ -44,8 +46,10 @@ const componentWithCustomOptions = (
     //   return createElement(<></>)
     case "PayPal":
       return createElement(PayPal, {
-        ...PayPalDefaultStyleProps,
         flow: "checkout" as FlowType, //fallback flow if is not set by config or options
+        ...(`${builderType}` === "express"
+          ? PayPalExpressStyleProps
+          : PayPalDefaultStyleProps),
         ...customOptions,
       });
     case "Venmo":
@@ -58,7 +62,6 @@ const componentWithCustomOptions = (
         ignoreBowserSupport: true,
         ...customOptions,
       });
-
     default:
       return createElement(CreditCard, customOptions);
   }
@@ -71,6 +74,7 @@ class BraintreeComponent implements PaymentComponent {
     private paymentMethodType: BraintreePaymentMethodType,
     private baseOptions: BaseOptions,
     private config: ComponentOptions,
+    private builderType?: "dropin" | "express",
   ) {}
 
   async mount(selector: string): Promise<void> {
@@ -80,10 +84,14 @@ class BraintreeComponent implements PaymentComponent {
     }
     element.innerHTML = "";
     this.root = createRoot(element as HTMLElement);
-    const componentRender = componentWithCustomOptions(this.paymentMethodType, {
-      ...this.baseOptions,
-      ...this.config,
-    });
+    const componentRender = componentWithCustomOptions(
+      this.paymentMethodType,
+      {
+        ...this.baseOptions,
+        ...this.config,
+      },
+      this.builderType,
+    );
     this.root.render(componentRender);
   }
 
@@ -125,9 +133,15 @@ export class BraintreeBuilder implements PaymentComponentBuilder {
   constructor(
     private type: BraintreePaymentMethodType,
     private baseOptions: BaseOptions,
+    private builderType?: "dropin" | "express",
   ) {}
 
   build(config: ComponentOptions): PaymentComponent {
-    return new BraintreeComponent(this.type, this.baseOptions, config);
+    return new BraintreeComponent(
+      this.type,
+      this.baseOptions,
+      config,
+      this.builderType,
+    );
   }
 }

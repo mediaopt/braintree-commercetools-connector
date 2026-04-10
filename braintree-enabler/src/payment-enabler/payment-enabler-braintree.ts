@@ -13,6 +13,11 @@ import {
 import { BaseOptions } from "./interfaces/baseOptions";
 import { BraintreeBuilder } from "../components/Builder/BraintreeBuilder";
 import { sessionHeader } from "../helpers/sessionHeader";
+import {
+  BraintreePaymentMethodDropInType,
+  BraintreePaymentMethodExpressType,
+  BraintreePaymentMethodType,
+} from "../components/Builder/types";
 
 export class BraintreePaymentEnabler implements PaymentEnabler {
   setupData: Promise<{ baseOptions: BaseOptions }>;
@@ -76,7 +81,7 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     });
   };
   async createComponentBuilder(
-    paymentMethodType: string,
+    paymentMethodType: BraintreePaymentMethodType,
   ): Promise<PaymentComponentBuilder> {
     const { baseOptions } = await this.setupData;
     return Promise.resolve(
@@ -84,12 +89,18 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     );
   }
 
-  createDropinBuilder(type: DropinType): Promise<PaymentDropinBuilder> {
+  async createDropinBuilder(type: DropinType): Promise<PaymentDropinBuilder> {
     return Promise.resolve(undefined);
   }
 
-  createExpressBuilder(type: string): Promise<PaymentExpressBuilder> {
-    return Promise.resolve(undefined);
+  async createExpressBuilder(
+    paymentMethodType: BraintreePaymentMethodExpressType,
+  ): Promise<PaymentComponentBuilder> {
+    //todo - check if different type for PaymentExpressBuilder makes sence
+    const { baseOptions } = await this.setupData;
+    return Promise.resolve(
+      new BraintreeBuilder(paymentMethodType, baseOptions, "express"),
+    );
   }
 
   createStoredPaymentMethodBuilder(
