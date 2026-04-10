@@ -474,15 +474,16 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
   public async transactionSale({
     ctPaymentId,
-    paymentNonce,
+    paymentMethodNonce,
     paymentToken,
   }: TransactionSaleRequestSchemaDTO): Promise<{ message: string; success: boolean }> {
+    log.info(`nonce ${paymentMethodNonce}`);
     const ctPayment = await this.ctPaymentService.getPayment({ id: ctPaymentId });
     const transactionRequest = mapRequestToBraintreeTransactionSale(
       ctPayment,
       undefined,
       undefined,
-      paymentNonce,
+      paymentMethodNonce,
       paymentToken,
     ); //todo - handle other params
     const requestInteraction = handleInterfaceInteraction({
@@ -490,7 +491,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
       message: transactionRequest,
       messageType: 'Request',
     });
-    const response = await transactionSale({ ...transactionRequest, paymentMethodNonce: 'fake-valid-nonce' });
+    log.info(JSON.stringify(transactionRequest));
+    const response = await transactionSale({
+      ...transactionRequest,
+    });
     const customFields = handleCustomFieldResponse('transactionSale', response); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
     const responseInteraction = handleInterfaceInteraction({
       messageName: 'transactionSale',

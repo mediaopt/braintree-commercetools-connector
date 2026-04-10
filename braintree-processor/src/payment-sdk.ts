@@ -8,7 +8,7 @@ export class AppLogger implements Logger {
     log.debug(message, obj || undefined);
   };
   public info = (obj: object, message: string) => {
-    log.info(message, obj || undefined);
+    log.info(message, obj || undefined); //todo - anonimize logs
   };
   public warn = (obj: object, message: string) => {
     log.warn(message, obj || undefined);
