@@ -60,8 +60,9 @@ export type PaymentResponseSchemaDTO = Static<typeof InitPaymentResponseSchema>;
 
 export const TransactionSaleRequestSchema = Type.Object({
   ctPaymentId: Type.String(),
-  paymentNonce: Type.Optional(Type.String()),
+  paymentMethodNonce: Type.Optional(Type.String()),
   paymentToken: Type.Optional(Type.String()),
+  deviceData: Type.Optional(Type.String()),
 });
 
 export type TransactionSaleRequestSchemaDTO = Static<typeof TransactionSaleRequestSchema>;
