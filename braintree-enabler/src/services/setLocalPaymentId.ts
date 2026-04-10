@@ -6,13 +6,11 @@ export const setLocalPaymentIdRequest = async (
   requestHeader: RequestHeader,
   url: string,
   paymentId: string,
-  paymentVersion: number,
-  localPaymentId: string
+  localPaymentId: string,
 ) => {
   try {
     const data = {
       paymentId,
-      paymentVersion,
       localPaymentId,
     };
 
