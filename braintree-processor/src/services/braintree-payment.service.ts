@@ -200,11 +200,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         { type: PaymentMethodType.VENMO },
         { type: PaymentMethodType.LOCAL_PAYMENT_METHOD, subtypes: ['IDEALO', 'BLIK'] },
       ],
-      express: [
-        // {
-        //   type: 'sample',
-        // },
-      ],
+      express: [{ type: PaymentMethodType.PAYPAL }],
     };
   }
 
@@ -413,12 +409,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
     });
 
     return {
-      ctPaymentId: updatedPayment.id,
-      clientToken: tokenResponse,
-      currency: ctPayment.amountPlanned.currencyCode,
-      braintreeAmount: mapCommercetoolsMoneyToBraintreeMoney(ctPayment.amountPlanned),
-      email: ctCart.customerEmail,
-      braintreeCustomerId,
+      braintreeData: { clientToken: tokenResponse, braintreeCustomerId },
+      payment: {
+        ctPaymentId: updatedPayment.id,
+        currency: ctPayment.amountPlanned.currencyCode,
+        braintreeAmount: Number(mapCommercetoolsMoneyToBraintreeMoney(ctPayment.amountPlanned)),
+        email: ctCart.customerEmail,
+      },
     };
 
     // // Fetch the required data and then validate it before making the request to the PSP.
@@ -493,7 +490,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       message: transactionRequest,
       messageType: 'Request',
     });
-    const response = await transactionSale(transactionRequest);
+    const response = await transactionSale({ ...transactionRequest, paymentMethodNonce: 'fake-valid-nonce' });
     const customFields = handleCustomFieldResponse('transactionSale', response); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
     const responseInteraction = handleInterfaceInteraction({
       messageName: 'transactionSale',

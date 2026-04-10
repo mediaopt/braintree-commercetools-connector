@@ -28,3 +28,15 @@ export const PayPalDefaultStyleProps = {
   tagline: true,
   height: 55,
 };
+
+export const PayPalExpressStyleProps = {
+  flow: "checkout",
+  buttonColor: "gold",
+  buttonLabel: "buynow",
+  payLater: false,
+  commit: true,
+  locale: "en_GB",
+  intent: "capture",
+  enableShippingAddress: true,
+  shippingAddressEditable: false,
+};
