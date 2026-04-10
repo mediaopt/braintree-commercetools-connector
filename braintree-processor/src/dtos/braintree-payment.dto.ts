@@ -16,16 +16,21 @@ export enum PaymentMethodType {
 }
 
 export const InitPaymentResponseSchema = Type.Object({
-  ctPaymentId: Type.String(),
-  clientToken: Type.String(),
-  currency: Type.String(),
-  braintreeAmount: Type.String(),
-  email: Type.Optional(Type.String()),
-  braintreeCustomerId: Type.Optional(Type.String()),
-
-  //discountAmount
-  //taxAmount
-  //shippingAmount
+  braintreeData: Type.Object({
+    clientToken: Type.String(),
+    braintreeCustomerId: Type.Optional(Type.String()),
+  }),
+  payment: Type.Object({
+    ctPaymentId: Type.String(),
+    braintreeAmount: Type.Number(),
+    currency: Type.String(),
+    email: Type.Optional(Type.String()),
+    firstName: Type.Optional(Type.String()),
+    lastName: Type.Optional(Type.String()),
+    streetName: Type.Optional(Type.String()),
+    streetNumber: Type.Optional(Type.String()),
+    postalCode: Type.Optional(Type.String()),
+  }),
 });
 
 export const PaymentOutcomeSchema = Type.Enum(PaymentOutcome);

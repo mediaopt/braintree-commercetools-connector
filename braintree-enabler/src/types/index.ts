@@ -82,21 +82,31 @@ export type ClientTokenResponse = {
   paymentVersion: number;
 };
 
-export type CreatePaymentResponse = {
+type BraintreePaymentData = {
+  clientToken: string;
+  braintreeCustomerId: string;
+};
+
+type RequiredPaymentData = {
   ctPaymentId: string;
-  version: number;
   braintreeAmount: number;
   currency: string;
-  // amountPlanned: {
-  //   centAmount: number;
-  //   currencyCode: string;
-  //   fractionDigits: number;
-  // };
-  // lineItems: [object]; // @todo add better types maybe?
-  // shippingMethod: object; // @todo add better types maybe?
-  braintreeCustomerId: string;
-  customerVersion?: number;
-  clientToken: string;
+};
+
+type OptionalPerMethodPaymentData = {
+  firstName?: string; //ACH
+  lastName?: string; //ACH
+  streetName?: string; //ACH
+  streetNumber?: string; //ACH
+  postalCode?: string; //ACH
+  email?: string; //credit card with 3Dsecure
+};
+
+export type PaymentInfo = RequiredPaymentData & OptionalPerMethodPaymentData;
+
+export type CreatePaymentResponse = {
+  braintreeData: BraintreePaymentData;
+  payment: PaymentInfo;
 };
 
 export type TransactionSaleResponse = {
@@ -107,16 +117,6 @@ export type TransactionSaleResponse = {
     paymentVersion: number;
   };
 };
-
-export type PaymentInfo = {
-  ctPaymentId: string;
-  version: number;
-  braintreeAmount: number;
-  currency: string;
-  email: string;
-  // lineItems: Array<any>;
-  // shippingMethod: {};
-}; //& CartInformationProps;
 
 export type CartInformation = {
   account: {

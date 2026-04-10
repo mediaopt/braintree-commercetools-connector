@@ -17,11 +17,7 @@ import { usePayment } from "../../app/usePayment";
 import { useNotifications } from "../../app/useNotifications";
 import { useLoader } from "../../app/useLoader";
 
-import {
-  GeneralPayButtonProps,
-  CartInformationProps,
-  GeneralACHProps,
-} from "../../types";
+import { GeneralPayButtonProps, GeneralACHProps } from "../../types";
 
 import {
   HOSTED_FIELDS_LABEL,
@@ -78,6 +74,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     clientToken,
     handleGetVaultedPaymentMethods,
     requestHeader,
+    paymentInfo,
   } = usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
@@ -108,12 +105,12 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
 
   useEffect(() => {
     const { firstName, lastName, streetName, streetNumber, postalCode } =
-      cartInformation.shipping;
-    setFirstName(firstName);
-    setLastName(lastName);
-    setStreetAddress(`${streetName} ${streetNumber}`);
-    setPostalCode(postalCode);
-  }, [cartInformation]);
+      paymentInfo;
+    setFirstName(firstName ?? "");
+    setLastName(lastName ?? "");
+    setStreetAddress(`${streetName ?? ""} ${streetNumber ?? ""}`.trim());
+    setPostalCode(postalCode ?? "");
+  }, [paymentInfo]);
 
   let formButtonDisabled =
     !accountNumber ||
@@ -345,7 +342,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
         </>
       )}
       {showVaultForm && (
-        <form className="m-auto p-8 max-w-screen-md" onSubmit={handleSubmit}>
+        <form className="m-auto p-8 max-w-3xl" onSubmit={handleSubmit}>
           <label className={HOSTED_FIELDS_LABEL} htmlFor="routing-number">
             Routing Number
           </label>
