@@ -1,15 +1,14 @@
-import { getClientToken } from "./getClientToken";
-import { createPayment } from "./createPayment";
-import { CartInformation, RequestHeader } from "../types";
-import { makeRequest } from "../api";
+import { createPayment } from "../src/services/createPayment";
+import { CartInformation, RequestHeader } from "../src/types";
+import { makeRequest } from "../src/api";
 
-jest.mock("../api/request", () => {
+jest.mock("../src/api/request", () => {
   return {
     makeRequest: <ResponseType, T>(
       requestHeader: RequestHeader,
       url: string,
       method?: string,
-      data?: T
+      data?: T,
     ) => {
       switch (url) {
         case "fail":
@@ -20,15 +19,6 @@ jest.mock("../api/request", () => {
               } catch (e) {
                 resolve(false);
               }
-            });
-          });
-        case "getClientToken":
-          return new Promise<ResponseType>((resolve, reject) => {
-            process.nextTick(() => {
-              resolve({
-                clientToken: "test",
-                paymentVersion: 1,
-              } as ResponseType);
             });
           });
         case "createPayment":
@@ -58,25 +48,13 @@ test("error on make request", () => {
   });
 });
 
-describe("Client token", () => {
-  test("getting clientToken", () => {
-    expect.assertions(2);
-    return getClientToken({}, "getClientToken", "", 1).then((result) => {
-      expect(result).toHaveProperty("clientToken");
-      expect(result).toHaveProperty("paymentVersion");
-    });
-  });
-});
-
 describe("Create payment", () => {
   test("creating payment", () => {
     const cartInformation = {} as CartInformation;
     expect.assertions(2);
-    return createPayment({}, "createPayment", cartInformation).then(
-      (result) => {
-        expect(result).toHaveProperty("amountPlanned");
-        expect(result).toHaveProperty("version");
-      }
-    );
+    return createPayment({}, "createPayment").then((result) => {
+      expect(result).toHaveProperty("amountPlanned");
+      expect(result).toHaveProperty("version");
+    });
   });
 });

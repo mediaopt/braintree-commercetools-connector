@@ -53,15 +53,10 @@ type PaymentContextT = {
   requestHeader: RequestHeader;
 };
 
-const PaymentInfoInitialObject = {
-  version: 0,
+const PaymentInfoInitialObject: PaymentInfo = {
   ctPaymentId: "",
   braintreeAmount: 0,
   currency: "",
-  // lineItems: [],
-  // shippingMethod: {},
-  // cartInformation: CartInformationInitial,
-  clientToken: undefined,
 };
 
 const PaymentContext = createContext<PaymentContextT>({
@@ -127,9 +122,11 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
           createPaymentEndpoint,
           merchantAccountId, //todo - check if merchant account id is for local payment method only and shouldn't be passed anywhere else
         )) as CreatePaymentResponse;
-        setClientToken(createPaymentResult.clientToken);
-        setBraintreeCustomerId(createPaymentResult.braintreeCustomerId);
-        setPaymentInfo(createPaymentResult);
+        setClientToken(createPaymentResult.braintreeData.clientToken);
+        setBraintreeCustomerId(
+          createPaymentResult.braintreeData.braintreeCustomerId,
+        );
+        setPaymentInfo(createPaymentResult.payment);
       } catch (error) {
         notify("Error", "Authentication Error!");
         console.error(error);
@@ -184,11 +181,10 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
         requestHeader,
         saveLocalPaymentUrl,
         paymentInfo.ctPaymentId,
-        paymentInfo.version,
         localPaymentId,
       )) as { paymentVersion: number };
 
-      setPaymentInfo({ ...paymentInfo, version: response.paymentVersion });
+      setPaymentInfo({ ...paymentInfo });
 
       return response.paymentVersion;
     };
@@ -196,7 +192,6 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
     const handleTransactionSale: HandleTransactionSaleType = async (
       paymentNonce,
       options?,
-      overridePaymentVersion?,
     ) => {
       const additional = options ?? {};
 
@@ -213,7 +208,6 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
       // }
 
       const requestBody = {
-        paymentVersion: overridePaymentVersion || paymentInfo.version,
         ctPaymentId: paymentInfo.ctPaymentId,
         paymentMethodNonce: paymentNonce,
         ...additional,

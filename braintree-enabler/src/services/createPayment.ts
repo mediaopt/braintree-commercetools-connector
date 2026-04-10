@@ -1,10 +1,6 @@
 import { makeRequest } from "../api";
 
-import {
-  CreatePaymentResponse,
-  CartInformation,
-  RequestHeader,
-} from "../types";
+import { CreatePaymentResponse, RequestHeader } from "../types";
 
 export const createPayment = async (
   requestHeader: RequestHeader,
@@ -12,7 +8,6 @@ export const createPayment = async (
   merchantAccountId?: string,
 ) => {
   try {
-    console.log(url);
     const result = await makeRequest<CreatePaymentResponse, {}>(
       requestHeader,
       url,
