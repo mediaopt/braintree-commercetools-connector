@@ -1,1 +1,0 @@
-export { GooglePay } from "./GooglePay";

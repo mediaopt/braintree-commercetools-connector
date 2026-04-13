@@ -11,6 +11,7 @@ import {
   ThreeDSecureAdditionalInformation,
   ThreeDSecureBillingAddress,
 } from "braintree-web/three-d-secure";
+import { BraintreePaymentMethodType } from "../components/Builder/types";
 
 export type ClientTokenRequest = {
   paymentId: string;
@@ -50,7 +51,6 @@ type LineItemsShipping = {
 };
 
 export type GeneralPayButtonProps = {
-  merchantAccountId?: string;
   fullWidth?: boolean;
   buttonText?: string;
 } & UseKount &
@@ -63,15 +63,21 @@ type RequiredSessionData = {
   sessionId: string;
 };
 
-export type GeneralComponentsProps = RequiredSessionData & {
-  taxAmount?: string;
-  shippingAmount?: string;
-  discountAmount?: string;
+export type PaymentProviderProps = RequiredSessionData & {
   purchaseCallback: (result: any, options?: any) => void;
-  shippingMethodId?: string;
-} & GeneralPayButtonProps & //CartInformationProps &
+  merchantAccountId?: string;
+  paymentMethodType: BraintreePaymentMethodType;
+  customType?: "express" | "dropin";
+};
+
+export type GeneralComponentsProps = PaymentProviderProps &
   UseKount &
-  LineItemsShipping;
+  GeneralPayButtonProps & {
+    taxAmount?: string;
+    shippingAmount?: string;
+    discountAmount?: string;
+    shippingMethodId?: string;
+  } & LineItemsShipping;
 
 export type LocalPaymentComponentsProp = {
   processorUrl: string;
@@ -223,7 +229,7 @@ export type GooglePayTypes = {
   billingAddressFormat?: "FULL" | "MIN";
   billingAddressRequired?: boolean;
   acquirerCountryCode: string;
-  fullWidth: boolean;
+  fullWidth?: boolean; //will be initalized as true if not provided
 } & LineItemsShipping;
 
 export type VenmoTypes = {
@@ -280,7 +286,6 @@ export type LocalPaymentMethodsType = {
   paymentType: any;
   countryCode: any;
   currencyCode: any;
-  merchantAccountId?: string;
   shippingAddressRequired?: boolean;
   fallbackUrl: string;
   fallbackButtonText?: string;

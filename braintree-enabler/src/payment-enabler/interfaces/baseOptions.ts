@@ -3,14 +3,7 @@ import { PaymentResult } from "./enabler";
 import { GeneralComponentsProps } from "../../types";
 
 export type BaseOptions = GeneralComponentsProps & {
-  processorUrl: string;
-  sessionId: string;
-  merchantAccountId?: string;
-  purchaseCallback?: (result: PaymentResult, options: any) => void;
-  useKount: boolean;
-  fullWidth: boolean;
-  buttonText: string;
-
+  //todo - clarify if implement onError here makes sense
   //optional
   // countryCode?: string;
   // currencyCode?: string;
