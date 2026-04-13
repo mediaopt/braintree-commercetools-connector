@@ -1,8 +1,13 @@
-export const processorUrls = (processorUrl: string) => ({
-  createPaymentUrl: `${processorUrl}/payments`,
-  transactionSaleUrl: `${processorUrl}/payments/transactionSale`,
-  createPaymentForVault: `${processorUrl}/payment/createPaymentForVault`,
-  vaultPaymentMethodUrl: `${processorUrl}/payment/vaultPaymentMethod`,
-  saveLocalPaymentIdUrl: `${processorUrl}/payment/setLocalPaymentId`,
-  getAchVaultTokenURL: `${processorUrl}/payment/getAchVaultToken`,
-});
+const PAYMENTS_ROUTE = "/payments";
+
+export const processorUrls = (processorUrl: string) => {
+  const paymentsPrefix = `${processorUrl}${PAYMENTS_ROUTE}`;
+  return {
+    createPaymentUrl: `${paymentsPrefix}`,
+    transactionSaleUrl: `${paymentsPrefix}/transactionSale`,
+    getAchVaultTokenURL: `${paymentsPrefix}/getAchVaultToken`,
+    createPaymentForVault: `${paymentsPrefix}/createPaymentForVault`,
+    vaultPaymentMethodUrl: `${paymentsPrefix}/vaultPaymentMethod`,
+    saveLocalPaymentIdUrl: `${paymentsPrefix}/setLocalPaymentId`,
+  };
+};
