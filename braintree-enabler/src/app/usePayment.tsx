@@ -16,11 +16,11 @@ import { createPayment } from "../services";
 import { Result } from "../components/Result";
 
 import {
-  GeneralComponentsProps,
   CreatePaymentResponse,
   PaymentInfo,
   TransactionSaleResponse,
   RequestHeader,
+  PaymentProviderProps,
 } from "../types";
 import { makeTransactionSaleRequest } from "../services/makeTransactionSaleRequest";
 import { useNotifications } from "./useNotifications";
@@ -75,11 +75,12 @@ const PaymentContext = createContext<PaymentContextT>({
   requestHeader: {},
 });
 
-export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
+export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   processorUrl,
   sessionId,
   merchantAccountId,
   purchaseCallback,
+  paymentMethodType,
   children,
 }) => {
   const [gettingClientToken, setGettingClientToken] = useState(false);
@@ -120,7 +121,8 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
         const createPaymentResult = (await createPayment(
           requestHeader,
           createPaymentEndpoint,
-          merchantAccountId, //todo - check if merchant account id is for local payment method only and shouldn't be passed anywhere else
+          paymentMethodType,
+          merchantAccountId,
         )) as CreatePaymentResponse;
         setClientToken(createPaymentResult.braintreeData.clientToken);
         setBraintreeCustomerId(
@@ -134,7 +136,7 @@ export const PaymentProvider: FC<PropsWithChildren<GeneralComponentsProps>> = ({
       setGettingClientToken(false);
       isLoading(false);
     };
-    handleInitPayment();
+    handleInitPayment(); //todo - add vault properly
   }, []);
 
   const value = useMemo(() => {

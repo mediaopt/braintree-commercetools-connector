@@ -1,1 +1,0 @@
-export { ApplePay } from "./ApplePay";

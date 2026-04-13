@@ -1,1 +1,0 @@
-export { PayPal } from "./PayPal";

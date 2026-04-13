@@ -2,11 +2,7 @@ import { FC } from "react";
 
 import { PAY_BUTTON_TEXT_FALLBACK } from "../PayButton";
 
-import {
-  CartInformationProps,
-  GeneralACHProps,
-  GeneralPayButtonProps,
-} from "../../types";
+import { GeneralACHProps, GeneralPayButtonProps } from "../../types";
 
 import { ACHMask } from "./ACHMask";
 

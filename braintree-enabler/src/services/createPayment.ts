@@ -1,10 +1,12 @@
 import { makeRequest } from "../api";
 
 import { CreatePaymentResponse, RequestHeader } from "../types";
+import { BraintreePaymentMethodType } from "../components/Builder/types";
 
 export const createPayment = async (
   requestHeader: RequestHeader,
   url: string,
+  paymentMethodType: BraintreePaymentMethodType,
   merchantAccountId?: string,
 ) => {
   try {
@@ -12,7 +14,7 @@ export const createPayment = async (
       requestHeader,
       url,
       "POST",
-      { merchantAccountId },
+      { paymentMethodType, merchantAccountId },
     );
 
     return result;
