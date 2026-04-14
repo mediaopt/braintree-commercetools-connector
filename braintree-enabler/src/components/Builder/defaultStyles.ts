@@ -30,7 +30,7 @@ export const PayPalDefaultStyleProps = {
 };
 
 export const PayPalExpressStyleProps = {
-  flow: "checkout",
+  flow: "checkout", //required
   buttonColor: "gold",
   buttonLabel: "buynow",
   payLater: false,
@@ -38,5 +38,5 @@ export const PayPalExpressStyleProps = {
   locale: "en_GB",
   intent: "capture",
   enableShippingAddress: true,
-  shippingAddressEditable: false,
+  shippingAddressEditable: true,
 };

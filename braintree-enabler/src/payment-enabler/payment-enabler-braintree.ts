@@ -53,30 +53,18 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
 
     return Promise.resolve({
       baseOptions: {
-        // Required BaseOptions properties
         processorUrl: options.processorUrl,
         sessionId: options.sessionId,
         merchantAccountId: options.merchantAccountId,
         useKount: !!configJson.useKount,
         fullWidth: options.fullWidth !== undefined ? options.fullWidth : true, //todo - check if add config full width is relevant
         buttonText: configJson.buttonText || options.buttonText || "Pay €X",
-
-        // Required GeneralComponentsProps properties
-        //options.purchaseCallback ||
         purchaseCallback:
           configJson.purchaseCallback ||
           options.purchaseCallback ||
           ((result: any, options: any) => {
             console.log("Do something", result, options);
           }),
-        //
-        // taxAmount: options.taxAmount,
-        // shippingAmount: options.shippingAmount,
-        // discountAmount: options.discountAmount,
-        // shippingMethodId: options.shippingMethodId,
-        //
-        // // Cart information and other optional props
-        // cartInformation: options.cartInformation,
       },
     });
   };
@@ -84,8 +72,9 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     paymentMethodType: BraintreePaymentMethodType,
   ): Promise<PaymentComponentBuilder> {
     const { baseOptions } = await this.setupData;
+    console.log(paymentMethodType);
     return Promise.resolve(
-      new BraintreeBuilder(paymentMethodType, baseOptions),
+      new BraintreeBuilder(paymentMethodType, baseOptions, undefined),
     );
   }
 

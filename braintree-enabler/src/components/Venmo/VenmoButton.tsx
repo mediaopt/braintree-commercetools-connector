@@ -18,7 +18,7 @@ export const VenmoButton: FC<VenmoButton> = ({
   setVenmoUserName,
   ignoreBowserSupport,
   useKount,
-  lineItems,
+  braintreeLineItems,
   shipping,
 }: VenmoButton) => {
   return (
@@ -34,7 +34,7 @@ export const VenmoButton: FC<VenmoButton> = ({
       setVenmoUserName={setVenmoUserName}
       ignoreBowserSupport={ignoreBowserSupport}
       useKount={useKount}
-      lineItems={lineItems}
+      braintreeLineItems={braintreeLineItems}
       shipping={shipping}
     />
   );

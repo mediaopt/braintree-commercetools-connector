@@ -19,7 +19,7 @@ type ApplePayMaskProps = ApplePayTypes & GeneralPayButtonProps;
 export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
   fullWidth,
   applePayDisplayName,
-  lineItems,
+  braintreeLineItems,
   shipping,
 }: ApplePayMaskProps) => {
   const [applePayInstanceState, setApplePayInstanceState] =
@@ -118,7 +118,7 @@ export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
 
                     if (payload)
                       handleTransactionSale(payload.nonce, {
-                        lineItems: lineItems,
+                        lineItems: braintreeLineItems,
                         shipping: shipping,
                       });
 

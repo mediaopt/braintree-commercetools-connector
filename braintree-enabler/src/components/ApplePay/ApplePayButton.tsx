@@ -12,7 +12,7 @@ type ApplePayButtonProps = ApplePayTypes & GeneralPayButtonProps;
 export const ApplePayButton: FC<ApplePayButtonProps> = ({
   fullWidth = true,
   applePayDisplayName,
-  lineItems,
+  braintreeLineItems,
   shipping,
 }: ApplePayButtonProps) => {
   const [applyPaySupport, setApplyPaySupport] = useState(false);
@@ -36,7 +36,7 @@ export const ApplePayButton: FC<ApplePayButtonProps> = ({
     <ApplePayMask
       fullWidth={fullWidth}
       applePayDisplayName={applePayDisplayName}
-      lineItems={lineItems}
+      braintreeLineItems={braintreeLineItems}
       shipping={shipping}
     />
   ) : (

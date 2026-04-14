@@ -43,7 +43,7 @@ export const LocalPaymentMethodMask: FC<
   fallbackButtonText,
   shippingAddressRequired,
   useKount,
-  lineItems,
+  braintreeLineItems,
   shipping,
 }: LocalPaymentMethodMaskType) => {
   const [localPaymentInstance, setLocalPaymentInstance] =
@@ -102,7 +102,7 @@ export const LocalPaymentMethodMask: FC<
           if (payload) {
             const handlePurchaseOptions: { [index: string]: any } = {
               deviceData: deviceData,
-              lineItems: lineItems,
+              lineItems: braintreeLineItems,
               shipping: shipping,
             };
             if (merchantAccountId) {

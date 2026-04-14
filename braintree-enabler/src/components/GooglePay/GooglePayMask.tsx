@@ -19,7 +19,7 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
   billingAddressRequired = false,
   acquirerCountryCode,
   fullWidth,
-  lineItems,
+  braintreeLineItems,
   shipping,
 }: GooglePayTypes) => {
   const { handleTransactionSale, paymentInfo, clientToken } = usePayment();
@@ -111,7 +111,7 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
                                   return;
                                 }
                                 handleTransactionSale(result.nonce, {
-                                  lineItems: lineItems,
+                                  lineItems: braintreeLineItems,
                                   shipping: shipping,
                                 });
                               },

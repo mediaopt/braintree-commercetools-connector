@@ -12,6 +12,7 @@ import {
   ThreeDSecureBillingAddress,
 } from "braintree-web/three-d-secure";
 import { BraintreePaymentMethodType } from "../components/Builder/types";
+import { ShippingOption } from "paypal-checkout-components/modules/callback-data";
 
 export type ClientTokenRequest = {
   paymentId: string;
@@ -25,7 +26,7 @@ export enum LineItemKind {
   Credit = "credit",
 }
 
-export type LineItem = {
+export type BraintreeLineItem = {
   name: string;
   kind: LineItemKind;
   quantity: string;
@@ -41,13 +42,11 @@ export type LineItem = {
   url: string;
 };
 
-export type LineItems = LineItem[];
-
 export type UseKount = { useKount?: boolean };
 
 type LineItemsShipping = {
-  lineItems?: LineItems;
-  shipping?: Shipping;
+  braintreeLineItems?: BraintreeLineItem[];
+  shipping?: BraintreeShipping;
 };
 
 export type GeneralPayButtonProps = {
@@ -63,11 +62,13 @@ type RequiredSessionData = {
   sessionId: string;
 };
 
+export type BuilderType = "dropin" | "express" | undefined;
+
 export type PaymentProviderProps = RequiredSessionData & {
   purchaseCallback: (result: any, options?: any) => void;
   merchantAccountId?: string;
   paymentMethodType: BraintreePaymentMethodType;
-  customType?: "express" | "dropin";
+  builderType?: BuilderType;
 };
 
 export type GeneralComponentsProps = PaymentProviderProps &
@@ -106,6 +107,9 @@ type OptionalPerMethodPaymentData = {
   streetNumber?: string; //ACH
   postalCode?: string; //ACH
   email?: string; //credit card with 3Dsecure
+  shippingOptions?: (ShippingOption & { countryCode: string })[]; //PayPal express (Buy Now)
+  braintreeLineItems?: BraintreeLineItem[]; //PayPal express (Buy Now)
+  braintreeShipping?: BraintreeShipping; //PayPal express (Buy Now)
 };
 
 export type PaymentInfo = RequiredPaymentData & OptionalPerMethodPaymentData;
@@ -121,30 +125,6 @@ export type TransactionSaleResponse = {
   result: {
     transactionSaleResponse: Record<string, any>;
     paymentVersion: number;
-  };
-};
-
-export type CartInformation = {
-  account: {
-    email: string;
-  };
-  billing: {
-    firstName: string;
-    lastName: string;
-    streetName: string;
-    streetNumber: string;
-    city: string;
-    country: string;
-    postalCode: string;
-  };
-  shipping: {
-    firstName: string;
-    lastName: string;
-    streetName: string;
-    streetNumber: string;
-    city: string;
-    country: string;
-    postalCode: string;
   };
 };
 
@@ -178,7 +158,6 @@ export type PayPalProps = {
   size?: ButtonSizeOption;
   tagline?: boolean;
   height?: number;
-  shippingOptions?: PayPalShippingOptions[];
   isPureVault?: boolean;
 };
 
@@ -192,32 +171,6 @@ export type ShippingAddressOverride = {
   state: string;
   phone?: string;
 };
-
-export const CartInformationInitial: CartInformation = {
-  account: {
-    email: "",
-  },
-  billing: {
-    firstName: "",
-    lastName: "",
-    streetName: "",
-    streetNumber: "",
-    city: "",
-    country: "",
-    postalCode: "",
-  },
-  shipping: {
-    firstName: "",
-    lastName: "",
-    streetName: "",
-    streetNumber: "",
-    city: "",
-    country: "",
-    postalCode: "",
-  },
-};
-
-export type CartInformationProps = { cartInformation: CartInformation };
 
 export type GooglePayTypes = {
   environment: google.payments.api.Environment;
@@ -345,7 +298,8 @@ interface LocalPaymentP24 extends LocalPaymentMethodsType {
   currencyCode: "EUR" | "PL";
 }
 
-export type Shipping = {
+export type BraintreeShipping = {
+  //todo - check if Braintree shipping must be extended or this one can be reduced
   company?: string;
   countryCodeAlpha2?: string;
   countryCodeAlpha3?: string;

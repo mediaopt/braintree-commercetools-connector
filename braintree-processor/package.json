@@ -35,7 +35,8 @@
     "fastify": "^5.7.4",
     "fastify-plugin": "5.1.0",
     "common-connect": "../common-connect",
-    "braintree": "^3.13.0"
+    "braintree": "^3.13.0",
+    "braintree-web": "^3.138.0"
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.0",
@@ -60,7 +61,8 @@
     "ts-jest": "29.4.6",
     "ts-node": "10.9.2",
     "typescript": "5.9.3",
-    "@types/braintree": "^3.3.7"
+    "@types/braintree": "^3.3.7",
+    "@types/braintree-web": "^3.75.23"
   },
   "overrides": {
     "path-to-regexp": "3.3.0"

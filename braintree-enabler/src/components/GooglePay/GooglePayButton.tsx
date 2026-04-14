@@ -16,7 +16,7 @@ export const GooglePayButton: FC<GooglePayButtonProps> = ({
   billingAddressRequired,
   phoneNumberRequired,
   acquirerCountryCode,
-  lineItems,
+  braintreeLineItems,
   shipping,
 }: GooglePayButtonProps) => {
   return (
@@ -31,7 +31,7 @@ export const GooglePayButton: FC<GooglePayButtonProps> = ({
       phoneNumberRequired={phoneNumberRequired}
       acquirerCountryCode={acquirerCountryCode}
       fullWidth={fullWidth}
-      lineItems={lineItems}
+      braintreeLineItems={braintreeLineItems}
       shipping={shipping}
     />
   );
