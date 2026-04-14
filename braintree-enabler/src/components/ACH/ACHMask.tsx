@@ -66,7 +66,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   buttonText,
   mandateText,
   useKount,
-  lineItems,
+  braintreeLineItems,
   shipping,
 }: ACHMaskProps) => {
   const {
@@ -265,7 +265,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     isLoading(true);
     await handleTransactionSale(selectedAccount, {
       deviceData: deviceData,
-      lineItems: lineItems,
+      lineItems: braintreeLineItems,
       shipping: shipping,
     });
     isLoading(false);

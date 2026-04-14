@@ -19,12 +19,11 @@ export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
   paymentType,
   currencyCode,
   countryCode,
-  merchantAccountId,
   fallbackUrl,
   fallbackButtonText = PAY_BUTTON_TEXT_FALLBACK,
   shippingAddressRequired,
   useKount,
-  lineItems,
+  braintreeLineItems,
   shipping,
 }: LocalPaymentMethod) => {
   return (
@@ -35,12 +34,11 @@ export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
       currencyCode={currencyCode}
       fullWidth={fullWidth}
       buttonText={buttonText}
-      merchantAccountId={merchantAccountId}
       fallbackUrl={fallbackUrl}
       fallbackButtonText={fallbackButtonText}
       shippingAddressRequired={shippingAddressRequired}
       useKount={useKount}
-      lineItems={lineItems}
+      braintreeLineItems={braintreeLineItems}
       shipping={shipping}
     />
   );

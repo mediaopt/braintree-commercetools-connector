@@ -8,6 +8,7 @@ import { BaseOptions } from "../../payment-enabler/interfaces/baseOptions";
 import { createElement } from "react";
 import { BraintreePaymentMethodType } from "./types";
 import { RenderTemplate } from "../RenderTemplate";
+import { BuilderType } from "../../types";
 
 class BraintreeComponent implements PaymentComponent {
   private root: Root | null = null;
@@ -16,7 +17,7 @@ class BraintreeComponent implements PaymentComponent {
     private paymentMethodType: BraintreePaymentMethodType,
     private baseOptions: BaseOptions,
     private config: ComponentOptions,
-    private builderType?: "dropin" | "express",
+    private builderType: BuilderType,
   ) {}
 
   async mount(selector: string): Promise<void> {
@@ -26,6 +27,7 @@ class BraintreeComponent implements PaymentComponent {
     }
     element.innerHTML = "";
     this.root = createRoot(element as HTMLElement);
+    console.log(this.paymentMethodType, this.builderType);
     const componentRender = createElement(RenderTemplate, {
       paymentMethodType: this.paymentMethodType,
       customOptions: { ...this.baseOptions, ...this.config },
@@ -70,14 +72,15 @@ export class BraintreeBuilder implements PaymentComponentBuilder {
   public componentHasSubmit = true;
 
   constructor(
-    private type: BraintreePaymentMethodType,
+    private paymentMethodType: BraintreePaymentMethodType,
     private baseOptions: BaseOptions,
-    private builderType?: "dropin" | "express",
+    private builderType: BuilderType,
   ) {}
 
   build(config: ComponentOptions): PaymentComponent {
+    console.log(this.paymentMethodType, this.baseOptions, config);
     return new BraintreeComponent(
-      this.type,
+      this.paymentMethodType,
       this.baseOptions,
       config,
       this.builderType,

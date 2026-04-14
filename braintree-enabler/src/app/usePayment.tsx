@@ -81,9 +81,10 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   merchantAccountId,
   purchaseCallback,
   paymentMethodType,
+  builderType,
   children,
 }) => {
-  const [gettingClientToken, setGettingClientToken] = useState(false);
+  const [initializingPayment, setInitializingPayment] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [resultSuccess, setResultSuccess] = useState<boolean>();
   const [resultMessage, setResultMessage] = useState<string>();
@@ -111,7 +112,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
 
   useEffect(() => {
     const handleInitPayment = async (vaultPayment?: boolean) => {
-      setGettingClientToken(true);
+      setInitializingPayment(true);
       isLoading(true);
       try {
         const createPaymentEndpoint =
@@ -122,6 +123,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
           requestHeader,
           createPaymentEndpoint,
           paymentMethodType,
+          builderType,
           merchantAccountId,
         )) as CreatePaymentResponse;
         setClientToken(createPaymentResult.braintreeData.clientToken);
@@ -132,8 +134,9 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       } catch (error) {
         notify("Error", "Authentication Error!");
         console.error(error);
+        setClientToken(undefined);
       }
-      setGettingClientToken(false);
+      setInitializingPayment(false);
       isLoading(false);
     };
     handleInitPayment(); //todo - add vault properly
@@ -269,7 +272,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
 
     return {
       sessionId,
-      gettingClientToken,
+      gettingClientToken: initializingPayment,
       clientToken,
       setLocalPaymentId,
       handleTransactionSale,
@@ -280,7 +283,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       braintreeCustomerId,
       requestHeader,
     };
-  }, [clientToken, gettingClientToken]);
+  }, [clientToken, initializingPayment]);
 
   return (
     <PaymentContext.Provider value={value}>

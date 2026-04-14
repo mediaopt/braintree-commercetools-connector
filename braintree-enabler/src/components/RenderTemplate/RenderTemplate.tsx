@@ -21,11 +21,12 @@ import { CreditCardButton } from "../CreditCard/CreditCardButton";
 import { GooglePayButton } from "../GooglePay/GooglePayButton";
 import { PayPalButton } from "../PayPal/PayPalButton";
 import { VenmoButton } from "../Venmo/VenmoButton";
+import { BuilderType } from "../../types";
 
 type BraintreeBuilderTemplateProps = {
   paymentMethodType: BraintreePaymentMethodType;
   customOptions: BaseOptions & ComponentOptions;
-  builderType?: "dropin" | "express";
+  builderType: BuilderType;
 };
 
 const ComponentWithCustomOptions = ({
@@ -87,6 +88,8 @@ export const RenderTemplate: FC<
       <LoaderProvider>
         <PaymentProvider
           {...customOptions}
+          paymentMethodType={paymentMethodType}
+          builderType={builderType}
           merchantAccountId={
             paymentMethodType === "LocalPaymentMethod"
               ? customOptions.merchantAccountId

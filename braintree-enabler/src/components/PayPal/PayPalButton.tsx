@@ -28,13 +28,12 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
   shippingAddressEditable,
   shippingAddressOverride,
   useKount,
-  lineItems,
+  braintreeLineItems,
   shipping,
   shape,
   size,
   tagline,
   height,
-  shippingOptions,
 }) => {
   const FALLBACK_TEXT = isPureVault
     ? VAULT_BUTTON_TEXT_FALLBACK
@@ -57,13 +56,12 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
       shippingAddressEditable={shippingAddressEditable}
       shippingAddressOverride={shippingAddressOverride}
       useKount={useKount}
-      lineItems={lineItems}
+      braintreeLineItems={braintreeLineItems}
       shipping={shipping}
       shape={shape}
       size={size}
       tagline={tagline}
       height={height}
-      shippingOptions={shippingOptions}
       isPureVault={isPureVault}
     />
   );

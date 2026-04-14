@@ -19,7 +19,7 @@ import {
   GeneralPayButtonProps,
   GeneralCreditCardProps,
   LineItems,
-  Shipping,
+  BraintreeShipping,
 } from "../../types";
 
 import {
@@ -59,7 +59,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   continueOnLiabilityShiftPossible = false,
   continueOnNoThreeDS = false,
   useKount,
-  lineItems,
+  braintreeLineItems,
   shipping,
   isPureVault = false,
 }) => {
@@ -132,15 +132,15 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
       deviceData: string;
       shouldVault?: boolean;
       lineItems?: LineItems;
-      shipping?: Shipping;
+      shipping?: BraintreeShipping;
     } = {
       deviceData: deviceData,
     };
     if (shouldVault) {
       options.shouldVault = true;
     }
-    if (lineItems) {
-      options.lineItems = lineItems;
+    if (braintreeLineItems) {
+      options.lineItems = braintreeLineItems;
     }
     if (shipping) {
       options.shipping = shipping;

@@ -54,6 +54,12 @@ import {
 } from 'common-connect/dist';
 import { handleCustomTransactionFields, handleCustomFieldResponse } from '../utils/customEntities.utils';
 import { CustomerResourceIdentifier } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/customer';
+import { ShippingMethod } from '@commercetools/platform-sdk';
+import { mapCTLineItemToBraintreeLineItem } from '../utils/lineItem.utils';
+import {
+  mapCTShippingToBraintreeShipping,
+  mapShippingMethodsToBraintreeShippingOptions,
+} from '../utils/shipping.utils';
 
 export class BraintreePaymentService extends AbstractPaymentService {
   private ctPaymentMethodService: CustomPaymentMethodService;
@@ -217,6 +223,19 @@ export class BraintreePaymentService extends AbstractPaymentService {
       });
   }
 
+  public async getShippingMethods(ctCartId: string): Promise<ShippingMethod[] | void> {
+    return await paymentSDK.ctAPI.client
+      .shippingMethods()
+      .matchingCart()
+      .get({ queryArgs: { cartId: ctCartId, expand: 'zoneRates[*].zone' } })
+      .execute()
+      .then((response) => response.body.results)
+      .catch((err) => {
+        log.warn(`No shipping available for ${ctCartId}`, { error: err });
+        return;
+      });
+  }
+
   /**
    * Capture payment
    *
@@ -343,6 +362,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
   public async createPayment(request: CreatePaymentRequest): Promise<PaymentResponseSchemaDTO> {
     this.validatePaymentMethod(request);
+    const paymentMethodType = request.data.paymentMethodType;
+    const isExpress = paymentMethodType === 'PayPal' && request.data.builderType === 'express';
 
     const ctCart = await this.ctCartService.getCart({
       id: getCartIdFromContext(),
@@ -365,6 +386,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (ctCart.customerId) {
       const customer = await this.getCtCustomer(ctCart.customerId);
       braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
+    }
+
+    let shippingMethods: ShippingMethod[] = [];
+
+    if (isExpress) {
+      shippingMethods = (await this.getShippingMethods(ctCart.id)) || [];
     }
 
     //todo - add verification if this payment already exists and can be returned
@@ -408,6 +435,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
       pspInteractions: [requestInteraction, responseInteraction],
     });
 
+    log.info(
+      `${JSON.stringify(ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale)))}`,
+    );
+
     return {
       braintreeData: { clientToken: tokenResponse, braintreeCustomerId },
       payment: {
@@ -415,61 +446,18 @@ export class BraintreePaymentService extends AbstractPaymentService {
         currency: ctPayment.amountPlanned.currencyCode,
         braintreeAmount: Number(mapCommercetoolsMoneyToBraintreeMoney(ctPayment.amountPlanned)),
         email: ctCart.customerEmail,
+        shippingOptions: mapShippingMethodsToBraintreeShippingOptions(
+          shippingMethods,
+          ctPayment.amountPlanned.currencyCode,
+        ),
+        braintreeLineItems: isExpress
+          ? ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale))
+          : undefined,
+        braintreeShipping: ctCart.shippingAddress
+          ? mapCTShippingToBraintreeShipping(ctCart.shippingAddress)
+          : undefined,
       },
     };
-
-    // // Fetch the required data and then validate it before making the request to the PSP.
-    // const storedPaymentMethodDataOptions = await this.handleStoredPaymentMethod(request, ctCart);
-    //
-    // // Perform request to PSP
-    //
-    // // Depending on the PSP integration the creation of the CT stored payment method could happen in one of two ways:
-    // // 1. sync based on the response from the PSP when the payment is created and authorized.
-    // // 2. async via a webhook/notification from the PSP after the payment is created and authorized.
-    // if (
-    //   request.data.paymentOutcome === PaymentOutcome.AUTHORIZED &&
-    //   ctCart.customerId &&
-    //   storedPaymentMethodDataOptions.storePaymentMethod
-    // ) {
-    //   // In this example it will be directly created as described in option 1.
-    //   await this.ctPaymentMethodService.save({
-    //     customerId: ctCart.customerId ?? '',
-    //     method: request.data.paymentMethod.type,
-    //     paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
-    //     interfaceAccount: getStoredPaymentMethodsConfig().config.interfaceAccount,
-    //     token: randomUUID(), // This value should always come from the PSP after they have authorized the payment
-    //   });
-    // }
-    //
-    // const pspReference = randomUUID().toString();
-    //
-    // const updatedctPayment = await this.ctPaymentService.updatePayment({
-    //   id: ctPayment.id,
-    //   pspReference: pspReference,
-    //   paymentMethod: request.data.paymentMethod.type,
-    //   transaction: {
-    //     type: 'Authorization',
-    //     amount: ctPayment.amountPlanned,
-    //     interactionId: pspReference,
-    //     state: this.convertPaymentResultCode(request.data.paymentOutcome),
-    //   },
-    //   ...(request.data.paymentMethod.type === BraintreePaymentMethodType.PURCHASE_ORDER && {
-    //     customFields: {
-    //       type: {
-    //         key: launchpadPurchaseOrderCustomType.key,
-    //         typeId: 'type',
-    //       },
-    //       fields: {
-    //         [launchpadPurchaseOrderCustomType.purchaseOrderNumber]: request.data.paymentMethod.poNumber,
-    //         [launchpadPurchaseOrderCustomType.invoiceMemo]: request.data.paymentMethod.invoiceMemo,
-    //       },
-    //     },
-    //   }),
-    // });
-    //
-    // return {
-    //   paymentReference: updatedctPayment.id,
-    // };
   }
 
   public async transactionSale({
@@ -850,10 +838,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   private validatePaymentMethod(request: CreatePaymentRequest): void {
-    const merchantAccountId = request.data.merchantAccountId;
-
-    // if (paymentMethod.type === BraintreePaymentMethodType.PURCHASE_ORDER && !paymentMethod.poNumber) {
-    //   throw new ErrorRequiredField('poNumber');
-    // }
+    const { merchantAccountId, paymentMethodType } = request.data;
+    if (paymentMethodType === 'LocalPaymentMethod' && !merchantAccountId)
+      throw new ErrorRequiredField('merchantAccountId');
   }
 }

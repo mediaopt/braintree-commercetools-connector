@@ -14,7 +14,6 @@ import {
   PayPalProps,
   GeneralPayButtonProps,
   PayPalFundingSourcesProp,
-  LineItemKind,
 } from "../../types";
 
 import { HOSTED_FIELDS_LABEL, renderMaskButtonClasses } from "../../styles";
@@ -49,13 +48,12 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   fullWidth,
   buttonText,
   useKount,
-  lineItems,
+  braintreeLineItems,
   shipping,
   shape,
   size,
   tagline,
   height,
-  shippingOptions,
   isPureVault = false,
 }) => {
   const [limitedVaultedPayments, setLimitedVaultedPaymentMethods] = useState<
@@ -71,8 +69,11 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     handlePureVault,
     handleGetVaultedPaymentMethods,
   } = usePayment();
+  const { shippingOptions } = paymentInfo;
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
+
+  console.log(shippingOptions);
 
   // useEffect(() => {
   //   if (isPureVault) {
@@ -184,8 +185,8 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                       // } else {
                       handleTransactionSale(payload.nonce, {
                         deviceData: deviceData,
-                        // lineItems: lineItems,
-                        // shipping: shipping,
+                        braintreeLineItems: braintreeLineItems,
+                        shipping: shipping,
                         account: {
                           email: payload.details.email,
                         },
@@ -258,61 +259,50 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                         fundingSource: fundingSource,
 
                         onShippingChange: function (data: any, actions: any) {
-                          if (!shippingOptions) return;
-
+                          //data definition can be found here https://developer.paypal.com/sdk/js/reference/#onshippingchange
                           const countryCode =
                             data.shipping_address.country_code;
-                          if (!countryCode) return actions.reject();
+                          if (!shippingOptions?.length) return actions.reject();
 
-                          const shippingOption = shippingOptions.find(
-                            (shippingOption) =>
-                              shippingOption.countryCode === countryCode,
-                          );
-
-                          if (shippingOption) {
-                            if (lineItems) {
-                              const shippingLineItemIndex =
-                                lineItems?.findIndex(
-                                  (lineItem) => lineItem.name === "Shipping",
-                                );
-
-                              const shippingAmountString =
-                                shippingOption.amount.toString();
-
-                              if (
-                                shippingLineItemIndex &&
-                                shippingLineItemIndex > -1
-                              ) {
-                                lineItems[shippingLineItemIndex].unitAmount =
-                                  shippingAmountString;
-                                lineItems[shippingLineItemIndex].totalAmount =
-                                  shippingAmountString;
-                              } else {
-                                lineItems.push({
-                                  description: "",
-                                  productCode: "",
-                                  unitTaxAmount: "",
-                                  url: "",
-                                  name: "Shipping",
-                                  quantity: "1",
-                                  totalAmount: shippingAmountString,
-                                  unitAmount: shippingAmountString,
-                                  kind: LineItemKind.Debit,
-                                });
-                              }
-                            }
-
-                            return paypalCheckoutInstance.updatePayment({
-                              amount:
-                                paymentInfo.braintreeAmount +
-                                shippingOption.amount,
-                              currency: paymentInfo.currency,
-                              lineItems: lineItems,
-                              paymentId: data.paymentId,
-                            });
-                          } else {
+                          const relevantShippingOptions =
+                            shippingOptions.filter(
+                              (item) => item.countryCode === countryCode,
+                            );
+                          if (!relevantShippingOptions.length)
                             return actions.reject();
-                          }
+
+                          const selectedOptionIndex =
+                            relevantShippingOptions.findIndex(
+                              ({ amount }) =>
+                                amount.value ===
+                                data.selected_shipping_option?.amount.value,
+                            );
+                          const activateIndex =
+                            selectedOptionIndex >= 0 ? selectedOptionIndex : 0;
+
+                          const braintreeShippingOptions =
+                            relevantShippingOptions.map(
+                              ({ id, type, label, amount }, index) => ({
+                                id,
+                                type,
+                                label,
+                                selected: index === activateIndex,
+                                amount,
+                              }),
+                            );
+
+                          return paypalCheckoutInstance.updatePayment({
+                            amount: (
+                              Number(
+                                relevantShippingOptions[activateIndex].amount
+                                  .value,
+                              ) + paymentInfo.braintreeAmount
+                            ).toFixed(2),
+                            currency: paymentInfo.currency,
+                            lineItems: braintreeLineItems,
+                            paymentId: data.paymentId,
+                            shippingOptions: braintreeShippingOptions,
+                          });
                         },
 
                         createOrder: () => {
@@ -357,7 +347,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     intent,
     isLoading,
     locale,
-    lineItems,
+    braintreeLineItems,
     billingAgreementDescription,
     shippingAddressEditable,
     shippingAddressOverride,
@@ -376,7 +366,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     isLoading(true);
     await handleTransactionSale(selectedAccount, {
       deviceData: deviceData,
-      lineItems: lineItems,
+      lineItems: braintreeLineItems,
       shipping: shipping,
     });
     isLoading(false);

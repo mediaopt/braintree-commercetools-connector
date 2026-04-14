@@ -2,7 +2,10 @@ import { Client } from "braintree-web";
 import { PaymentResult } from "./enabler";
 import { GeneralComponentsProps } from "../../types";
 
-export type BaseOptions = GeneralComponentsProps & {
+export type BaseOptions = Omit<
+  GeneralComponentsProps,
+  "paymentMethodType" | "builderType"
+> & {
   //todo - clarify if implement onError here makes sense
   //optional
   // countryCode?: string;

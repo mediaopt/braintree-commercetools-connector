@@ -19,10 +19,10 @@ import {
   Sofort,
 } from "./components/LocalPaymentMethods";
 import {
-  LineItem,
+  BraintreeLineItem,
   LineItemKind,
   PayPalShippingOptions,
-  Shipping,
+  BraintreeShipping,
   ShippingAddressOverride,
 } from "./types";
 
@@ -60,7 +60,7 @@ function App() {
     },
   };
 
-  const lineItems: LineItem[] = [
+  const lineItems: BraintreeLineItem[] = [
     {
       name: "Product",
       kind: LineItemKind.Debit,
@@ -78,7 +78,7 @@ function App() {
     },
   ];
 
-  const shipping: Shipping = {
+  const shipping: BraintreeShipping = {
     firstName: "Majid",
     lastName: "Abbasi",
   };
