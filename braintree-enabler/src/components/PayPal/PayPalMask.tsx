@@ -73,8 +73,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
 
-  console.log(shippingOptions);
-
   // useEffect(() => {
   //   if (isPureVault) {
   //     return;
@@ -179,6 +177,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                   return paypalCheckoutInstance.tokenizePayment(
                     data,
                     function (err: any, payload: any) {
+                      //type definition for payload https://braintree.github.io/braintree-web/3.9.0/PayPalCheckout.html#~tokenizePayload
                       //handlePureVault(payload.nonce);
                       // if (isPureVault) {
                       //   handlePureVault(payload.nonce);
@@ -199,6 +198,14 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           country: payload.details.countryCode,
                           postalCode:
                             payload.details.shippingAddress.postalCode,
+                        },
+                        braintreePaymentDetails: {
+                          braintreeShipping: payload.shippingAddress,
+                          extraShippingCost: payload.shippingOptionId
+                            ? shippingOptions?.find(
+                                ({ id }) => id === payload.shippingOptionId,
+                              )?.amount.value
+                            : undefined, //only will be returned if shipping was changed inside the PayPal express, than it must be used to update the total payment amount, this methods doesnt support total cart discounts for shipping
                         },
                       });
                       // }
@@ -260,6 +267,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
 
                         onShippingChange: function (data: any, actions: any) {
                           //data definition can be found here https://developer.paypal.com/sdk/js/reference/#onshippingchange
+                          console.log(data);
                           const countryCode =
                             data.shipping_address.country_code;
                           if (!shippingOptions?.length) return actions.reject();
@@ -270,6 +278,8 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                             );
                           if (!relevantShippingOptions.length)
                             return actions.reject();
+                          const isMethodPreselectedByCart =
+                            shippingOptions.some(({ selected }) => selected);
 
                           const selectedOptionIndex =
                             relevantShippingOptions.findIndex(
@@ -293,10 +303,12 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
 
                           return paypalCheckoutInstance.updatePayment({
                             amount: (
-                              Number(
-                                relevantShippingOptions[activateIndex].amount
-                                  .value,
-                              ) + paymentInfo.braintreeAmount
+                              (isMethodPreselectedByCart
+                                ? 0
+                                : Number(
+                                    relevantShippingOptions[activateIndex]
+                                      .amount.value,
+                                  )) + paymentInfo.braintreeAmount
                             ).toFixed(2),
                             currency: paymentInfo.currency,
                             lineItems: braintreeLineItems,

@@ -449,6 +449,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         shippingOptions: mapShippingMethodsToBraintreeShippingOptions(
           shippingMethods,
           ctPayment.amountPlanned.currencyCode,
+          ctCart.shippingInfo?.shippingMethod?.id,
         ),
         braintreeLineItems: isExpress
           ? ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale))
@@ -464,8 +465,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     ctPaymentId,
     paymentMethodNonce,
     paymentToken,
+    braintreePaymentDetails,
   }: TransactionSaleRequestSchemaDTO): Promise<{ message: string; success: boolean }> {
-    log.info(`nonce ${paymentMethodNonce}`);
     const ctPayment = await this.ctPaymentService.getPayment({ id: ctPaymentId });
     const transactionRequest = mapRequestToBraintreeTransactionSale(
       ctPayment,
@@ -474,6 +475,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
       paymentMethodNonce,
       paymentToken,
     ); //todo - handle other params
+    if (braintreePaymentDetails?.extraShippingCost) {
+      transactionRequest.amount = (
+        Number(transactionRequest.amount) + Number(braintreePaymentDetails.extraShippingCost)
+      ).toFixed(2);
+    } //see enabler PayPalMask onShippingChange and onApprove
     const requestInteraction = handleInterfaceInteraction({
       messageName: 'transactionSale',
       message: transactionRequest,
