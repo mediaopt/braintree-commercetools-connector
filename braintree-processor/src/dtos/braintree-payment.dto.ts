@@ -77,6 +77,13 @@ export const TransactionSaleRequestSchema = Type.Object({
   paymentMethodNonce: Type.Optional(Type.String()),
   paymentToken: Type.Optional(Type.String()),
   deviceData: Type.Optional(Type.String()),
+  braintreePaymentDetails: Type.Optional(
+    Type.Object({
+      braintreeLineItems: Type.Optional(Type.Array(BraintreeLineItemSchema)),
+      extraShippingCost: Type.Optional(Type.String()),
+      braintreeShipping: Type.Optional(BraintreeShippingSchema),
+    }),
+  ),
 });
 
 export type TransactionSaleRequestSchemaDTO = Static<typeof TransactionSaleRequestSchema>;
