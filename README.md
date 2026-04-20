@@ -7,11 +7,25 @@
   </a><br>
 </p>
 
-This is a [connect application](https://marketplace.commercetools.com/) to integrate Braintree into Commercetools. It follows the folder structure to ensure certification & deployment from commercetools connect team as stated [here](https://github.com/commercetools/connect-application-kit#readme).
+This is a checkout compatible [connect application](https://marketplace.commercetools.com/) to integrate Braintree into Commercetools. The primary intgration mode is connector mode, which follows the folder structure to ensure certification & deployment from commercetools connect team as stated [here](https://github.com/commercetools/connect-application-kit#readme).
 
 [PayPal Braintree commercetools connector](https://marketplace.commercetools.com/integration/paypal-braintree) is available in the commercetools marketplace.
 
 The payments demo and integration to the commercetools frontend can be seen at https://poc-mediaopt.frontend.site/ and [github](https://github.com/mediaopt/braintree-commercetools-cofe-integration).
+
+## For Existing Users
+
+If you are already using the Braintree connector in **connector mode**, no changes are required. Your existing setup will continue to work without any modifications. All functionality remains unchanged and backward compatible.
+
+## Checkout Mode
+
+The connector includes a checkout mode for faster, streamlined payment processing:
+
+- **PayPal SDK Frontend**: The enabler module provides a frontend based on the PayPal SDK for quick checkout integration.
+- **Performance Optimized**: The processor module uses the Commercetools Checkout API for faster cart and payment API interactions.
+- **Limited API Scope**: Some operations available in connector mode (extension module) are not implemented in checkout mode because they are handled directly or not supported by Braintree frontend components.
+
+**Note**: Connector mode is fully compatible with checkout. Fine-grained API control and customization is still available via extension.
 
 ## Prerequisites
 
@@ -38,14 +52,35 @@ Please set the following parameters according to your project requirements:
 - BRAINTREE_VALIDATE_CARD
 - BRAINTREE_AUTOCAPTURE
 
-## Instructions
+The connector mode requires braintree-extension, braintree-notification and braintree-events to be installed.
+The checkout mode requires all modules to be installed.
 
-- `cd braintree-extension`
+# Local development
+
+## Connector mode
+
+- `cd common-connect`
+- run `yarn` to install the dependencies
+- run `build` to install the dependencies
+- `cd ../braintree-extension`
 - run `yarn` to install the dependencies
 - insert commercetools credentials to `.env` file
 - run `./bin/ngrok.sh` to start ngrok and insert the dynamic url in the `.env` file
 - run `yarn connector:post-deploy` to register the extension with the public ngrok url
 - run `ỳarn start:dev` to build the application
+
+## Checkout mode
+
+Ensure that the env variables for processor and enabler are set to
+CTP_JWKS_URL=http://localhost:9002/jwt/.well-known/jwks.json
+and
+VITE_PROCESSOR_URL=http://localhost:8080
+correspondingly.
+
+- `cd common-connect`
+- run `yarn` to install the dependencies
+- run `build` to install the dependencies
+- run `docker compose up` to start the local JWT mock server, enabler and processor.
 
 ## Technology Stack
 

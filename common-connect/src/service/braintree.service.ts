@@ -1,4 +1,4 @@
-import { logger } from "../utils/logger.utils";
+import { logger } from "../utils";
 import {
   ClientTokenRequest,
   TransactionRequest,
@@ -28,7 +28,7 @@ const getBraintreeGateway = (timeout: number = BRAINTREE_TIMEOUT_PAYMENT) => {
   ) {
     throw new CustomError(
       500,
-      "Internal Server Error - braintree config is missing",
+      "Internal Server Error - Braintree config is missing",
     );
   }
   const gateway = new BraintreeGateway({

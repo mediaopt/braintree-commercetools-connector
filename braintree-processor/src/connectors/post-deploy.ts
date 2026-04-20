@@ -1,12 +1,13 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { createLaunchpadPurchaseOrderNumberCustomType } from './actions';
+/**
+ * Note: Custom types are managed by the extension module's post-deploy script
+ * to prevent concurrent modification issues
+ */
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function postDeploy(_properties: Map<string, unknown>) {
-  await createLaunchpadPurchaseOrderNumberCustomType();
-}
+async function postDeploy(_properties: Map<string, unknown>) {}
 
 async function runPostDeployScripts() {
   try {
