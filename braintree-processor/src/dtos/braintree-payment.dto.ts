@@ -31,10 +31,10 @@ export const InitPaymentResponseSchema = Type.Object({
     ctPaymentId: Type.String(),
     braintreeAmount: Type.Number(),
     currency: Type.String(),
-    //required only for some methods
+    //required only for PayPal express (to change shipping at the PayPal side)
     shippingOptions: Type.Optional(Type.Array(BraintreeShippingOptionSchema)), //express PayPal payment
     braintreeShipping: Type.Optional(BraintreeShippingSchema),
-    //at payment init step - optional, will only be used for render of the frontend components. The frontend form and Braintree backend will ensure that necessary params are passed to the final Braintree payment
+    //Only for render of the frontend components, not necessary for payment. The frontend form and Braintree backend will ensure that necessary params are passed to the final Braintree payment
     email: Type.Optional(Type.String()),
     firstName: Type.Optional(Type.String()),
     lastName: Type.Optional(Type.String()),
@@ -69,6 +69,16 @@ export const InitPaymentRequestSchema = Type.Object({
   // paymentOutcome: PaymentOutcomeSchema,
 });
 
+export const PureVaultRequestSchema = Type.Object({
+  //paymentToken: Type.String(),
+  ctCustomerId: Type.String(),
+  //paymentMethodType: Type.Enum(PaymentMethodType),
+  ctPaymentId: Type.String(),
+  braintreeCustomerId: Type.Optional(Type.String()),
+  paymentMethodNonce: Type.String(),
+});
+export type PureVaultRequestSchemaDTO = Static<typeof PureVaultRequestSchema>;
+
 export type PaymentRequestSchemaDTO = Static<typeof InitPaymentRequestSchema>;
 export type PaymentResponseSchemaDTO = Static<typeof InitPaymentResponseSchema>;
 
@@ -87,3 +97,6 @@ export const TransactionSaleRequestSchema = Type.Object({
 });
 
 export type TransactionSaleRequestSchemaDTO = Static<typeof TransactionSaleRequestSchema>;
+
+export const GeneralResponseSuccessSchema = Type.Object({ message: Type.String(), success: Type.Boolean() });
+export type GeneralResponseSuccessSchemaDTO = Static<typeof GeneralResponseSuccessSchema>;
