@@ -14,7 +14,7 @@
   "dependencies": {
     "@commercetools/platform-sdk": "^4.0.0",
     "@commercetools/sdk-client-v2": "^2.0.0",
-    "@commercetools-backend/loggers": "27.1.0",
+    "@commercetools-backend/loggers": "27.4.0",
     "@commercetools/connect-payments-sdk": "0.27.2",
     "braintree": "^3.13.0",
     "express": "^4.21.1"
