@@ -1,11 +1,10 @@
-import { UpdateActions, CustomerResponse } from '../types/index.types';
-import { Customer } from '@commercetools/platform-sdk';
-
-import { MessageFieldData } from 'common-connect/dist';
 import {
   logger,
   handleInterfaceInteraction,
   stringifyData,
+  removeEmptyProperties,
+  MessageFieldData,
+  UpdateActions,
 } from 'common-connect/dist';
 
 const logCleanMessage = ({
@@ -62,54 +61,6 @@ export const handlePaymentResponse = (
     value: null,
   });
   return updateActions;
-};
-
-export const handleCustomerResponse = (
-  requestName: string,
-  response: CustomerResponse | string,
-  customer: Customer
-): UpdateActions => {
-  const updateActions: UpdateActions = [];
-  if (typeof response === 'object') {
-    removeEmptyProperties(response);
-  }
-  updateActions.push({
-    action: 'setCustomField',
-    name: `${requestName}Response`,
-    value: stringifyData(response),
-  });
-  updateActions.push({
-    action: 'setCustomField',
-    name: `${requestName}Request`,
-    value: null,
-  });
-  if (
-    !customer?.custom?.fields?.braintreeCustomerId &&
-    typeof response === 'object' &&
-    'id' in response &&
-    response.id
-  ) {
-    updateActions.push({
-      action: 'setCustomField',
-      name: 'braintreeCustomerId',
-      value: response.id,
-    });
-  }
-  return updateActions;
-};
-
-export const removeEmptyProperties = (response: any) => {
-  for (const prop in response) {
-    if (response[prop] === null) {
-      delete response[prop];
-    }
-    if (typeof response[prop] === 'object') {
-      removeEmptyProperties(response[prop]);
-      if (Object.keys(response[prop]).length === 0) {
-        delete response[prop];
-      }
-    }
-  }
 };
 
 export const handleError = (
