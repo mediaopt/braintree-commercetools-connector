@@ -3,6 +3,7 @@ import {
   TransactionState,
   TransactionType,
   TypedMoney,
+  Customer as CTCustomer,
 } from "@commercetools/platform-sdk";
 import { Transaction, TransactionRequest, TransactionStatus } from "braintree";
 import { TransactionData } from "@commercetools/connect-payments-sdk";
@@ -142,3 +143,13 @@ export const mapBraintreeTransactionToCommercetoolsTransaction = (
         ),
       };
 };
+
+export const mapCTCustomerToNewBraintreeCustomer = (
+  ctCustomer: CTCustomer,
+) => ({
+  id: ctCustomer.id,
+  firstName: ctCustomer.firstName,
+  lastName: ctCustomer.lastName,
+  email: ctCustomer.email,
+  company: ctCustomer.companyName,
+});

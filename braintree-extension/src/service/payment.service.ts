@@ -1,10 +1,15 @@
 import {
+  ClientTokenRequest,
+  Transaction,
+  TransactionRequest,
+  TransactionStatus,
+} from 'braintree';
+import {
   LocalPayment,
   LocalPaymentTransaction,
   PaymentInstrumentType,
   PaymentMethodCreateRequest,
   PaymentWithOptionalTransaction,
-  UpdateActions,
 } from '../types/index.types';
 import {
   Payment,
@@ -28,24 +33,16 @@ import {
   createPaymentMethod,
   deletePayment as braintreeDeletePayment,
   addPackageTracking as braintreeAddPackageTracking,
-} from 'common-connect/dist';
-
-import {
   mapBraintreeMoneyToCommercetoolsMoney,
   mapBraintreeStatusToCommercetoolsTransactionState,
-} from '../utils/map.utils';
-import {
-  ClientTokenRequest,
-  Transaction,
-  TransactionRequest,
-  TransactionStatus,
-} from 'braintree';
-import {
   logger,
   getCurrentTimestamp,
   mapCommercetoolsMoneyToBraintreeMoney,
   mapBraintreeTransactionToCommercetoolsTransaction,
   getPaymentMethodHint,
+  UpdateActions,
+  mapRequestToBraintreeTransactionSale,
+  mapBraintreeStatusToCommercetoolsTransactionType,
 } from 'common-connect/dist';
 
 const getPayPalOrderPaymentToken = (payment: Payment) => {

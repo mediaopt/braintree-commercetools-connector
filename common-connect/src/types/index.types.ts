@@ -1,4 +1,8 @@
-import { TransactionLineItem } from "braintree";
+import { TransactionLineItem, PaymentMethod, Customer } from "braintree";
+import { UpdateAction } from "@commercetools/sdk-client-v2";
+export type UpdateActions = Array<UpdateAction>;
+
+export type CustomerResponse = PaymentMethod | Customer;
 
 type LineItem = TransactionLineItem & {
   upc_code?: string;
