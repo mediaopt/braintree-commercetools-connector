@@ -20,7 +20,9 @@ import { Package } from "../types/index.types";
 const BRAINTREE_TIMEOUT_PAYMENT = 9500;
 const BRAINTREE_TIMEOUT_CUSTOMER = 1500;
 
-const getBraintreeGateway = (timeout: number = BRAINTREE_TIMEOUT_PAYMENT) => {
+export const getBraintreeGateway = (
+  timeout: number = BRAINTREE_TIMEOUT_PAYMENT,
+) => {
   if (
     !process.env.BRAINTREE_MERCHANT_ID ||
     !process.env.BRAINTREE_PUBLIC_KEY ||
