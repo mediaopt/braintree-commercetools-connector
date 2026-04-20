@@ -8,12 +8,12 @@ import {
   findCustomer,
   deletePayment,
   updatePayment,
-} from 'common-connect/dist';
-import { handleCustomerResponse, handleError } from '../utils/response.utils';
-import {
+  VAULT_BRAINTREE_OPTIONS,
+  handleCustomerResponse,
   CustomerResponse,
-  PaymentMethodCreateRequest,
-} from '../types/index.types';
+} from 'common-connect/dist';
+import { handleError } from '../utils/response.utils';
+import { PaymentMethodCreateRequest } from '../types/index.types';
 import { CustomerCreateRequest } from 'braintree';
 
 function parseVaultRequest(
@@ -32,14 +32,8 @@ function parseVaultRequest(
     request = {
       ...request,
       customerId: braintreeCustomerId,
-      options: {
-        failOnDuplicatePaymentMethod: true,
-        usBankAccountVerificationMethod: 'network_check',
-        verifyCard: process.env.BRAINTREE_VALIDATE_CARD === 'true' || undefined,
-        verificationMerchantAccountId:
-          process.env.BRAINTREE_MERCHANT_ACCOUNT || undefined,
-      },
-    };
+      options: VAULT_BRAINTREE_OPTIONS,
+    } as PaymentMethodCreateRequest;
     return request;
   } else {
     return mapCommercetoolsCustomerToBraintreeCustomerCreateRequest(
@@ -65,7 +59,11 @@ export async function handleFindRequest(
       customer.id;
     logger.info(`findCustomer request: ${customerId}`);
     const response = await findCustomer(customerId);
-    return handleCustomerResponse('find', response, customer);
+    return handleCustomerResponse(
+      'find',
+      response,
+      !!customer?.custom?.fields?.braintreeCustomerId
+    );
   } catch (e) {
     logger.error('Call to find customer resulted in an error', e);
     return handleError('find', e);
@@ -89,7 +87,11 @@ export async function handleCreateRequest(
       throw new CustomError(400, 'field customerId is missing');
     }
     const response = await createCustomer(request);
-    return handleCustomerResponse('create', response, customer);
+    return handleCustomerResponse(
+      'create',
+      response,
+      customer?.custom?.fields?.braintreeCustomerId
+    );
   } catch (e) {
     logger.error('Call to create customer resulted in an error', e);
     return handleError('create', e);
@@ -110,7 +112,11 @@ export async function handleVaultRequest(customer: Customer) {
       logger.info(`createPaymentMethod request: ${JSON.stringify(request)}`);
       response = await createPaymentMethod(<PaymentMethodCreateRequest>request);
     }
-    return handleCustomerResponse('vault', response, customer);
+    return handleCustomerResponse(
+      'vault',
+      response,
+      customer?.custom?.fields?.braintreeCustomerId
+    );
   } catch (e) {
     logger.error('Call to vault resulted in an error', e);
     return handleError('vault', e);
@@ -128,7 +134,11 @@ export async function handleDeletePaymentRequest(
   try {
     logger.info(`deletePayment request: ${deletePaymentRequest}`);
     await deletePayment(deletePaymentRequest);
-    return handleCustomerResponse('deletePayment', 'success', customer);
+    return handleCustomerResponse(
+      'deletePayment',
+      'success',
+      customer?.custom?.fields?.braintreeCustomerId
+    );
   } catch (e) {
     logger.error('Call to delete payment resulted in an error', e);
     return handleError('deletePayment', e);
@@ -153,7 +163,11 @@ export const handleUpdatePaymentRequest = async (
     }
     request.paymentMethodToken = undefined;
     const response = await updatePayment(paymentMethodToken, request);
-    return handleCustomerResponse('updatePayment', response, customer);
+    return handleCustomerResponse(
+      'updatePayment',
+      response,
+      customer?.custom?.fields?.braintreeCustomerId
+    );
   } catch (e) {
     logger.error('Call to update payment resulted in an error', e);
     return handleError('updatePayment', e);

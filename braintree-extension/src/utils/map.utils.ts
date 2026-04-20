@@ -1,5 +1,6 @@
 import { CustomerCreateRequest } from 'braintree';
 import { Customer } from '@commercetools/platform-sdk';
+import { mapCTCustomerToNewBraintreeCustomer } from 'common-connect/dist';
 
 export const mapCommercetoolsCustomerToBraintreeCustomerCreateRequest = (
   customer: Customer,
@@ -7,13 +8,7 @@ export const mapCommercetoolsCustomerToBraintreeCustomerCreateRequest = (
 ): CustomerCreateRequest => {
   const request = JSON.parse(createRequest);
   return Object.assign(
-    {
-      id: customer.id,
-      firstName: customer.firstName,
-      lastName: customer.lastName,
-      email: customer.email,
-      company: customer.companyName,
-    },
+    mapCTCustomerToNewBraintreeCustomer(customer),
     request
   ) as CustomerCreateRequest;
 };
