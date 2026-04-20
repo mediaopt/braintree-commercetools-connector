@@ -379,25 +379,24 @@ export class BraintreePaymentService extends AbstractPaymentService {
           anonymousId: ctCart.anonymousId,
         };
 
-    let braintreeCustomerId: string | undefined;
+    // Execute all optional data fetching in parallel
+    const [customer, shippingMethodsResult, amountPlanned] = await Promise.all([
+      ctCart.customerId ? this.getCtCustomer(ctCart.customerId) : Promise.resolve(undefined),
+      isExpress ? this.getShippingMethods(ctCart.id) : Promise.resolve([]),
+      this.ctCartService.getPaymentAmount({ cart: ctCart }),
+    ]);
 
-    if (ctCart.customerId) {
-      const customer = await this.getCtCustomer(ctCart.customerId);
-      braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
-    }
+    const braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
+    const shippingMethods = shippingMethodsResult || [];
 
-    let shippingMethods: ShippingMethod[] = [];
-
-    if (isExpress) {
-      shippingMethods = (await this.getShippingMethods(ctCart.id)) || [];
-    }
-
-    //todo - add verification if this payment already exists and can be returned
+    /**
+     * We intentionally don't check if a payment already exists because:
+     * It cannot be done through the Checkout API yet
+     * Therefore it would unnecessarily slow down the createPayment call
+     */
 
     const ctPayment = await this.ctPaymentService.createPayment({
-      amountPlanned: await this.ctCartService.getPaymentAmount({
-        cart: ctCart,
-      }),
+      amountPlanned,
       paymentMethodInfo: {
         paymentInterface: getPaymentInterfaceFromContext() || 'Braintree', //todo - check if a more relevant interface exists
       },
@@ -420,7 +419,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       merchantAccountId: request.data.merchantAccountId,
       customerId: braintreeCustomerId,
     });
-    const customFields = handleCustomFieldResponse('getClientToken', tokenResponse); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
+    const customFields = handleCustomFieldResponse('getClientToken', tokenResponse, 'payment'); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
     const responseInteraction = handleInterfaceInteraction({
       messageName: 'getClientToken',
       message: tokenResponse,
