@@ -154,22 +154,20 @@ export class BraintreePaymentService extends AbstractPaymentService {
         }),
         async () => {
           try {
-            const paymentMethods = 'card';
+            await getBraintreeGateway();
             return {
-              name: 'Mock Payment API',
+              name: 'Braintree gateway',
               status: 'UP',
-              message: 'Mock api is working',
-              details: {
-                paymentMethods,
-              },
+              message: 'Braintree healthcheck success',
+              details: {},
             };
           } catch (e) {
             return {
-              name: 'Mock Payment API',
+              name: 'Braintree gateway',
               status: 'DOWN',
-              message: 'The mock paymentAPI is down for some reason. Please check the logs for more details.',
+              message:
+                'Braintree gateway is not responding. Please check the Braintree merchant status and credentials.',
               details: {
-                // TODO do not expose the error
                 error: e,
               },
             };
