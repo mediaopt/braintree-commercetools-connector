@@ -57,24 +57,15 @@ export type BraintreeShipping = Static<typeof BraintreeShippingSchema>;
  *
  * @param shippingMethods - Array of commercetools ShippingMethod
  * @param currencyCode - Currency code to filter shipping rates
+ * @param cartShippingId - Current selected shipping method
  * @returns Array of Braintree shipping options with country codes and amounts
  */
 export const mapShippingMethodsToBraintreeShippingOptions = (
-  shippingMethods: ShippingMethod[] | void,
+  shippingMethods: ShippingMethod[],
   currencyCode: string,
   cartShippingId?: string,
 ): BraintreeShippingOption[] | undefined => {
-  //changing shipping if it was already set on cart level on PayPal side is not supported due to possible rounding issues
-
-  if (!shippingMethods) {
-    return undefined;
-  }
-
-  const supportedShipping = cartShippingId
-    ? shippingMethods.filter(({ id }) => id === cartShippingId)
-    : shippingMethods;
-
-  return supportedShipping
+  return shippingMethods
     .flatMap(({ id, zoneRates, name, localizedName }) =>
       zoneRates.flatMap(
         ({ zone, shippingRates }) =>
@@ -92,7 +83,7 @@ export const mapShippingMethodsToBraintreeShippingOptions = (
     .filter((rate) => rate !== undefined && rate.amount.value !== undefined)
     .map((item) => ({
       ...item,
-      selected: !!cartShippingId,
+      selected: cartShippingId === item.id,
       type: ShippingOptionType.Shipping,
       amount: {
         ...item.amount,
