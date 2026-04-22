@@ -27,7 +27,6 @@ class BraintreeComponent implements PaymentComponent {
     }
     element.innerHTML = "";
     this.root = createRoot(element as HTMLElement);
-    console.log(this.paymentMethodType, this.builderType);
     const componentRender = createElement(RenderTemplate, {
       paymentMethodType: this.paymentMethodType,
       customOptions: { ...this.baseOptions, ...this.config },

@@ -8,8 +8,11 @@ import {
   Transaction as CTTransaction,
   Cart,
   Customer,
-  Payment,
 } from '@commercetools/connect-payments-sdk';
+
+import { CustomerResourceIdentifier } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/customer';
+import { ShippingMethod, CentPrecisionMoney } from '@commercetools/platform-sdk';
+
 import {
   CancelPaymentRequest,
   CapturePaymentRequest,
@@ -458,6 +461,42 @@ export class BraintreePaymentService extends AbstractPaymentService {
     };
   }
 
+  public async updateCartShipping({ newShippingMethodId }: { newShippingMethodId: string }): Promise<string> {
+    const ctCart = await this.ctCartService.getCart({
+      id: getCartIdFromContext(),
+    });
+    const updatedCard = await paymentSDK.ctAPI.client
+      .carts()
+      .withId({ ID: ctCart.id })
+      .post({
+        body: {
+          version: ctCart.version,
+          actions: [
+            {
+              action: 'setShippingMethod',
+              shippingMethod: {
+                id: newShippingMethodId,
+                typeId: 'shipping-method',
+              },
+            },
+          ],
+        },
+      })
+      .execute()
+      .then((response) => response.body)
+      .catch((err) => {
+        log.warn(`Could not set shipping method ${newShippingMethodId} for cart ${ctCart.id}`, { error: err });
+        return;
+      });
+    if (!updatedCard) {
+      throw new ErrorInvalidOperation(
+        `Could not set shipping method ${newShippingMethodId} for cart ${ctCart.id}. Cart not found in CoCo.`,
+      );
+    }
+    const costWithNewShipping = await this.ctCartService.getPaymentAmount({ cart: updatedCard });
+    return Number(mapCommercetoolsMoneyToBraintreeMoney(costWithNewShipping as CentPrecisionMoney)).toFixed(2);
+  }
+
   public async transactionSale({
     ctPaymentId,
     paymentMethodNonce,
@@ -503,7 +542,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     return { message: 'success', success: true };
   }
 
-  //see alse extension module submitForSettlement
+  //see also extension module submitForSettlement
   public async settlement(request: { ctPaymentId: string; transactionId?: string }): Promise<void> {
     const ctPayment = await this.ctPaymentService.getPayment({ id: request.ctPaymentId });
     let relevantTransaction: CTTransaction;

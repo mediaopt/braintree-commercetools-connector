@@ -30,6 +30,7 @@ import { makeVaultRequest } from "../services/makeVaultRequest";
 import { processorUrls } from "../components/constants";
 import { sessionHeader } from "../helpers/sessionHeader";
 import { LoadingOverlay } from "../components/LoadingOverlay";
+import { makeChangeShippingRequest } from "../services/makeChangeShippingRequest";
 
 type HandleTransactionSaleType = (
   paymentNonce: string,
@@ -49,6 +50,7 @@ type PaymentContextT = {
   paymentInfo: PaymentInfo;
   vaultedPaymentMethods: FetchPaymentMethodsPayload[];
   handleGetVaultedPaymentMethods: () => Promise<FetchPaymentMethodsPayload[]>;
+  updateCartShipping: (newShippingMethodId: string) => Promise<string>;
   braintreeCustomerId: string;
   requestHeader: RequestHeader;
 };
@@ -71,6 +73,7 @@ const PaymentContext = createContext<PaymentContextT>({
     new Promise<FetchPaymentMethodsPayload[]>(
       (resolve) => [] as FetchPaymentMethodsPayload[],
     ),
+  updateCartShipping: () => new Promise<string>(() => ""),
   braintreeCustomerId: "",
   requestHeader: {},
 });
@@ -104,6 +107,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
     transactionSaleUrl,
     createPaymentForVault,
     vaultPaymentMethodUrl,
+    updateCartShippingUrl,
   } = processorUrls(processorUrl);
   const requestHeader = sessionHeader(sessionId);
 
@@ -270,6 +274,18 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       }
     };
 
+    const updateCartShipping = async (newShippingMethodId: string) => {
+      const requestBody = {
+        newShippingMethodId,
+      };
+      const response = (await makeChangeShippingRequest(
+        requestHeader,
+        updateCartShippingUrl,
+        requestBody,
+      )) as { braintreeAmount: string };
+      return response.braintreeAmount;
+    };
+
     return {
       sessionId,
       gettingClientToken: initializingPayment,
@@ -280,6 +296,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       paymentInfo,
       vaultedPaymentMethods,
       handleGetVaultedPaymentMethods,
+      updateCartShipping,
       braintreeCustomerId,
       requestHeader,
     };

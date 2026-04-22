@@ -60,43 +60,27 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
     },
   );
 
-  fastify.get(
-    '/stored-payment-methods',
+  fastify.post<{
+    Body: { newShippingMethodId: string };
+    Reply: { braintreeAmount: string };
+  }>(
+    '/payments/updateCartShipping',
     {
       preHandler: [opts.sessionHeaderAuthHook.authenticate()],
       schema: {
+        body: Type.Object({
+          newShippingMethodId: Type.String(),
+        }),
         response: {
-          200: StoredPaymentMethodsResponseSchema,
-        },
-      },
-    },
-    async (_, reply) => {
-      const res = await opts.paymentService.getStoredPaymentMethods();
-      reply.code(200).send(res);
-    },
-  );
-
-  fastify.delete<{ Params: { id: string } }>(
-    '/stored-payment-methods/:id',
-    {
-      preHandler: [opts.sessionHeaderAuthHook.authenticate()],
-      schema: {
-        params: {
-          $id: 'paramsSchema',
-          type: 'object',
-          properties: {
-            id: Type.String(),
-          },
-          required: ['id'],
+          200: Type.Object({
+            braintreeAmount: Type.String(),
+          }),
         },
       },
     },
     async (request, reply) => {
-      const { id } = request.params;
-
-      await opts.paymentService.deleteStoredPaymentMethodViaCart(id);
-
-      return reply.status(200).send();
+      const braintreeAmount = await opts.paymentService.updateCartShipping(request.body);
+      return reply.status(200).send({ braintreeAmount });
     },
   );
 };

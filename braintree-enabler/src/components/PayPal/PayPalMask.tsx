@@ -68,6 +68,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     clientToken,
     handlePureVault,
     handleGetVaultedPaymentMethods,
+    updateCartShipping,
   } = usePayment();
   const { shippingOptions } = paymentInfo;
   const { notify } = useNotifications();
@@ -265,9 +266,12 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                         },
                         fundingSource: fundingSource,
 
-                        onShippingChange: function (data: any, actions: any) {
+                        onShippingChange: async function (
+                          data: any,
+                          actions: any,
+                        ) {
                           //data definition can be found here https://developer.paypal.com/sdk/js/reference/#onshippingchange
-                          console.log(data);
+                          //todo - verify when should this method be replaced with new atlernatives https://developer.paypal.com/sdk/js/reference/#onshippingchange
                           const countryCode =
                             data.shipping_address.country_code;
                           if (!shippingOptions?.length) return actions.reject();
@@ -278,14 +282,19 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                             );
                           if (!relevantShippingOptions.length)
                             return actions.reject();
-                          const isMethodPreselectedByCart =
-                            shippingOptions.some(({ selected }) => selected);
+
+                          let actualPaymentAmount =
+                            paymentInfo.braintreeAmount.toFixed(2);
+
+                          const initSelectedMethod = shippingOptions.find(
+                            ({ selected }) => selected,
+                          );
 
                           const selectedOptionIndex =
                             relevantShippingOptions.findIndex(
-                              ({ amount }) =>
-                                amount.value ===
-                                data.selected_shipping_option?.amount.value,
+                              ({ id, label }) =>
+                                id === data.selected_shipping_option?.id &&
+                                label === data.selected_shipping_option?.label,
                             );
                           const activateIndex =
                             selectedOptionIndex >= 0 ? selectedOptionIndex : 0;
@@ -301,15 +310,18 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               }),
                             );
 
+                          if (
+                            initSelectedMethod?.id !==
+                            relevantShippingOptions[activateIndex].id
+                          ) {
+                            actualPaymentAmount = await updateCartShipping(
+                              relevantShippingOptions[activateIndex].id,
+                            );
+                          } //shipping id matters for the final amount and can be influences by other props like cart discount so it must be updated prior to PayPal payment
+                          //address doesn't influence the payment directly - only if it forces the shipping to change, so it could be synced after
+
                           return paypalCheckoutInstance.updatePayment({
-                            amount: (
-                              (isMethodPreselectedByCart
-                                ? 0
-                                : Number(
-                                    relevantShippingOptions[activateIndex]
-                                      .amount.value,
-                                  )) + paymentInfo.braintreeAmount
-                            ).toFixed(2),
+                            amount: actualPaymentAmount,
                             currency: paymentInfo.currency,
                             lineItems: braintreeLineItems,
                             paymentId: data.paymentId,
