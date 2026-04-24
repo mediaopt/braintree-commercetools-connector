@@ -52,6 +52,15 @@ Please set the following parameters according to your project requirements:
 - BRAINTREE_VALIDATE_CARD
 - BRAINTREE_AUTOCAPTURE
 
+### Checkout options
+
+- CTP_CHECKOUT_URL - the URL of the commercetools checkout (required)
+- CTP_JWKS_URL - the URL of the JWKs endpoint for JWT verification (required)
+- CTP_JWT_ISSUER - the expected issuer of the JWTs (required)
+- VITE_ENABLER_URL and VITE_PROCESSOR_URL - will be available after connector deployment on commercetools
+
+- MERCHANT_RETURN_URL - the URL to which the user will be redirected after the payment is processed.
+
 The connector mode requires braintree-extension, braintree-notification and braintree-events to be installed.
 The checkout mode requires all modules to be installed.
 

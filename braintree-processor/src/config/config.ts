@@ -8,17 +8,22 @@ export const config = {
   authUrl: process.env.CTP_AUTH_URL || 'https://auth.europe-west1.gcp.commercetools.com',
   apiUrl: process.env.CTP_API_URL || 'https://api.europe-west1.gcp.commercetools.com',
   sessionUrl: process.env.CTP_SESSION_URL || 'https://session.europe-west1.gcp.commercetools.com/',
+  checkoutUrl: process.env.CTP_CHECKOUT_URL || 'https://checkout.europe-west1.gcp.commercetools.com/',
+
   healthCheckTimeout: parseInt(process.env.HEALTH_CHECK_TIMEOUT || '5000'),
 
   // Required by logger
   loggerLevel: process.env.LOGGER_LEVEL || 'info',
 
-  // Update with specific payment providers config
-  mockClientKey: process.env.MOCK_CLIENT_KEY,
-  mockEnvironment: process.env.MOCK_ENVIRONMENT,
+  // Required for Braintree
+  braintreePublicKey: process.env.BRAINTREE_PUBLIC_KEY,
+  braintreePrivateKey: process.env.BRAINTREE_PRIVATE_KEY,
+  braintreeEnvironment: process.env.BRAINTREE_ENVIRONMENT || 'Sandbox',
+  //recommended for Braintree
+  braintreeMerchantId: process.env.BRAINTREE_MERCHANT_ID,
 
   // Payment Providers config
-  returnUrl: process.env.RETURN_URL,
+  returnUrl: process.env.MERCHANT_RETURN_URL,
 
   // TODO review these configurations
   // supportedUIElements: convertStringCommaSeparatedValuesToArray(process.env.SUPPORTED_UI_ELEMENTS),

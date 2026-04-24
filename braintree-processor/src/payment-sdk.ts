@@ -21,7 +21,6 @@ export class AppLogger implements Logger {
 export const appLogger = new AppLogger();
 
 export const paymentSDK = setupPaymentSDK({
-  checkoutUrl: '', //todo - implement proper url
   apiUrl: config.apiUrl,
   authUrl: config.authUrl,
   clientId: config.clientId,
@@ -30,6 +29,7 @@ export const paymentSDK = setupPaymentSDK({
   sessionUrl: config.sessionUrl,
   jwksUrl: config.jwksUrl,
   jwtIssuer: config.jwtIssuer,
+  checkoutUrl: config.checkoutUrl,
   getContextFn: (): RequestContextData => {
     const { correlationId, requestId, authentication } = getRequestContext();
     return {
