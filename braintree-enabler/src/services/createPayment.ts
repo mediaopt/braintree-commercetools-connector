@@ -9,13 +9,14 @@ export const createPayment = async (
   paymentMethodType: BraintreePaymentMethodType,
   builderType: BuilderType,
   merchantAccountId?: string,
+  isPureVault = false,
 ) => {
   try {
     const result = await makeRequest<CreatePaymentResponse, {}>(
       requestHeader,
       url,
       "POST",
-      { builderType, paymentMethodType, merchantAccountId },
+      { builderType, paymentMethodType, merchantAccountId, isPureVault },
     );
 
     return result;

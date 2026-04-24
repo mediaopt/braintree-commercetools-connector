@@ -69,6 +69,7 @@ export type PaymentProviderProps = RequiredSessionData & {
   merchantAccountId?: string;
   paymentMethodType: BraintreePaymentMethodType;
   builderType?: BuilderType;
+  isPureVault?: boolean; //relevant for CreditCard and PayPal only
 };
 
 export type GeneralComponentsProps = PaymentProviderProps &

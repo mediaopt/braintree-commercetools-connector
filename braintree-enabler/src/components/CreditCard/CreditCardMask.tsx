@@ -18,8 +18,8 @@ import { useLoader } from "../../app/useLoader";
 import {
   GeneralPayButtonProps,
   GeneralCreditCardProps,
-  LineItems,
   BraintreeShipping,
+  BraintreeLineItem,
 } from "../../types";
 
 import {
@@ -59,8 +59,6 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   continueOnLiabilityShiftPossible = false,
   continueOnNoThreeDS = false,
   useKount,
-  braintreeLineItems,
-  shipping,
   isPureVault = false,
 }) => {
   const {
@@ -131,7 +129,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     const options: {
       deviceData: string;
       shouldVault?: boolean;
-      lineItems?: LineItems;
+      lineItems?: BraintreeLineItem[];
       shipping?: BraintreeShipping;
     } = {
       deviceData: deviceData,
@@ -139,11 +137,11 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     if (shouldVault) {
       options.shouldVault = true;
     }
-    if (braintreeLineItems) {
-      options.lineItems = braintreeLineItems;
+    if (paymentInfo.braintreeLineItems) {
+      options.lineItems = paymentInfo.braintreeLineItems;
     }
-    if (shipping) {
-      options.shipping = shipping;
+    if (paymentInfo.braintreeShipping) {
+      options.shipping = paymentInfo.braintreeShipping;
     }
     threeDS!
       .verifyCard(threeDSecureParameters)
