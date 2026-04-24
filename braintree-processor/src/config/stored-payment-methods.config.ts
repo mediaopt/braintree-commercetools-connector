@@ -5,7 +5,7 @@ export type StoredPaymentMethodsConfig = {
   enabled: boolean; // indicates if tokenization feature is enabled
   config: {
     paymentInterface: string; // paymentInterface to set
-    interfaceAccount?: string; // optional interfaceAccount to set
+    //interfaceAccount?: string; // optional interfaceAccount to set
     allowedPaymentMethods: PaymentMethodType[];
   };
 };
@@ -21,8 +21,8 @@ export const getStoredPaymentMethodsConfig = (): StoredPaymentMethodsConfig => {
     enabled: getConfig().storedPaymentMethodsEnabled === 'true',
     config: {
       paymentInterface: getConfig().storedPaymentMethodsPaymentInterface,
-      interfaceAccount: getConfig().storedPaymentMethodsInterfaceAccount,
-      allowedPaymentMethods: [PaymentMethodType.CREDIT_CARD],
+      //interfaceAccount: getConfig().storedPaymentMethodsInterfaceAccount,
+      allowedPaymentMethods: [PaymentMethodType.CREDIT_CARD, PaymentMethodType.PAYPAL],
     },
   };
 

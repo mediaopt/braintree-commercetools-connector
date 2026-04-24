@@ -1,54 +1,52 @@
-# Braintree client app
+# Braintree Client App
 
-In here we explain how to use the client app and get payment methods to work.
+This is the frontend application for integrating Braintree payment methods into your checkout flow. It provides reusable payment components for various payment methods supported by Braintree.
 
-## General properties
+For a complete integration the communication with Commercetools sessions API and processor module is required. See the index.js file for an example of how to integrate the payment components into your checkout page.
 
-Each payment component takes a set of props that will be the same for everything. They are as follows:
+The cart data will be processed at the checkout module automatically.
 
-- **createPaymentUrl**: `string`  
-   _POST_-Request - we get a [_CreatePaymentResponse_](src/types/index.ts)  
-   It is **your** responsibility to develop this API  
-   The url that gets called to the endpoint of the connect app to create a payment in commerce tools. Communicates with CommerceTools backend  
-   See the examples in our [CoFe integration example repository](https://github.com/mediaopt/braintree-commercetools-cofe-integration/tree/main/packages/poc/backend/payment-braintree)
-- **getClientTokenUrl**: `string`  
-   _POST_-Request - we get a [_ClientTokenResponse_](<(src/types/index.ts)>)  
-   It is **your** responsibility to develop this API  
-   The url that gets called to the endpoint of the connect app to get the client token. Communicates with CommerceTools backend
-  See the examples in our [CoFe integration example repository](https://github.com/mediaopt/braintree-commercetools-cofe-integration/tree/main/packages/poc/backend/payment-braintree)
-- **purchaseUrl**: `string`  
-   _POST_-Request - we get a [_TransactionSaleRequest_](src/types/index.ts) that will be returned from the Braintree integration module  
-   It is **your** responsibility to develop this API  
-   The url that gets called to the endpoint of the connect app to make the purchase at. Communicates with CommerceTools backend
-  See the examples in our [CoFe integration example repository](https://github.com/mediaopt/braintree-commercetools-cofe-integration/tree/main/packages/poc/backend/payment-braintree)
-- **purchaseCallback**: `(result: any) => void`  
-   Function to execute after a successful purchase.
-- **fullWidth**: `boolean`  
-   Makes the pay button use the full amount of width available (defaults to true).
-- **buttonText**: `string`  
-   The text to be shown on the pay button. Could be the final amount the customer has to pay.
-- **shippingMethodId**: `string`  
-  The id of the selected shipping. It will be sent back in the create purchase call to calculate the correct shipping costs.
-- **cartInformation**: `object`  
-  Information about the customers cart to crate payments with.
-  Structure:
-- **lineItems**: `object`  
-   Line Items that will send as payload to createPaymentUrl. You can find the structure on [_LineItems_](src/types/index.ts).
-- **shipping**: `object`  
-   Shipping that will send as payload to createPaymentUrl. You can find the structure on [_Shipping_](src/types/index.ts).
-- **useKount**: `boolean`  
-   if you set useKount to true it will send the kount request to Braintree on the client side.
-- **taxAmount**: `string`  
-   `Tax amount` that will send as payload to createPaymentUrl.
-- **shippingAmount**: `string`  
-   `Shipping amount` that will send as payload to createPaymentUrl.
-- **discountAmount**: `string`  
-   `Discount amount` that will send as payload to createPaymentUrl.
+## General Properties
 
-```
+Each payment component accepts a set of common properties that are shared across all components:
+
+PROCESSOR_URL
+sessionId
+merchantAccountId
+
+- **paymentMethodType**: `string` required
+  - The type of the payment method that will be actually rendered. Available options:
+    - `ACH` - ACH bank transfers
+    - `ApplePay` - Apple Pay wallet
+    - `CreditCard` - Credit or debit card (default)
+    - `GooglePay` - Google Pay wallet
+    - `PayPal` - PayPal, PayPal Pay Later, and PayPal Buy Now (express) buttons
+    - `Venmo` - Venmo peer-to-peer payments
+    - Local payment methods: in progress
+
+- **builderType**: `string`
+  - The type of the builder that will be used for render. By default component mode is used, express is supported for PayPal Buy Now button.
+
+- **purchaseCallback**: `(result: any) => void`
+  - Callback function executed after a successful purchase. If not provided the fallback redirect to MERCHANT_RETURN_URL set at the processor will be executed
+
+- **useKount**: `boolean`
+  - When set to `true`, sends a Kount request to Braintree on the client side
+
+### Style Props
+
+- **fullWidth**: `boolean`
+  - Makes the pay button use the full available width (defaults to `true`)
+
+- **buttonText**: `string`
+  - Text displayed on the pay button (typically the payment amount)
+
+### Cart Information
+
+```typescript
 account: {
   email: string;
-};
+}
 billing: {
   firstName: string;
   lastName: string;
@@ -57,7 +55,7 @@ billing: {
   city: string;
   country: string;
   postalCode: string;
-};
+}
 shipping: {
   firstName: string;
   lastName: string;
@@ -66,164 +64,244 @@ shipping: {
   city: string;
   country: string;
   postalCode: string;
-};
+}
 ```
 
-- **requestHeader**: `object`
-  Information that you want to send to the server as a header.
-  Structure for CoFe:
+- **lineItems**: `object`
+  - Line items to send as payload to `createPaymentUrl`
+  - See the structure in [_LineItems_](src/types/index.ts)
 
-  ```
+- **shipping**: `object`
+  - Shipping information to send as payload to `createPaymentUrl`
+  - See the structure in [_Shipping_](src/types/index.ts)
+
+- **taxAmount**: `string`
+  - Tax amount to send as payload to `createPaymentUrl`
+
+- **shippingAmount**: `string`
+  - Shipping amount to send as payload to `createPaymentUrl`
+
+- **discountAmount**: `string`
+  - Discount amount to send as payload to `createPaymentUrl`
+
+- **requestHeader**: `object`
+  - Additional headers to send with requests to your server
+  - Example structure for Commercetools Frontend:
+
+```typescript
+{
   "Frontastic-Session": string;
   "Commercetools-Frontend-Extension-Version": string;
-  ```
+}
+```
 
-## Payment specific properties
+## Payment-Specific Properties
 
-In addition, each payment component comes with its own specific properties.
+In addition to the general properties, each payment component accepts additional configuration options specific to that payment method.
 
 ### ApplePay
 
-- **applePayDisplayName**: `string`  
-   Name of your store.
+- **applePayDisplayName**: `string`
+  - Your store name displayed in the ApplePay interface
 
 ### CreditCard
 
-- **showPostalCode**: `boolean`  
-  Show field for postal code in credit card mask.
-- **showCardHoldersName**: `boolean`  
-   Show field for name in credit card mask.
-- **threeDSBillingAddress**: `object`  
-   An optional [billingAddress](https://braintree.github.io/braintree-web/current/ThreeDSecure.html#~billingAddress) object for verification.
-- **threeDSAdditionalInformation**: `object`  
-   An optional [additionalInformation](https://braintree.github.io/braintree-web/current/ThreeDSecure.html#~additionalInformation) object for verification.
-- **enableVaulting**: `boolean`  
-   Displays a checkbox enabling the customer to store their card information in braintree.
-- **continueOnLiabilityShiftPossible**: `boolean` - optional, default _false_  
-  Card brands are recommending to ask the user to choose a different form of payment. However, it is still possible to continue. Refer to the [documentation](https://developer.paypal.com/braintree/docs/guides/3d-secure/client-side/javascript/v3/#advanced-client-side-options) for more information.
-- **continueOnNoThreeDS**: `boolean` - optional, default _false_  
-  This card was ineligible for 3D Secure, but you can still continue with this transaction. Refer to the [documentation](https://developer.paypal.com/braintree/docs/guides/3d-secure/client-side/javascript/v3/#advanced-client-side-options) for more information.
+- **showPostalCode**: `boolean`
+  - Show postal code field in the credit card form
+
+- **showCardHoldersName**: `boolean`
+  - Show cardholder name field in the credit card form
+
+- **threeDSBillingAddress**: `object`
+  - Optional [billing address](https://braintree.github.io/braintree-web/current/ThreeDSecure.html#~billingAddress) for 3D Secure verification
+
+- **threeDSAdditionalInformation**: `object`
+  - Optional [additional information](https://braintree.github.io/braintree-web/current/ThreeDSecure.html#~additionalInformation) for 3D Secure verification
+
+- **enableVaulting**: `boolean`
+  - Display checkbox allowing customers to save their card information
+
+- **continueOnLiabilityShiftPossible**: `boolean` (optional, defaults to `false`)
+  - Allow transaction to continue if liability shift is possible but not guaranteed
+  - See [Braintree documentation](https://developer.paypal.com/braintree/docs/guides/3d-secure/client-side/javascript/v3/#advanced-client-side-options) for details
+
+- **continueOnNoThreeDS**: `boolean` (optional, defaults to `false`)
+  - Allow transaction to continue if card is ineligible for 3D Secure
+  - See [Braintree documentation](https://developer.paypal.com/braintree/docs/guides/3d-secure/client-side/javascript/v3/#advanced-client-side-options) for details
 
 ### GooglePay
 
-- **environment**: `"PRODUCTION" | "TEST"`  
-  Environment in which GooglePay operates in.
-- **totalPriceStatus**: `"NOT_CURRENTLY_KNOWN" | "ESTIMATED" | "FINAL"`  
-  Specifies the status of amount the shown amount. See [Googles reference](https://developers.google.com/pay/api/web/reference/request-objects#TransactionInfo) for more details.
-- **googleMerchantId**: `string`  
-  A Google merchant identifier issued after registration with the Google Pay and Wallet Console.
-- **buttonTheme**: `google.payments.api.ButtonColor`  
-  Sets the color theme of the button.
-- **buttonType**: `google.payments.api.ButtonType`  
-  Sets what kind of label the button will get.
-- **phoneNumberRequired**: `booloean`  
-  Customer has to provide their phone number in the GooglePay form.
-- **billingAddressFormat**: `"FULL" | "MIN"`  
-  Sets whether the customer is required to provide a full or minimal billing address.
-- **billingAddressRequired**: `boolean`  
-  Customer is required to provide a billing address in the GooglePay form.
-- **acquirerCountryCode**: `string`  
-  The ISO 3166-1 alpha-2 country code where the transaction is processed. Merchants must specify the acquirer bank country code.
+- **environment**: `"PRODUCTION" | "TEST"`
+  - GooglePay operating environment
+
+- **totalPriceStatus**: `"NOT_CURRENTLY_KNOWN" | "ESTIMATED" | "FINAL"`
+  - Status of the shown amount
+  - See [Google's reference](https://developers.google.com/pay/api/web/reference/request-objects#TransactionInfo) for details
+
+- **googleMerchantId**: `string`
+  - Google merchant identifier from Google Pay and Wallet Console registration
+
+- **buttonTheme**: `google.payments.api.ButtonColor`
+  - Color theme for the GooglePay button
+
+- **buttonType**: `google.payments.api.ButtonType`
+  - Button label type
+
+- **phoneNumberRequired**: `boolean`
+  - Customer must provide phone number in GooglePay form
+
+- **billingAddressFormat**: `"FULL" | "MIN"`
+  - Whether customer provides full or minimal billing address
+
+- **billingAddressRequired**: `boolean`
+  - Customer is required to provide billing address in GooglePay form
+
+- **acquirerCountryCode**: `string`
+  - ISO 3166-1 alpha-2 country code where transaction is processed
+  - Merchants must specify the acquirer bank country code
 
 ### PayPal
 
-- **flow**: `FlowType`  
-  Set to _checkout_ for one-time payment flow, or _vault_ for Vault flow. If _vault_ is used with a client token generated with a customer ID, the PayPal account will be added to that customer as a saved payment method.
-- **buttonColor**: `ButtonColorOption`  
-  Sets the color theme of the PayPal button.
-- **buttonLabel**: `ButtonLabelOption`  
-  Sets what kind of label the PayPal button will get.
-- **payLater**: `booloean`  
-  Set to true to show an extra pay later button from PayPal.
-- **payLaterButtonColor**: `ButtonColorOption`  
-  Sets the color theme of the pay later button.
-- **locale**: `string`  
-  Sets the locale for PayPal buttons.
-- **intent**: `Intent`  
-  Sets the intent for PayPal buttons.
-- **commit**: `boolean`  
-  Sets the commit for PayPal buttons.
-- **enableShippingAddress**: `boolean`  
-  Sets the enableShippingAddress for PayPal buttons.
-- **paypalLineItem**: `LineItem[]`  
-  Sets the lineItens for PayPal buttons.
-- **billingAgreementDescription**: `string`  
-  Sets the billingAgreementDescription for PayPal buttons.
-- **shippingAddressOverride**: `ShippingAddressOverride`  
-  Sets the shippingAddressOverride for PayPal buttons.
-- **shippingOptions**: `PayPalShippingOptions[]`  
-  If you want to use `onShippingChange` feature of PayPal pass `shippingOptions` to the PayPal component. You can find the structure on [_PayPalShippingOptions_](src/types/index.ts).
+- **flow**: `FlowType`
+  - Set to `checkout` for one-time payments or `vault` to save for future use
+  - With `vault` flow and a customer ID, the PayPal account is saved as a payment method
 
-You see information about all these options in the [PayPal official documents](https://braintree.github.io/braintree-web/3.34.0/PayPalCheckout.html#createPayment).
+- **buttonColor**: `ButtonColorOption`
+  - Color theme for the PayPal button
+
+- **buttonLabel**: `ButtonLabelOption`
+  - Button label type
+
+- **payLater**: `boolean`
+  - Show PayPal pay later button option
+
+- **payLaterButtonColor**: `ButtonColorOption`
+  - Color theme for the pay later button
+
+- **locale**: `string`
+  - Locale for PayPal buttons
+
+- **intent**: `Intent`
+  - Payment intent for PayPal buttons
+
+- **commit**: `boolean`
+  - Commit setting for PayPal buttons
+
+- **enableShippingAddress**: `boolean`
+  - Allow shipping address selection in PayPal interface
+
+- **paypalLineItem**: `LineItem[]`
+  - Line items for PayPal buttons
+
+- **billingAgreementDescription**: `string`
+  - Billing agreement description for PayPal buttons
+
+- **shippingAddressOverride**: `ShippingAddressOverride`
+  - Override shipping address in PayPal interface
+
+- **shippingOptions**: `PayPalShippingOptions[]`
+  - Shipping options for PayPal's `onShippingChange` feature
+  - See structure in [_PayPalShippingOptions_](src/types/index.ts)
+
+For comprehensive information about all PayPal options, see the [PayPal official documentation](https://braintree.github.io/braintree-web/3.34.0/PayPalCheckout.html#createPayment).
 
 ### Venmo
 
-- **mobileWebFallBack**: `boolean`  
-  Use this option when you want to use a web-login experience, such as if on mobile and the Venmo app isn't installed.
-- **desktopFlow**: `"desktopWebLogin" | "desktopQRCode"`  
-  Sets Venmos desktop usage.
-  - _desktopWebLogin_ - the customer will authorize payment via a window popup that allows them to sign in to their Venmo account. This is used explicitly for customers operating from desktop browsers wanting to avoid the QR Code flow.
-  - _desktopQRCode_ - render a scannable QR-code customers scan with their phone to approve via the mobile app.
-- **paymentMethodUsage**: `"multi_use" | "single_use"`  
-  The intended usage for the Venmo payment method nonce. Possible options are:
-  - _single_use_ - intended as a one time transaction
-  - _multi_use_ - intended to be vaulted and used for multiple transactions
-- **allowNewBrowserTab**: `boolean`  
-  This should be set to false if your payment flow requires returning to the same tab, e.g. single page applications. Doing so causes isBrowserSupported to return true only for mobile web browsers that support returning from the Venmo app to the same tab.
-- **profile_id**: `string`  
-  The Venmo profile ID to be used during payment authorization. Customers will see the business name and logo associated with this Venmo profile.
-- **useTestNonce**: `boolean`  
-  If set to true the component will use a test nonce and username to succeed the payment. Even if you cancel the login popup it will continue.
-- **setVenmoUserName**: `(venmoName: string) => any`  
-  Returns the Venmo username of the customer. Has to be shown in the checkout according to Venmo guidelines.
-- **ignoreBowserSupport**: `boolean`  
-  Venmo does check for browser support and won't load if it fails. You can ignore the check here. Useful for testing purposes, should not be used in production.
+- **mobileWebFallBack**: `boolean`
+  - Enable web-login experience for mobile devices without Venmo app
+
+- **desktopFlow**: `"desktopWebLogin" | "desktopQRCode"`
+  - Venmo desktop flow type:
+    - `desktopWebLogin` - popup window for signing into Venmo account
+    - `desktopQRCode` - scannable QR code for mobile app approval
+
+- **paymentMethodUsage**: `"multi_use" | "single_use"`
+  - Intended usage for the Venmo payment method nonce:
+    - `single_use` - one-time transaction
+    - `multi_use` - vault and reuse for multiple transactions
+
+- **allowNewBrowserTab**: `boolean`
+  - Set to `false` for single-page applications requiring same-tab return
+  - Affects `isBrowserSupported` behavior for mobile web browsers
+
+- **profile_id**: `string`
+  - Venmo profile ID for payment authorization
+  - Customers see business name and logo associated with this profile
+
+- **useTestNonce**: `boolean`
+  - Use test nonce and username for payment success (even if popup is cancelled)
+  - For testing purposes only
+
+- **setVenmoUserName**: `(venmoName: string) => any`
+  - Callback returning Venmo username of the customer
+  - Must be displayed according to Venmo guidelines
+
+- **ignoreBowserSupport**: `boolean`
+  - Ignore browser support checks (Venmo skips unsupported browsers by default)
+  - For testing purposes only, do not use in production
 
 ### Local Payments
 
-Local payments group together multiple region specific payment methods. Each payment method is being exported as its own component wich restricts the possible options for _countryCode_, _currencyCode_ and _paymentType_ props. Please refer to the [braintree guidelines](https://developer.paypal.com/braintree/docs/guides/local-payment-methods/overview) for payment specific restrictions.  
-They accept the following props:
+Local payments group multiple region-specific payment methods. Each method is exported as its own component with restricted options for `countryCode`, `currencyCode`, and `paymentType`.
 
-- **saveLocalPaymentIdUrl**: `string`  
-  It is **your** responsibility to develop this API  
-  The url that gets called to the endpoint of the connect app to map the id of local payments to the transaction as recommended in Braintrees documentation. Communicates with CommerceTools backend
-  See the examples in our [CoFe integration example repository](https://github.com/mediaopt/braintree-commercetools-cofe-integration/tree/main/packages/poc/backend/payment-braintree)
-- **paymentType**: `any`  
-  Determined by the specific payment method being used. Refer to [this table](https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side-custom/javascript/v3/#render-local-payment-method-buttons).
-- **countryCode**: `any`  
-  Determined by the specific payment method being used. Refer to [this table](https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side-custom/javascript/v3/#render-local-payment-method-buttons).
-- **currencyCode**: `any`  
-  Determined by the specific payment method being used. Refer to [this table](https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side-custom/javascript/v3/#render-local-payment-method-buttons).
-- **merchantAccountId**: `string` - optional  
-  If not specified it will use the generated clientToken. Otherwise, it is possible to make the transaction to the merchant specified in here.
-- **shippingAddressRequired**: `boolean` - optional, defaults to false  
-  If you need a shipping address to ship physical goods, set shippingAddressRequired to true.
-- **fallbackUrl**: `string`  
-  Users with a mobile App will be redirected from their payment provider to this url where they can complete the payment
-- **fallbackButtonText**: `string` - optional  
-  The text to appear on the button
+See [Braintree guidelines](https://developer.paypal.com/braintree/docs/guides/local-payment-methods/overview) for payment-specific restrictions.
+
+Accepted properties:
+
+- **saveLocalPaymentIdUrl**: `string`
+  - Your responsibility to implement this API endpoint
+  - Called to map local payment transactions
+  - See examples in the [CoFe integration repository](https://github.com/mediaopt/braintree-commercetools-cofe-integration/tree/main/packages/poc/backend/payment-braintree)
+
+- **paymentType**: `any`
+  - Determined by specific payment method
+  - See [Braintree payment method table](https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side-custom/javascript/v3/#render-local-payment-method-buttons)
+
+- **countryCode**: `any`
+  - Determined by specific payment method
+  - See [Braintree payment method table](https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side-custom/javascript/v3/#render-local-payment-method-buttons)
+
+- **currencyCode**: `any`
+  - Determined by specific payment method
+  - See [Braintree payment method table](https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side-custom/javascript/v3/#render-local-payment-method-buttons)
+
+- **merchantAccountId**: `string` (optional)
+  - If not specified, uses the client token's merchant account
+  - Otherwise, transaction processes under specified merchant account
+
+- **shippingAddressRequired**: `boolean` (optional, defaults to `false`)
+  - Require shipping address for physical goods
+
+- **fallbackUrl**: `string`
+  - URL for redirecting users from payment provider back to checkout
+
+- **fallbackButtonText**: `string` (optional)
+  - Text displayed on the fallback button
 
 ## Pure Vaulting
 
-The Credit-Card and PayPal components can offer pure vaulting for registered customers, so they can go through checkouts faster in the future.  
-In addition to the general payment properties mentioned earlier, both of them need:
+Credit Card and PayPal components support pure vaulting for registered customers to enable faster future checkouts.
 
-- createPaymentForVault: `string`  
-  _POST_-Request - we get a [_CreatePaymentResponse_](src/types/index.ts) with an amount of 0.  
-  It is **your** responsibility to develop this API  
-  The url that gets called to the endpoint of the connect app to create a payment in commerce tools. Communicates with CommerceTools backend  
-  See the examples in our [CoFe integration example repository](https://github.com/mediaopt/braintree-commercetools-cofe-integration/tree/main/packages/poc/backend/payment-braintree)
-- vaultPaymentMethodUrl: `string`  
-  _POST_-Request - we get a success/fail that will be returned from the Braintree integration module  
-  It is **your** responsibility to develop this API  
-  The url that gets called to the endpoint of the connect app to vault the payment method for the current customer. Communicates with CommerceTools backend  
-  See the examples in our [CoFe integration example repository](https://github.com/mediaopt/braintree-commercetools-cofe-integration/tree/main/packages/poc/backend/payment-braintree)
-- isPureVault: `boolean`
-  Must be true to enable pure vaulting.
+In addition to general properties, both components require:
+
+- **createPaymentForVault**: `string`
+  - _POST_ request that returns [_CreatePaymentResponse_](src/types/index.ts) with amount of 0
+  - Your responsibility to implement this API endpoint
+  - Called to create a payment for vaulting
+  - See examples in the [CoFe integration repository](https://github.com/mediaopt/braintree-commercetools-cofe-integration/tree/main/packages/poc/backend/payment-braintree)
+
+- **vaultPaymentMethodUrl**: `string`
+  - _POST_ request returning success/failure response
+  - Your responsibility to implement this API endpoint
+  - Called to vault the payment method for current customer
+  - See examples in the [CoFe integration repository](https://github.com/mediaopt/braintree-commercetools-cofe-integration/tree/main/packages/poc/backend/payment-braintree)
+
+- **isPureVault**: `boolean`
+  - Must be `true` to enable pure vaulting
 
 ## Braintree Commercetools Connector
 
-In order to use this client package you need to run [braintree-commercetools-connector](https://github.com/mediaopt/braintree-commercetools-connector) connect app as well.
+This client package requires the [braintree-commercetools-connector](https://github.com/mediaopt/braintree-commercetools-connector) connect app to be running.
 
 ## Available Scripts
 
@@ -231,33 +309,33 @@ In the project directory, you can run:
 
 ### `npm start`
 
-Runs the app in the development mode.\
+Runs the app in development mode.\
 Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
 
 The page will reload if you make edits.\
-You will also see any lint errors in the console.
+Lint errors will be displayed in the console.
 
 ### `npm test`
 
-Launches the test runner in the interactive watch mode.\
+Launches the test runner in interactive watch mode.\
 See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
 
 ### `npm run build`
 
 Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+React is correctly bundled in production mode and the build is optimized for best performance.
 
-The build is minified and the filenames include the hashes.\
+The build is minified and filenames include hashes.\
 Your app is ready to be deployed!
 
 See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
 
 ### `npm run eject`
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+**Note: this is a one-way operation. Once you `eject`, you can't go back!**
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+If you are unsatisfied with the build tool and configuration choices, you can `eject` at any time. This removes the single build dependency from your project.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+Instead, it copies all configuration files and transitive dependencies (webpack, Babel, ESLint, etc) into your project for full control. All commands except `eject` will still work, but will point to the copied scripts for you to modify. At this point, you are on your own.
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+You do not need to ever use `eject`. The curated feature set is suitable for small and middle deployments and you are not obligated to use this feature. However, we understand this tool would not be useful if you could not customize it when ready.
