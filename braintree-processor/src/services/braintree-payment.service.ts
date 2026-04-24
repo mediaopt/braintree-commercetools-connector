@@ -2,8 +2,6 @@ import {
   statusHandler,
   healthCheckCommercetoolsPermissions,
   ErrorRequiredField,
-  TransactionType,
-  TransactionState,
   ErrorInvalidOperation,
   Transaction as CTTransaction,
   Cart,
@@ -15,7 +13,6 @@ import { ShippingMethod, CentPrecisionMoney } from '@commercetools/platform-sdk'
 
 import {
   CancelPaymentRequest,
-  CapturePaymentRequest,
   ConfigResponse,
   PaymentProviderModificationResponse,
   RefundPaymentRequest,
@@ -32,20 +29,19 @@ import { getConfig } from '../config/config';
 import { appLogger, paymentSDK } from '../payment-sdk';
 import { CreatePaymentRequest, BraintreePaymentServiceOptions } from './types/braintree-payment.type';
 import {
+  GeneralResponseSuccessSchemaDTO,
   PaymentMethodType,
   PaymentOutcome,
+  PaymentRequestSchemaDTO,
   PaymentResponseSchemaDTO,
   TransactionSaleRequestSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { getCartIdFromContext, getPaymentInterfaceFromContext } from '../libs/fastify/context/context';
-import { randomUUID } from 'crypto';
-import { launchpadPurchaseOrderCustomType } from '../custom-types/custom-types';
-import { TransactionDraftDTO, TransactionResponseDTO } from '../dtos/operations/transaction.dto';
 import { getStoredPaymentMethodsConfig } from '../config/stored-payment-methods.config';
-import { StoredPaymentMethod, StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
+
 import { log } from '../libs/logger';
-import { CustomPaymentMethodService, PaymentMethod } from './ct-payment-method.service';
 import {
+  getBraintreeGateway,
   handleInterfaceInteraction,
   getClientToken,
   mapCommercetoolsMoneyToBraintreeMoney,
@@ -56,13 +52,13 @@ import {
   getPaymentMethodHint,
 } from 'common-connect/dist';
 import { handleCustomTransactionFields, handleCustomFieldResponse } from '../utils/customEntities.utils';
-import { CustomerResourceIdentifier } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/customer';
-import { ShippingMethod } from '@commercetools/platform-sdk';
+
 import { mapCTLineItemToBraintreeLineItem } from '../utils/lineItem.utils';
 import {
   mapCTShippingToBraintreeShipping,
   mapShippingMethodsToBraintreeShippingOptions,
 } from '../utils/shipping.utils';
+import { successGeneralResponse } from './constants';
 
 export class BraintreePaymentService extends AbstractPaymentService {
   private ctPaymentMethodService: CustomPaymentMethodService;
@@ -115,8 +111,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const config = getConfig();
 
     return {
-      clientKey: config.mockClientKey,
-      environment: config.mockEnvironment,
+      environment: config.braintreeEnvironment,
       storedPaymentMethodsConfig: {
         isEnabled: await this.isStoredPaymentMethodsEnabled(),
       },
@@ -238,28 +233,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
-   * Capture payment
-   *
-   * @remarks
-   * Implementation to provide the mocking data for payment capture in external PSPs
-   *
-   * @param request - contains the amount and {@link https://docs.commercetools.com/api/projects/payments | Payment } defined in composable commerce
-   * @returns Promise with mocking data containing operation status and PSP reference
-   */
-  public async capturePayment(request: CapturePaymentRequest): Promise<PaymentProviderModificationResponse> {
-    await this.ctPaymentService.updatePayment({
-      id: request.payment.id,
-      transaction: {
-        type: 'Charge',
-        amount: request.amount,
-        interactionId: request.payment.interfaceId,
-        state: 'Success',
-      },
-    });
-    return { outcome: PaymentModificationStatus.APPROVED, pspReference: request.payment.interfaceId as string };
-  }
-
-  /**
    * Cancel payment
    *
    * @remarks
@@ -361,15 +334,19 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * @returns Promise with mocking data containing operation status and PSP reference
    */
 
-  public async createPayment(request: CreatePaymentRequest): Promise<PaymentResponseSchemaDTO> {
-    this.validatePaymentMethod(request);
-    const paymentMethodType = request.data.paymentMethodType;
-    const isExpress = paymentMethodType === 'PayPal' && request.data.builderType === 'express';
+  public async createPayment({
+    merchantAccountId,
+    isPureVault,
+    builderType,
+    paymentMethodType,
+  }: PaymentRequestSchemaDTO): Promise<PaymentResponseSchemaDTO> {
+    this.validatePaymentMethod({ merchantAccountId, paymentMethodType });
+    const isExpress = paymentMethodType === 'PayPal' && builderType === 'express';
 
     const ctCart = await this.ctCartService.getCart({
       id: getCartIdFromContext(),
     });
-    this.validateCartRequiredData(ctCart, request.data.isPureVault);
+    this.validateCartRequiredData(ctCart, isPureVault);
 
     const customerPaymentInfo: { customer: CustomerResourceIdentifier } | { anonymousId?: string } = ctCart.customerId
       ? {
@@ -384,7 +361,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
     // Execute all optional data fetching in parallel
     const [customer, shippingMethodsResult, amountPlanned] = await Promise.all([
-      ctCart.customerId ? this.getCtCustomer(ctCart.customerId) : Promise.resolve(undefined),
+      ctCart.customerId ? this.braintreeCustomerService.getCtCustomer(ctCart.customerId) : Promise.resolve(undefined),
       isExpress ? this.getShippingMethods(ctCart.id) : Promise.resolve([]),
       this.ctCartService.getPaymentAmount({ cart: ctCart }),
     ]);
@@ -415,11 +392,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
     });
     const requestInteraction = handleInterfaceInteraction({
       messageName: 'getClientToken',
-      message: request,
+      message: { merchantAccountId, isPureVault, builderType, paymentMethodType },
       messageType: 'Request',
     });
     const tokenResponse = await getClientToken({
-      merchantAccountId: request.data.merchantAccountId,
+      merchantAccountId: merchantAccountId,
       customerId: braintreeCustomerId,
     });
     const customFields = handleCustomFieldResponse('getClientToken', tokenResponse, 'payment'); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
@@ -435,10 +412,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
       pspInteractions: [requestInteraction, responseInteraction],
     });
 
-    log.info(
-      `${JSON.stringify(ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale)))}`,
-    );
-
     return {
       braintreeData: { clientToken: tokenResponse, braintreeCustomerId },
       payment: {
@@ -451,12 +424,19 @@ export class BraintreePaymentService extends AbstractPaymentService {
           ctPayment.amountPlanned.currencyCode,
           ctCart.shippingInfo?.shippingMethod?.id,
         ),
-        braintreeLineItems: isExpress
-          ? ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale))
-          : undefined,
+        braintreeLineItems: isPureVault
+          ? []
+          : isExpress
+            ? ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale))
+            : undefined,
         braintreeShipping: ctCart.shippingAddress
           ? mapCTShippingToBraintreeShipping(ctCart.shippingAddress)
           : undefined,
+        ctCustomerId: customer?.id,
+        ctCustomerVersion: customer?.version,
+        //taxAmount
+        //shippingAmount
+        //discountAmount
       },
     };
   }
@@ -501,45 +481,54 @@ export class BraintreePaymentService extends AbstractPaymentService {
     ctPaymentId,
     paymentMethodNonce,
     paymentToken,
+    storeInVaultOnSuccess,
+    storeShipping,
     braintreePaymentDetails,
-  }: TransactionSaleRequestSchemaDTO): Promise<{ message: string; success: boolean }> {
+  }: TransactionSaleRequestSchemaDTO): Promise<GeneralResponseSuccessSchemaDTO> {
+    //todo - handle address change for PayPal express here
+    //todo - handle payment amount change if relevant here
     const ctPayment = await this.ctPaymentService.getPayment({ id: ctPaymentId });
     const transactionRequest = mapRequestToBraintreeTransactionSale(
       ctPayment,
-      undefined,
-      undefined,
+      storeInVaultOnSuccess,
+      storeShipping,
       paymentMethodNonce,
       paymentToken,
+      //{ lineItems: braintreePaymentDetails?.braintreeLineItems, shipping: braintreePaymentDetails?.braintreeShipping },
     ); //todo - handle other params
+    //todo - sync cart shipping address and shipping method id if relevant
     if (braintreePaymentDetails?.extraShippingCost) {
-      transactionRequest.amount = (
-        Number(transactionRequest.amount) + Number(braintreePaymentDetails.extraShippingCost)
-      ).toFixed(2);
+      transactionRequest.shippingAmount = Number(braintreePaymentDetails.extraShippingCost).toFixed(2);
     } //see enabler PayPalMask onShippingChange and onApprove
     const requestInteraction = handleInterfaceInteraction({
       messageName: 'transactionSale',
       message: transactionRequest,
       messageType: 'Request',
     });
-    log.info(JSON.stringify(transactionRequest));
-    const response = await transactionSale({
-      ...transactionRequest,
-    });
-    const customFields = handleCustomFieldResponse('transactionSale', response); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
-    const responseInteraction = handleInterfaceInteraction({
-      messageName: 'transactionSale',
-      message: response,
-      messageType: 'Response',
-    });
-    handleCustomTransactionFields(customFields, response, ctPayment);
-    await this.ctPaymentService.updatePayment({
-      id: ctPayment.id,
-      customFields,
-      pspInteractions: [requestInteraction, responseInteraction],
-      transaction: mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response),
-      pspReference: response.id, //TODO - verify that pspReference do sets interaction id
-    });
-    return { message: 'success', success: true };
+    try {
+      const response = await transactionSale({
+        ...transactionRequest, // discountAmount: '18.29', //todo - verify if for Braintree discount, tax and so on mush match
+      });
+      const customFields = handleCustomFieldResponse('transactionSale', response, 'payment'); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
+      const responseInteraction = handleInterfaceInteraction({
+        messageName: 'transactionSale',
+        message: response,
+        messageType: 'Response',
+      });
+      handleCustomTransactionFields(customFields, response, ctPayment);
+      await this.ctPaymentService.updatePayment({
+        id: ctPayment.id,
+        customFields,
+        pspInteractions: [requestInteraction, responseInteraction],
+        transaction: mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response),
+        pspReference: response.id, //TODO - verify that pspReference do sets interaction id
+      });
+      return successGeneralResponse;
+    } catch (e) {
+      throw new ErrorInvalidOperation(
+        `transactionSale failed for payment ${ctPaymentId} with error ${e instanceof Error ? e.message : JSON.stringify(e)}`,
+      );
+    }
   }
 
   //see also extension module submitForSettlement
@@ -879,8 +868,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       throw new ErrorInvalidOperation('Required data missing: email or address');
   }
 
-  private validatePaymentMethod(request: CreatePaymentRequest): void {
-    const { merchantAccountId, paymentMethodType } = request.data;
+  private validatePaymentMethod({ merchantAccountId, paymentMethodType }: PaymentRequestSchemaDTO): void {
     if (paymentMethodType === 'LocalPaymentMethod' && !merchantAccountId)
       throw new ErrorRequiredField('merchantAccountId');
   }

@@ -7,12 +7,6 @@ import {
 import { StatusResponseSchemaDTO } from '../../dtos/operations/status.dto';
 import { Payment } from '@commercetools/connect-payments-sdk/dist/commercetools';
 
-export type CapturePaymentRequest = {
-  amount: AmountSchemaDTO;
-  payment: Payment;
-  merchantReference?: string;
-};
-
 export type CancelPaymentRequest = {
   payment: Payment;
   merchantReference?: string;

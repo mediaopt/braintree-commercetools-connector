@@ -11,7 +11,7 @@ import {
 } from './utils/mock-payment-results';
 import { mockGetCartResult } from './utils/mock-cart-data';
 import * as Config from '../src/config/config';
-import { CreatePaymentRequest, BraintreePaymentServiceOptions } from '../src/services/types/braintree-payment.type';
+import { BraintreePaymentServiceOptions } from '../src/services/types/braintree-payment.type';
 import { AbstractPaymentService } from '../src/services/abstract-payment.service';
 import { BraintreePaymentService } from '../src/services/braintree-payment.service';
 import * as FastifyContext from '../src/libs/fastify/context/context';
