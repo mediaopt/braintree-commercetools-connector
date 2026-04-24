@@ -8,8 +8,6 @@ export const processorUrls = (processorUrl: string) => {
     createPaymentUrl: `${paymentsPrefix}`,
     transactionSaleUrl: `${paymentsPrefix}/transactionSale`,
     getAchVaultTokenURL: `${paymentsPrefix}/getAchVaultToken`,
-    createPaymentForVault: `${paymentsPrefix}/createPaymentForVault`,
-    vaultPaymentMethodUrl: `${paymentsPrefix}/vaultPaymentMethod`,
     saveLocalPaymentIdUrl: `${paymentsPrefix}/setLocalPaymentId`,
     updateCartShippingUrl: `${paymentsPrefix}/updateCartShipping`,
     pureVaultUrl: `${customerPrefix}/pureVault`,

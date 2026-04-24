@@ -74,23 +74,23 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
 
-  // useEffect(() => {
-  //   if (isPureVault) {
-  //     return;
-  //   }
-  //   const filteredPaymentMethods: Array<LimitedVaultedPayment> = [];
-  //   handleGetVaultedPaymentMethods().then((paymentMethods) => {
-  //     paymentMethods.forEach((paymentMethod) => {
-  //       if (paymentMethod.type === "PayPalAccount") {
-  //         filteredPaymentMethods.push({
-  //           nonce: paymentMethod.nonce,
-  //           details: paymentMethod.details as LimitedVaultedPaymentDetails,
-  //         });
-  //       }
-  //     });
-  //     setLimitedVaultedPaymentMethods(filteredPaymentMethods);
-  //   });
-  // }, [clientToken]);
+  useEffect(() => {
+    if (isPureVault) {
+      return;
+    }
+    const filteredPaymentMethods: Array<LimitedVaultedPayment> = [];
+    handleGetVaultedPaymentMethods().then((paymentMethods) => {
+      paymentMethods.forEach((paymentMethod) => {
+        if (paymentMethod.type === "PayPalAccount") {
+          filteredPaymentMethods.push({
+            nonce: paymentMethod.nonce,
+            details: paymentMethod.details as LimitedVaultedPaymentDetails,
+          });
+        }
+      });
+      setLimitedVaultedPaymentMethods(filteredPaymentMethods);
+    });
+  }, [clientToken]);
 
   useEffect(() => {
     if (!clientToken) return;
@@ -179,37 +179,36 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                     data,
                     function (err: any, payload: any) {
                       //type definition for payload https://braintree.github.io/braintree-web/3.9.0/PayPalCheckout.html#~tokenizePayload
-                      //handlePureVault(payload.nonce);
-                      // if (isPureVault) {
-                      //   handlePureVault(payload.nonce);
-                      // } else {
-                      handleTransactionSale(payload.nonce, {
-                        deviceData: deviceData,
-                        braintreeLineItems: braintreeLineItems,
-                        shipping: shipping,
-                        account: {
-                          email: payload.details.email,
-                        },
-                        billing: {
-                          firstName: payload.details.firstName,
-                          lastName: payload.details.lastName,
-                          streetName: payload.details.shippingAddress.line1,
-                          streetNumber: payload.details.shippingAddress.line1,
-                          city: payload.details.shippingAddress.city,
-                          country: payload.details.countryCode,
-                          postalCode:
-                            payload.details.shippingAddress.postalCode,
-                        },
-                        braintreePaymentDetails: {
-                          braintreeShipping: payload.shippingAddress,
-                          extraShippingCost: payload.shippingOptionId
-                            ? shippingOptions?.find(
-                                ({ id }) => id === payload.shippingOptionId,
-                              )?.amount.value
-                            : undefined, //only will be returned if shipping was changed inside the PayPal express, than it must be used to update the total payment amount, this methods doesnt support total cart discounts for shipping
-                        },
-                      });
-                      // }
+                      if (isPureVault) {
+                        handlePureVault(payload.nonce);
+                      } else {
+                        handleTransactionSale(payload.nonce, {
+                          deviceData: deviceData,
+                          braintreeLineItems: braintreeLineItems,
+                          shipping: shipping,
+                          account: {
+                            email: payload.details.email,
+                          },
+                          billing: {
+                            firstName: payload.details.firstName,
+                            lastName: payload.details.lastName,
+                            streetName: payload.details.shippingAddress.line1,
+                            streetNumber: payload.details.shippingAddress.line1,
+                            city: payload.details.shippingAddress.city,
+                            country: payload.details.countryCode,
+                            postalCode:
+                              payload.details.shippingAddress.postalCode,
+                          },
+                          braintreePaymentDetails: {
+                            braintreeShipping: payload.shippingAddress,
+                            extraShippingCost: payload.shippingOptionId
+                              ? shippingOptions?.find(
+                                  ({ id }) => id === payload.shippingOptionId,
+                                )?.amount.value
+                              : undefined, //only will be returned if shipping was changed inside the PayPal express, than it must be used to update the total payment amount, this methods doesnt support total cart discounts for shipping
+                          },
+                        });
+                      }
                     },
                   );
                 };

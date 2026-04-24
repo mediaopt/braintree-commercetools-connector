@@ -27,13 +27,14 @@ import packageJSON from '../../package.json';
 import { AbstractPaymentService } from './abstract-payment.service';
 import { getConfig } from '../config/config';
 import { appLogger, paymentSDK } from '../payment-sdk';
-import { CreatePaymentRequest, BraintreePaymentServiceOptions } from './types/braintree-payment.type';
+import { BraintreePaymentServiceOptions } from './types/braintree-payment.type';
 import {
   GeneralResponseSuccessSchemaDTO,
   PaymentMethodType,
   PaymentOutcome,
   PaymentRequestSchemaDTO,
   PaymentResponseSchemaDTO,
+  PureVaultRequestSchemaDTO,
   TransactionSaleRequestSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { getCartIdFromContext, getPaymentInterfaceFromContext } from '../libs/fastify/context/context';
@@ -58,16 +59,15 @@ import {
   mapCTShippingToBraintreeShipping,
   mapShippingMethodsToBraintreeShippingOptions,
 } from '../utils/shipping.utils';
+import { BraintreeCustomerService } from './braintree-customer.service';
 import { successGeneralResponse } from './constants';
 
 export class BraintreePaymentService extends AbstractPaymentService {
-  private ctPaymentMethodService: CustomPaymentMethodService;
+  private braintreeCustomerService: BraintreeCustomerService;
 
   constructor(opts: BraintreePaymentServiceOptions) {
     super(opts.ctCartService, opts.ctPaymentService);
-    this.ctPaymentMethodService = new CustomPaymentMethodService({
-      ctAPI: paymentSDK.ctAPI,
-    });
+    this.braintreeCustomerService = new BraintreeCustomerService({ ctAPI: paymentSDK.ctAPI });
   }
 
   /**
@@ -204,19 +204,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
       ],
       express: [{ type: PaymentMethodType.PAYPAL }],
     };
-  }
-
-  public async getCtCustomer(ctCustomerId: string): Promise<Customer | void> {
-    return await paymentSDK.ctAPI.client
-      .customers()
-      .withId({ ID: ctCustomerId })
-      .get()
-      .execute()
-      .then((response) => response.body)
-      .catch((err) => {
-        log.warn(`Customer not found ${ctCustomerId}`, { error: err });
-        return;
-      });
   }
 
   public async getShippingMethods(ctCartId: string): Promise<ShippingMethod[] | void> {
@@ -365,6 +352,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
       isExpress ? this.getShippingMethods(ctCart.id) : Promise.resolve([]),
       this.ctCartService.getPaymentAmount({ cart: ctCart }),
     ]);
+
+    this.validateCustomerRequiredData(customer, isPureVault);
+
+    if (isPureVault) amountPlanned.centAmount = 0;
 
     const braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
     const shippingMethods = shippingMethodsResult || [];
@@ -580,6 +571,48 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
   //todo - verify that payPalOrderRequest was never used through frontend flow
 
+  //this method corresponds to handleStoredPaymentMethod part for create a new stored method
+  public async pureVault({
+    ctCustomerId,
+    ctPaymentId,
+    ctCustomerVersion,
+    braintreeCustomerId,
+    paymentMethodNonce,
+    //braintree CustomerCreateRequest data (includes nonce) or braintree  PaymentMethodCreateRequest
+  }: PureVaultRequestSchemaDTO): Promise<GeneralResponseSuccessSchemaDTO> {
+    if (!ctCustomerId) {
+      throw new ErrorRequiredField('customerId', {
+        privateMessage: 'The customerId is not set on the cart yet the customer wants to tokenize the payment',
+        privateFields: {
+          cart: {
+            id: ctPaymentId,
+            typeId: 'payment',
+          },
+        },
+      });
+    }
+    if (!ctCustomerVersion || !paymentMethodNonce)
+      throw new ErrorRequiredField(paymentMethodNonce ? 'version' : 'nonce', {
+        privateMessage: 'Version or nonce is missing for payment and customer',
+        privateFields: {
+          cart: {
+            id: ctPaymentId,
+            typeId: 'payment',
+          },
+          customer: {
+            id: ctCustomerId,
+            typeId: 'customer',
+          },
+        },
+      });
+    return await this.braintreeCustomerService.pureVault({
+      ctCustomerId,
+      ctCustomerVersion,
+      braintreeCustomerId,
+      paymentMethodNonce,
+    });
+  }
+
   /**
    * Before the create payment request to the PSP is made the input needs to be validated first and then passed to the PSP to either tokenise or pay with a token.
    * Depending on how the PSP integration works the return value of this function could differ or other requirements surrounding the API calls.
@@ -675,30 +708,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
   //
   //   return {};
   // }
-
-  /**
-   * Returns "cart.customerId" from the cart that is present in the context. If the "cart.customerId" is not set then a "ErrorRequiredField" will be thrown.
-   */
-  async getCustomerIdFromCart(): Promise<string> {
-    const ctCart = await this.ctCartService.getCart({
-      id: getCartIdFromContext(),
-    });
-
-    const customerId = ctCart.customerId;
-
-    if (!customerId) {
-      throw new ErrorRequiredField('customerId', {
-        privateMessage: 'customerId is not set on the cart',
-        privateFields: {
-          cart: {
-            id: ctCart.id,
-          },
-        },
-      });
-    }
-
-    return customerId;
-  }
 
   /**
    * Returns a list of stored-payment-methods that are available in the current session.
@@ -871,5 +880,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
   private validatePaymentMethod({ merchantAccountId, paymentMethodType }: PaymentRequestSchemaDTO): void {
     if (paymentMethodType === 'LocalPaymentMethod' && !merchantAccountId)
       throw new ErrorRequiredField('merchantAccountId');
+  }
+
+  private validateCustomerRequiredData(ctCustomer: Customer | void, isPureVault?: boolean): void {
+    if (!isPureVault) return;
+    if (!ctCustomer) throw new ErrorInvalidOperation('Customer not found for pure vault payment');
   }
 }

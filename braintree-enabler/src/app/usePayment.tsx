@@ -85,6 +85,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   purchaseCallback,
   paymentMethodType,
   builderType,
+  isPureVault,
   children,
 }) => {
   const [initializingPayment, setInitializingPayment] = useState(false);
@@ -105,8 +106,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   const {
     createPaymentUrl,
     transactionSaleUrl,
-    createPaymentForVault,
-    vaultPaymentMethodUrl,
+    pureVaultUrl,
     updateCartShippingUrl,
   } = processorUrls(processorUrl);
   const requestHeader = sessionHeader(sessionId);
@@ -119,16 +119,15 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       setInitializingPayment(true);
       isLoading(true);
       try {
-        const createPaymentEndpoint =
-          vaultPayment && createPaymentForVault
-            ? createPaymentForVault
-            : createPaymentUrl;
         const createPaymentResult = (await createPayment(
           requestHeader,
-          createPaymentEndpoint,
+          createPaymentUrl,
           paymentMethodType,
           builderType,
           merchantAccountId,
+          isPureVault &&
+            (paymentMethodType === "CreditCard" ||
+              paymentMethodType === "PayPal"),
         )) as CreatePaymentResponse;
         setClientToken(createPaymentResult.braintreeData.clientToken);
         setBraintreeCustomerId(
@@ -143,7 +142,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       setInitializingPayment(false);
       isLoading(false);
     };
-    handleInitPayment(); //todo - add vault properly
+    handleInitPayment(isPureVault);
   }, []);
 
   const value = useMemo(() => {
@@ -252,12 +251,10 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         paymentMethodNonce: paymentNonce,
       };
 
-      if (!vaultPaymentMethodUrl) return;
-
       isLoading(true);
       const response = await makeVaultRequest(
         requestHeader,
-        vaultPaymentMethodUrl,
+        pureVaultUrl,
         requestBody,
       );
       isLoading(false);
