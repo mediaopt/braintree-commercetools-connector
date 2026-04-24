@@ -9,7 +9,6 @@ import {
   TransactionSaleRequestSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { BraintreePaymentService } from '../services/braintree-payment.service';
-import { StoredPaymentMethodsResponseSchema } from '../dtos/stored-payment-methods.dto';
 import { Type } from '@sinclair/typebox';
 
 type PaymentRoutesOptions = {
@@ -30,10 +29,7 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
       },
     },
     async (request, reply) => {
-      const resp = await opts.paymentService.createPayment({
-        data: request.body,
-      });
-
+      const resp = await opts.paymentService.createPayment(request.body);
       return reply.status(200).send(resp);
     },
   );

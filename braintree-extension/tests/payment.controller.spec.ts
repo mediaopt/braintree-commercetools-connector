@@ -3,7 +3,7 @@ import { paymentController } from '../src/controllers/payment.controller';
 import isBase64 from 'validator/lib/isBase64';
 import { PaymentReference } from '@commercetools/platform-sdk';
 import { Transaction } from 'braintree';
-import { UpdateActions } from '../src/types/index.types';
+import { UpdateActions } from 'common-connect/dist';
 
 const getRandomId = (): string => {
   return `test_${Math.floor(Math.random() * Math.pow(2, 10))}`;
