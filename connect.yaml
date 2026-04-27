@@ -126,3 +126,84 @@ deployAs:
         - key: BRAINTREE_PRIVATE_KEY
           description: Braintree private key
           required: true
+  - name: enabler
+    applicationType: assets
+  - name: processor
+    applicationType: service
+    endpoint: /
+    scripts:
+      postDeploy: npm install && npm run connector:post-deploy
+      preUndeploy: npm install && npm run connector:pre-undeploy
+    configuration:
+      standardConfiguration:
+        - key: CTP_AUTH_URL
+          description: commercetools Auth URL
+          required: true
+          default: https://auth.europe-west1.gcp.commercetools.com
+        - key: CTP_API_URL
+          description: commercetools API URL
+          required: true
+          default: https://api.europe-west1.gcp.commercetools.com
+        - key: CTP_SESSION_URL
+          description: commercetools Session API URL
+          required: true
+          default: https://session.europe-west1.gcp.commercetools.com
+        - key: CTP_CHECKOUT_URL
+          description: Checkout API URL (example - https://checkout.europe-west1.gcp.commercetools.com).
+          required: true
+          default: https://checkout.europe-west1.gcp.commercetools.com
+        - key: CTP_JWKS_URL
+          description: JWKs URL for JWT validation
+          required: true
+          default: https://mc-api.europe-west1.gcp.commercetools.com/.well-known/jwks.json
+        - key: CTP_JWT_ISSUER
+          description: JWT issuer for JWT validation
+          required: true
+          default: https://mc-api.europe-west1.gcp.commercetools.com
+        - key: BRAINTREE_MERCHANT_ID
+          description: Braintree Merchant Account
+          required: true
+        - key: BRAINTREE_PUBLIC_KEY
+          description: Braintree public key
+          required: true
+        - key: BRAINTREE_ENVIRONMENT
+          description: Braintree environment (Sandbox or Production)
+          required: true
+          default: Sandbox
+        - key: BRAINTREE_AUTOCAPTURE
+          description: Braintree setting whether transactions should be captured directly (true OR false)
+          required: true
+          default: 'true'
+        - key: BRAINTREE_MERCHANT_ACCOUNT
+          description: Default Braintree merchant account (optional). Can be overwritten on request level
+          required: false
+        - key: STORED_PAYMENT_METHODS_ENABLED
+          description: Enable vault payment methods (true OR false)
+          required: false
+        - key: MERCHANT_RETURN_URL
+          description: Merchant website return URL for redirect-based payment methods
+          required: false
+        - key: HEALTH_CHECK_TIMEOUT
+          description: Time in milliseconds to wait for a response from the payment provider during health checks
+          required: false
+        - key: LOGGER_LEVEL
+          description: Log level for the application logger (info, debug, error)
+          required: false
+          default: error
+      securedConfiguration:
+        - key: CTP_PROJECT_KEY
+          description: commercetools Composable Commerce project key
+          required: true
+        - key: CTP_CLIENT_ID
+          description: commercetools Composable Commerce client ID
+          required: true
+        - key: CTP_CLIENT_SECRET
+          description: commercetools Composable Commerce client secret
+          required: true
+        - key: CTP_SCOPE
+          description: commercetools Composable Commerce client scope
+          required: true
+        - key: BRAINTREE_PRIVATE_KEY
+          description: Braintree private key
+          required: true
+
