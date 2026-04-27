@@ -75,8 +75,8 @@ export const LocalPaymentMethodMask: FC<
           buttonText: fallbackButtonText,
         },
         email: paymentInfo.email,
-        givenName: paymentInfo.cartInformation.billing.firstName,
-        surname: paymentInfo.cartInformation.billing.lastName,
+        givenName: paymentInfo.firstName,
+        surname: paymentInfo.lastName,
         countryCode: countryCode,
         paymentTypeCountryCode: countryCode,
         currencyCode: currencyCode,
@@ -105,9 +105,6 @@ export const LocalPaymentMethodMask: FC<
               lineItems: braintreeLineItems,
               shipping: shipping,
             };
-            if (merchantAccountId) {
-              handlePurchaseOptions.merchantAccountId = merchantAccountId;
-            }
             handleTransactionSale(
               payload.nonce,
               handlePurchaseOptions,

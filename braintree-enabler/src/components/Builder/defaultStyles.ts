@@ -3,6 +3,8 @@ import {
   ButtonLabelOption,
   ButtonShapeOption,
   ButtonSizeOption,
+  FlowType,
+  Intent,
 } from "paypal-checkout-components";
 
 export const ACHDefaultStyleProps = {
@@ -30,13 +32,13 @@ export const PayPalDefaultStyleProps = {
 };
 
 export const PayPalExpressStyleProps = {
-  flow: "checkout", //required
-  buttonColor: "gold",
-  buttonLabel: "buynow",
+  flow: "checkout" as FlowType, //required
+  buttonColor: "gold" as ButtonColorOption,
+  buttonLabel: "buynow" as ButtonLabelOption,
   payLater: false,
   commit: true,
   locale: "en_GB",
-  intent: "capture",
+  intent: "capture" as Intent,
   enableShippingAddress: true,
   shippingAddressEditable: true,
 };
@@ -48,5 +50,5 @@ export const PayPalVaultStyleProps = {
   payLater: false,
   commit: false,
   locale: "en_GB",
-  intent: "tokenize",
+  intent: "tokenize" as Intent,
 };

@@ -246,6 +246,7 @@ export type LocalPaymentMethodsType = {
   shippingAddressRequired?: boolean;
   fallbackUrl: string;
   fallbackButtonText?: string;
+  merchantAccountId?: string;
 };
 
 interface LocalPaymentBancontact extends LocalPaymentMethodsType {
