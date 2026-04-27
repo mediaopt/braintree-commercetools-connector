@@ -1,4 +1,4 @@
-import { UpdateActions } from '../types/index.types';
+import { UpdateActions } from 'common-connect/dist';
 
 export interface ResponseInterfaceSuccess {
   actions: UpdateActions;

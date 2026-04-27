@@ -1,12 +1,9 @@
-import { CustomError, logger } from 'common-connect/dist';
+import { CustomError, logger, UpdateActions } from 'common-connect/dist';
 import {
   PaymentReference,
   Transaction as CommercetoolsTransaction,
 } from '@commercetools/platform-sdk';
-import {
-  PaymentWithOptionalTransaction,
-  UpdateActions,
-} from '../types/index.types';
+import { PaymentWithOptionalTransaction } from '../types/index.types';
 import {
   findTransaction,
   handleGetClientTokenRequest,
