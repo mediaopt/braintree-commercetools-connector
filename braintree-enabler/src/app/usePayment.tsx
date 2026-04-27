@@ -85,9 +85,9 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   purchaseCallback,
   paymentMethodType,
   builderType,
-  isPureVault,
   children,
 }) => {
+  const isPureVault = paymentMethodType.endsWith("Vault");
   const [initializingPayment, setInitializingPayment] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [resultSuccess, setResultSuccess] = useState<boolean>();
@@ -95,7 +95,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
 
   const [clientToken, setClientToken] = useState<string>();
   const [braintreeCustomerId, setBraintreeCustomerId] = useState("");
-  const [customerVersion, setCustomerVersion] = useState<number>();
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>(
     PaymentInfoInitialObject,
   );
@@ -115,7 +114,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   const { isLoading } = useLoader();
 
   useEffect(() => {
-    const handleInitPayment = async (vaultPayment?: boolean) => {
+    const handleInitPayment = async () => {
       setInitializingPayment(true);
       isLoading(true);
       try {
@@ -125,9 +124,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
           paymentMethodType,
           builderType,
           merchantAccountId,
-          isPureVault &&
-            (paymentMethodType === "CreditCard" ||
-              paymentMethodType === "PayPal"),
         )) as CreatePaymentResponse;
         setClientToken(createPaymentResult.braintreeData.clientToken);
         setBraintreeCustomerId(
@@ -142,7 +138,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       setInitializingPayment(false);
       isLoading(false);
     };
-    handleInitPayment(isPureVault);
+    handleInitPayment();
   }, []);
 
   const value = useMemo(() => {
@@ -246,8 +242,10 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
 
     const handlePureVault = async (paymentNonce: string) => {
       const requestBody = {
-        customerVersion: customerVersion,
-        customerId: braintreeCustomerId,
+        ctCustomerId: paymentInfo.ctCustomerId,
+        ctCustomerVersion: paymentInfo.ctCustomerVersion,
+        ctPaymentId: paymentInfo.ctPaymentId,
+        braintreeCustomerId,
         paymentMethodNonce: paymentNonce,
       };
 
@@ -258,7 +256,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         requestBody,
       );
       isLoading(false);
-      if (response.ok === false || !response) {
+      if (!response?.ok) {
         notify("Error", response.message ?? "An error occurred");
         return;
       }
@@ -304,7 +302,11 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       {showResult ? (
         <Result success={resultSuccess} message={resultMessage} />
       ) : clientToken ? (
-        children
+        isPureVault && !paymentInfo.ctCustomerId ? (
+          "You need to log in to save payment method for later"
+        ) : (
+          children
+        )
       ) : (
         <LoadingOverlay />
       )}

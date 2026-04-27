@@ -519,7 +519,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           </label>
           <div ref={ccCvvRef} id="cvv" className={`${HOSTED_FIELDS} p-3`}></div>
 
-          {enableVaulting && braintreeCustomerId && (
+          {enableVaulting && braintreeCustomerId && !isPureVault && (
             <>
               <label className={`${HOSTED_FIELDS_LABEL} mb-2`}>
                 <input className="mr-3" ref={ccVaultCheckbox} type="checkbox" />

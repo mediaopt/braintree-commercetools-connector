@@ -11,9 +11,11 @@ export enum PaymentMethodType {
   ACH = 'ACH',
   APPLE_PAY = 'ApplePay',
   CREDIT_CARD = 'CreditCard',
+  CREDIT_CARD_VAULT = 'CreditCardVault',
   GOOGLE_PAY = 'GooglePay',
   LOCAL_PAYMENT_METHOD = 'LocalPaymentMethod',
   PAYPAL = 'PayPal',
+  PAYPAL_VAULT = 'PayPalVault',
   VENMO = 'Venmo',
 }
 export enum CustomBuilderType {
@@ -67,7 +69,6 @@ export const InitPaymentRequestSchema = Type.Object({
   merchantAccountId: Type.Optional(Type.String()),
   paymentMethodType: Type.Enum(PaymentMethodType),
   builderType: Type.Optional(Type.Enum(CustomBuilderType)),
-  isPureVault: Type.Optional(Type.Boolean()),
 
   // paymentMethod: Type.Object({
   //   type: Type.Enum(BraintreePaymentMethodType),
@@ -92,12 +93,13 @@ const PureVaultBaseSchema = Type.Object({
   paymentMethodNonce: Type.String(),
 });
 
-export const PureVaultRequestSchema = Type.Intersect([
-  PureVaultBaseSchema,
-  Type.Object({
-    ctPaymentId: Type.String(),
-  }),
-]);
+export const PureVaultRequestSchema = Type.Object({
+  ctCustomerId: Type.String(),
+  ctCustomerVersion: Type.Number(),
+  braintreeCustomerId: Type.Optional(Type.String()),
+  paymentMethodNonce: Type.String(),
+  ctPaymentId: Type.String(),
+});
 
 export type PureVaultBaseSchemaDTO = Static<typeof PureVaultBaseSchema>;
 export type PureVaultRequestSchemaDTO = Static<typeof PureVaultRequestSchema>;

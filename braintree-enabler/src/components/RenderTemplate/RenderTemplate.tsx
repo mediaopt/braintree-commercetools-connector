@@ -13,6 +13,7 @@ import {
   ApplePayDefaultStyleProps,
   PayPalDefaultStyleProps,
   PayPalExpressStyleProps,
+  PayPalVaultStyleProps,
 } from "../Builder/defaultStyles";
 import { FlowType } from "paypal-checkout-components";
 import { ACHButton } from "../ACH/ACHButton";
@@ -35,6 +36,7 @@ const ComponentWithCustomOptions = ({
   builderType,
 }: BraintreeBuilderTemplateProps) => {
   switch (paymentMethodType) {
+    // --- Standard component/dropin methods ---
     case "ACH":
       return <ACHButton {...ACHDefaultStyleProps} {...customOptions} />;
     case "ApplePay":
@@ -54,13 +56,24 @@ const ComponentWithCustomOptions = ({
     // case "LocalPaymentMethods":
     //   return <LocalPaymentMethodButton {...customOptions} />
     case "PayPal":
+      if (`${builderType}` === "express") {
+        // Express: shipping is handled through the PayPal flow — enableShippingAddress is locked on
+        return (
+          <PayPalButton
+            {...PayPalExpressStyleProps}
+            {...customOptions}
+            enableShippingAddress={true}
+          />
+        );
+      }
+      // Standard: address must be set externally — no address/shipping changes through PayPal
       return (
         <PayPalButton
-          flow={"checkout" as FlowType} //fallback flow if is not set by config or options
-          {...(`${builderType}` === "express"
-            ? PayPalExpressStyleProps
-            : PayPalDefaultStyleProps)}
+          flow={"checkout" as FlowType}
+          {...PayPalDefaultStyleProps}
           {...customOptions}
+          enableShippingAddress={false}
+          shippingAddressEditable={false}
         />
       );
     case "Venmo":
@@ -75,6 +88,26 @@ const ComponentWithCustomOptions = ({
           {...customOptions}
         />
       );
+
+    // --- Express-only vault methods (isPureVault is always true and cannot be overridden by processor settings) ---
+    case "PayPalVault":
+      return (
+        <PayPalButton
+          {...PayPalVaultStyleProps}
+          {...customOptions}
+          flow={"vault" as FlowType}
+          isPureVault={true}
+
+        />
+      );
+    case "CreditCardVault":
+      return (
+        <CreditCardButton
+          {...customOptions}
+          isPureVault={true}
+        />
+      );
+
     default:
       return <CreditCardButton {...customOptions} />;
   }

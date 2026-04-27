@@ -77,7 +77,7 @@ async function onMethodSelected(methodId) {
   if (builder.componentHasSubmit) {
     await component.mount("#container--external");
     const customButton = document.createElement("button");
-    customButton.textContent = "Pay with " + methodId;
+    customButton.textContent = "Pay with " + methodId.split("-")[1];
     customButton.className = "btn btn-lg btn-primary btn-block mt-3";
     customButton.addEventListener("click", async () => {
       if (!document.getElementById("termsCheckbox").checked) {
