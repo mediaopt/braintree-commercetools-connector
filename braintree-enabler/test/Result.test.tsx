@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 //import "@testing-library/jest-dom";
-import { Result } from "./Result";
+import { Result } from "../src/components/Result";
 
 const TEXT: string = "My Text";
 
@@ -32,7 +32,7 @@ test("result component displays children", () => {
   const { container } = render(
     <Result>
       <label>{TEXT}</label>
-    </Result>
+    </Result>,
   );
   const linkElement = container.querySelector("label");
   expect(linkElement).toBeInTheDocument();
