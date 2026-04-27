@@ -91,10 +91,10 @@ export const RenderTemplate: FC<
           paymentMethodType={paymentMethodType}
           builderType={builderType}
           merchantAccountId={
-            paymentMethodType === "LocalPaymentMethod"
+            customOptions.merchantAccountId?.length
               ? customOptions.merchantAccountId
               : undefined
-          } //todo - clarify for which methods merchantAccountId is required
+          }
         >
           <RenderPurchase>
             {ComponentWithCustomOptions({
