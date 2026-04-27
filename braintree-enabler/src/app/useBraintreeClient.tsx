@@ -11,6 +11,7 @@ export const useBraintreeClient = () => {
   const { notify } = useNotifications();
 
   useEffect(() => {
+    if (!clientToken) return;
     client
       .create({
         authorization: clientToken,
