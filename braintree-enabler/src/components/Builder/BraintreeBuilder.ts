@@ -68,7 +68,7 @@ class BraintreeComponent implements PaymentComponent {
 }
 
 export class BraintreeBuilder implements PaymentComponentBuilder {
-  public componentHasSubmit = true;
+  public componentHasSubmit = false; //instead of a submit action Braintree has a complete submit button, no additional button render is needed
 
   constructor(
     private paymentMethodType: BraintreePaymentMethodType,
