@@ -77,7 +77,6 @@ export class BraintreeBuilder implements PaymentComponentBuilder {
   ) {}
 
   build(config: ComponentOptions): PaymentComponent {
-    console.log(this.paymentMethodType, this.baseOptions, config);
     return new BraintreeComponent(
       this.paymentMethodType,
       this.baseOptions,

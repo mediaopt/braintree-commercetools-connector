@@ -40,3 +40,13 @@ export const PayPalExpressStyleProps = {
   enableShippingAddress: true,
   shippingAddressEditable: true,
 };
+
+export const PayPalVaultStyleProps = {
+  flow: "vault", //required for pure vault
+  buttonColor: "blue" as ButtonColorOption,
+  buttonLabel: "pay" as ButtonLabelOption,
+  payLater: false,
+  commit: false,
+  locale: "en_GB",
+  intent: "tokenize",
+};

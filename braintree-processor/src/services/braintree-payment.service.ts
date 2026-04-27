@@ -202,7 +202,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
         { type: PaymentMethodType.VENMO },
         { type: PaymentMethodType.LOCAL_PAYMENT_METHOD, subtypes: ['IDEALO', 'BLIK'] },
       ],
-      express: [{ type: PaymentMethodType.PAYPAL }],
+      express: [
+        { type: PaymentMethodType.PAYPAL },
+        { type: PaymentMethodType.PAYPAL_VAULT },
+        { type: PaymentMethodType.CREDIT_CARD_VAULT },
+      ],
     };
   }
 
@@ -323,11 +327,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
   public async createPayment({
     merchantAccountId,
-    isPureVault,
     builderType,
     paymentMethodType,
   }: PaymentRequestSchemaDTO): Promise<PaymentResponseSchemaDTO> {
     this.validatePaymentMethod({ merchantAccountId, paymentMethodType });
+    const isPureVault =
+      paymentMethodType === PaymentMethodType.PAYPAL_VAULT || paymentMethodType === PaymentMethodType.CREDIT_CARD_VAULT;
     const isExpress = paymentMethodType === 'PayPal' && builderType === 'express';
 
     const ctCart = await this.ctCartService.getCart({
@@ -390,7 +395,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       merchantAccountId: merchantAccountId,
       customerId: braintreeCustomerId,
     });
-    const customFields = handleCustomFieldResponse('getClientToken', tokenResponse, 'payment'); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
+    const customFields = handleCustomFieldResponse('getClientToken', tokenResponse); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
     const responseInteraction = handleInterfaceInteraction({
       messageName: 'getClientToken',
       message: tokenResponse,
@@ -500,7 +505,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       const response = await transactionSale({
         ...transactionRequest, // discountAmount: '18.29', //todo - verify if for Braintree discount, tax and so on mush match
       });
-      const customFields = handleCustomFieldResponse('transactionSale', response, 'payment'); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
+      const customFields = handleCustomFieldResponse('transactionSale', response); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
       const responseInteraction = handleInterfaceInteraction({
         messageName: 'transactionSale',
         message: response,

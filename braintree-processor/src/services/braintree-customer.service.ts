@@ -82,6 +82,7 @@ export class BraintreeCustomerService {
       response = await createCustomer(braintreeCustomerCreateRequest);
       ctVersion = ctCustomer.version;
     } else {
+      log.info(`customer ${ctCustomerId} already has Braintree account associated. Adding payment method to account`);
       const braintreePaymentMethodCreateRequest: PaymentMethodCreateRequest = {
         customerId: braintreeCustomerId,
         options: VAULT_BRAINTREE_OPTIONS,

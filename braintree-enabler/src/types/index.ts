@@ -69,7 +69,6 @@ export type PaymentProviderProps = RequiredSessionData & {
   merchantAccountId?: string;
   paymentMethodType: BraintreePaymentMethodType;
   builderType?: BuilderType;
-  isPureVault?: boolean; //relevant for CreditCard and PayPal only
 };
 
 export type GeneralComponentsProps = PaymentProviderProps &
@@ -99,6 +98,8 @@ type RequiredPaymentData = {
   ctPaymentId: string;
   braintreeAmount: number;
   currency: string;
+  ctCustomerId?: string;
+  ctCustomerVersion?: number;
 };
 
 type OptionalPerMethodPaymentData = {
@@ -111,6 +112,8 @@ type OptionalPerMethodPaymentData = {
   shippingOptions?: (ShippingOption & { countryCode: string })[]; //PayPal express (Buy Now)
   braintreeLineItems?: BraintreeLineItem[]; //PayPal express (Buy Now)
   braintreeShipping?: BraintreeShipping; //PayPal express (Buy Now)
+  ctCustomerId?: string; //vault
+  ctCustomerVersion?: string; //vault
 };
 
 export type PaymentInfo = RequiredPaymentData & OptionalPerMethodPaymentData;
