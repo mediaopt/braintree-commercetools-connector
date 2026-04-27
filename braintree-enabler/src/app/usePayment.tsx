@@ -256,7 +256,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         requestBody,
       );
       isLoading(false);
-      if (!response?.ok) {
+      if (!response?.success) {
         notify("Error", response.message ?? "An error occurred");
         return;
       }
