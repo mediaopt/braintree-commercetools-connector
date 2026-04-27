@@ -18,7 +18,6 @@ import { Result } from "../components/Result";
 import {
   CreatePaymentResponse,
   PaymentInfo,
-  TransactionSaleResponse,
   RequestHeader,
   PaymentProviderProps,
 } from "../types";
@@ -31,6 +30,11 @@ import { processorUrls } from "../components/constants";
 import { sessionHeader } from "../helpers/sessionHeader";
 import { LoadingOverlay } from "../components/LoadingOverlay";
 import { makeChangeShippingRequest } from "../services/makeChangeShippingRequest";
+
+type GeneralResponseSuccess = {
+  message: string;
+  success: boolean;
+};
 
 type HandleTransactionSaleType = (
   paymentNonce: string,
@@ -46,7 +50,7 @@ type PaymentContextT = {
     saveLocalPaymentUrl: string,
   ) => Promise<number>;
   handleTransactionSale: HandleTransactionSaleType;
-  handlePureVault: (paymentNonce: string) => void;
+  handlePureVault: (paymentNonce: string) => Promise<void>;
   paymentInfo: PaymentInfo;
   vaultedPaymentMethods: FetchPaymentMethodsPayload[];
   handleGetVaultedPaymentMethods: () => Promise<FetchPaymentMethodsPayload[]>;
@@ -66,7 +70,7 @@ const PaymentContext = createContext<PaymentContextT>({
   clientToken: undefined,
   setLocalPaymentId: () => new Promise<number>(() => 0),
   handleTransactionSale: () => Promise.resolve(),
-  handlePureVault: () => {},
+  handlePureVault: () => Promise.resolve(),
   paymentInfo: PaymentInfoInitialObject,
   vaultedPaymentMethods: [],
   handleGetVaultedPaymentMethods: () =>
@@ -222,19 +226,20 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         requestHeader,
         transactionSaleUrl,
         requestBody,
-      )) as TransactionSaleResponse;
+      )) as GeneralResponseSuccess;
       isLoading(false);
-      if (!response.ok || !response) {
+      if (!response?.success) {
         notify("Error", response.message ?? "An error occurred");
         return;
       }
 
-      const { message, success } = response.result.transactionSaleResponse;
+      const { message, success } = response;
       setResultSuccess(success);
       setResultMessage(message);
 
       setShowResult(true);
-      if (purchaseCallback && success !== false) {
+      if (purchaseCallback && success) {
+        //todo - implement here redirect to return url
         delete options?.deviceData;
         purchaseCallback(response, options);
       }
