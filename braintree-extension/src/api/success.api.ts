@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { ResponseInterfaceSuccess } from '../interfaces/response.interface';
-import { UpdateActions } from '../types/index.types';
+import { UpdateActions } from 'common-connect/dist';
 
 /**
  * Send a success response to the client
