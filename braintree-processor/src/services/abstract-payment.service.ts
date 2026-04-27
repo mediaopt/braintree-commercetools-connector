@@ -31,9 +31,10 @@ import {
  * - Braintree frontend components implementations
  * Where applicable, original method names from the commercetools template are noted in individual method comments.
  *
- * Note on CoCo stored payment methods - Braintree front end client has a build in handler for:
- * - load vaulted methods
- * Therefore, these methods are not implemented on the processor side.
+ * Note on CoCo stored payment methods - only Braintree customer Id is stored on commercetools side.
+ * Frontend gets the stored methods on braintree side by token.
+ * Therefore, neither get payment methods nor delete payment methods from commercetools are implemented on the processor.
+ * todo - implement delete braintree customer id
  *
  * Note on class structure - there are 3 groups of methods
  * - operation - genearal routes required to intitialize the client, do not involve payment or customer yet
