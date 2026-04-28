@@ -11,8 +11,8 @@
     "build": "npm --prefix ../common-connect install && npm --prefix ../common-connect run build && rm -rf /dist && tsc",
     "dev": "ts-node src/main.ts",
     "watch": "nodemon --watch \"src/**\" --ext \"ts,json\" --ignore \"src/**/*.spec.ts\" --exec \"ts-node src/main.ts\"",
-    "test": "npm run build jest --detectOpenHandles",
-    "test:watch": "npm run build jest --watch --detectOpenHandles",
+    "test": "npm run build && jest --detectOpenHandles",
+    "test:watch": "npm run build && jest --watch --detectOpenHandles",
     "connector:post-deploy": "node dist/connectors/post-deploy.js",
     "connector:pre-undeploy": "node dist/connectors/pre-undeploy.js"
   },
