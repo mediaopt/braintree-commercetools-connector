@@ -174,7 +174,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       ],
       metadataFn: async () => ({
         name: packageJSON.name,
-        description: packageJSON.description,
+        description: 'Braintree provider integration', //packageJSON.description, todo - fix the description missing on type package json
         '@commercetools/connect-payments-sdk': packageJSON.dependencies['@commercetools/connect-payments-sdk'],
       }),
     })();

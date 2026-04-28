@@ -1,11 +1,11 @@
 {
   "name": "common-connect",
   "version": "1.0.0",
-  "description": "",
+  "description": "common modules for Braintree extension and processor",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "test": "jest",
+    "test": "jest --config src/jest.config.ts",
     "build": "tsc"
   },
   "keywords": [],
