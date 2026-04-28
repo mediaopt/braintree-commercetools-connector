@@ -78,7 +78,9 @@ function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
     payment,
     storeInVaultOnSuccess,
     !!initRequest.shipping,
-    ...initRequest
+    initRequest?.paymentMethodNonce,
+    initRequest?.paymentMethodToken,
+    initRequest
   );
 }
 
@@ -516,15 +518,15 @@ export async function handleTransactionSaleRequest(payment?: Payment) {
   }
   try {
     const request = parseTransactionSaleRequest(payment);
-    let updateActions = handleRequest('transactionSaleUrl', request);
+    let updateActions = handleRequest('transactionSale', request);
     const response = await transactionSale(request);
     updateActions = updateActions.concat(
-      handlePaymentResponse('transactionSaleUrl', response),
+      handlePaymentResponse('transactionSale', response),
       handleTransactionResponse(payment, response)
     );
     return updateActions;
   } catch (e) {
-    return handleError('transactionSaleUrl', e);
+    return handleError('transactionSale', e);
   }
 }
 

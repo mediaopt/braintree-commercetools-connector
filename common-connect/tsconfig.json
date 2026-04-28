@@ -1,6 +1,7 @@
 {
   "extends": "@tsconfig/recommended/tsconfig.json",
-  "exclude": ["node_modules", "**/*.spec.ts", "tests/setup-tests.ts", "dist"],
+  "exclude": ["node_modules", "**/*.spec.ts",
+    "src/test/setup-tests.ts", "dist"],
   "compilerOptions": {
     "resolveJsonModule": true,
     "outDir": "./dist",
