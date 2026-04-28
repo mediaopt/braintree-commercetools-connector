@@ -23,7 +23,7 @@ deployAs:
         - key: BRAINTREE_AUTOCAPTURE
           description: Braintree setting whether transactions should be captured directly (true OR false)
           required: true
-          default: 'true'
+          default: "true"
         - key: BRAINTREE_MERCHANT_ACCOUNT
           description: Default Braintree merchant account (optional). Can be overwritten on request level
           required: false
@@ -108,7 +108,7 @@ deployAs:
           default: Sandbox
         - key: BRAINTREE_SEND_TRACKING
           description: Automatically transfer the Tracking Data to Braintree when a Parcel is created for a delivery of an Order (true OR false)
-          default: 'false'
+          default: "false"
           required: true
       securedConfiguration:
         - key: CTP_PROJECT_KEY
@@ -126,9 +126,9 @@ deployAs:
         - key: BRAINTREE_PRIVATE_KEY
           description: Braintree private key
           required: true
-  - name: enabler
+  - name: braintree-enabler
     applicationType: assets
-  - name: processor
+  - name: braintree-processor
     applicationType: service
     endpoint: /
     scripts:
@@ -173,7 +173,7 @@ deployAs:
         - key: BRAINTREE_AUTOCAPTURE
           description: Braintree setting whether transactions should be captured directly (true OR false)
           required: true
-          default: 'true'
+          default: "true"
         - key: BRAINTREE_MERCHANT_ACCOUNT
           description: Default Braintree merchant account (optional). Can be overwritten on request level
           required: false
@@ -206,4 +206,3 @@ deployAs:
         - key: BRAINTREE_PRIVATE_KEY
           description: Braintree private key
           required: true
-
