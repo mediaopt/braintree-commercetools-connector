@@ -453,7 +453,6 @@ function handleLocalPaymentMethodTransactionResponse(
 
 function handleTransactionResponse(payment: Payment, response: Transaction) {
   let updateActions: UpdateActions = [];
-  const amountPlanned = payment?.amountPlanned;
   const transactionType =
     response.type === 'credit'
       ? 'Refund'
