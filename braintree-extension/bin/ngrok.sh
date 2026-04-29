@@ -4,7 +4,7 @@
 if ! nc -z localhost 4040
 then
   echo "⚡️Starting ngrok"
-  ./node_modules/.bin/ngrok http 8080 > /dev/null &
+  ngrok http 8080 > /dev/null &
 fi
 
 # Wait for ngrok to be available
