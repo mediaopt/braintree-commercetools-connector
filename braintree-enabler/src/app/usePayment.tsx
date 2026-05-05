@@ -12,8 +12,15 @@ import {
   VaultManager,
   vaultManager,
 } from "braintree-web";
-import { createPayment } from "../services";
+import { processorRequest } from "../services/processorRequest";
 import { Result } from "../components/Result";
+import {
+  CreatePaymentRequest,
+  TransactionSaleRequest,
+  SetLocalPaymentRequest,
+  VaultRequest,
+  ChangeShippingRequest,
+} from "../services/types";
 
 import {
   CreatePaymentResponse,
@@ -21,15 +28,11 @@ import {
   RequestHeader,
   PaymentProviderProps,
 } from "../types";
-import { makeTransactionSaleRequest } from "../services/makeTransactionSaleRequest";
 import { useNotifications } from "./useNotifications";
 import { useLoader } from "./useLoader";
-import { setLocalPaymentIdRequest } from "../services/setLocalPaymentId";
-import { makeVaultRequest } from "../services/makeVaultRequest";
 import { processorUrls } from "../components/constants";
 import { sessionHeader } from "../helpers/sessionHeader";
 import { LoadingOverlay } from "../components/LoadingOverlay";
-import { makeChangeShippingRequest } from "../services/makeChangeShippingRequest";
 
 type GeneralResponseSuccess = {
   message: string;
@@ -122,25 +125,32 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       setInitializingPayment(true);
       isLoading(true);
       try {
-        const createPaymentResult = (await createPayment(
-          requestHeader,
-          createPaymentUrl,
-          paymentMethodType,
+        const createPaymentResult = await processorRequest<
+          CreatePaymentRequest,
+          CreatePaymentResponse
+        >(requestHeader, createPaymentUrl, {
           builderType,
+          paymentMethodType,
           merchantAccountId,
-        )) as CreatePaymentResponse;
-        setClientToken(createPaymentResult.braintreeData.clientToken);
-        setBraintreeCustomerId(
-          createPaymentResult.braintreeData.braintreeCustomerId,
-        );
-        setPaymentInfo(createPaymentResult.payment);
+        });
+        if (createPaymentResult) {
+          setClientToken(createPaymentResult.braintreeData.clientToken);
+          setBraintreeCustomerId(
+            createPaymentResult.braintreeData.braintreeCustomerId,
+          );
+          setPaymentInfo(createPaymentResult.payment);
+        } else {
+          notify("Error", "Could not create payment");
+          setClientToken(undefined);
+        }
       } catch (error) {
         notify("Error", "Authentication Error!");
         console.error(error);
         setClientToken(undefined);
+      } finally {
+        setInitializingPayment(false);
+        isLoading(false);
       }
-      setInitializingPayment(false);
-      isLoading(false);
     };
     handleInitPayment();
   }, []);
@@ -185,11 +195,10 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       localPaymentId: string,
       saveLocalPaymentUrl: string,
     ) => {
-      const response = (await setLocalPaymentIdRequest(
+      const response = (await processorRequest<SetLocalPaymentRequest>(
         requestHeader,
         saveLocalPaymentUrl,
-        paymentInfo.ctPaymentId,
-        localPaymentId,
+        { paymentId: paymentInfo.ctPaymentId, localPaymentId },
       )) as { paymentVersion: number };
 
       setPaymentInfo({ ...paymentInfo });
@@ -222,7 +231,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       };
 
       isLoading(true);
-      const response = (await makeTransactionSaleRequest(
+      const response = (await processorRequest<TransactionSaleRequest>(
         requestHeader,
         transactionSaleUrl,
         requestBody,
@@ -255,7 +264,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       };
 
       isLoading(true);
-      const response = await makeVaultRequest(
+      const response = await processorRequest<VaultRequest>(
         requestHeader,
         pureVaultUrl,
         requestBody,
@@ -278,7 +287,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       const requestBody = {
         newShippingMethodId,
       };
-      const response = (await makeChangeShippingRequest(
+      const response = (await processorRequest<ChangeShippingRequest>(
         requestHeader,
         updateCartShippingUrl,
         requestBody,

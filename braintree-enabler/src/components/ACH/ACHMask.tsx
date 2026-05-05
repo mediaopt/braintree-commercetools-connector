@@ -25,8 +25,17 @@ import {
   renderMaskButtonClasses,
 } from "../../styles";
 
-import { getAchVaultToken } from "../../services/getAchVaultToken";
+import { processorRequest } from "../../services/processorRequest";
 import { processorUrls } from "../constants";
+
+type AchVaultRequest = { paymentMethodNonce: string };
+
+type AchVaultResponse = {
+  status: boolean;
+  token?: string;
+  message?: string;
+  verified?: boolean;
+};
 
 type AccountType = "" | "checking" | "savings";
 type OwnershipType = "" | "personal" | "business";
@@ -229,11 +238,12 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                   throw tokenizeErr;
                 }
 
-                const vaultResponse = await getAchVaultToken(
-                  requestHeader,
-                  getAchVaultTokenURL,
-                  tokenizedPayload.nonce,
-                );
+                const vaultResponse = await processorRequest<
+                  AchVaultRequest,
+                  AchVaultResponse
+                >(requestHeader, getAchVaultTokenURL, {
+                  paymentMethodNonce: tokenizedPayload.nonce,
+                });
 
                 const { token: vaultToken } = vaultResponse || {};
 
