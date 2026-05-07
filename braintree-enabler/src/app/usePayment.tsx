@@ -144,7 +144,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
           setClientToken(undefined);
         }
       } catch (error) {
-        notify("Error", "Authentication Error!");
+        notify("Error", "Something went wrong.Please try again later!");
         console.error(error);
         setClientToken(undefined);
       } finally {
