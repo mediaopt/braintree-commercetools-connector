@@ -1,6 +1,7 @@
-import { createPayment } from "../src/services";
-import { RequestHeader } from "../src/types";
+import { CreatePaymentResponse, RequestHeader } from "../src/types";
 import { makeRequest } from "../src/api";
+import { processorRequest } from "../src/services/processorRequest";
+import { CreatePaymentRequest } from "../src/services/types";
 
 const mockPaymentResponse = {
   braintreeData: {
@@ -29,7 +30,7 @@ jest.mock("../src/api/request", () => {
               }
             });
           });
-        case "createPayment":
+        case "createPaymentUrl":
           return new Promise<ResponseType>((resolve, reject) => {
             process.nextTick(() => {
               resolve(mockPaymentResponse as ResponseType);
@@ -51,11 +52,13 @@ test("error on make request", () => {
 describe("Create payment", () => {
   test("creating payment", () => {
     expect.assertions(2);
-    return createPayment({}, "createPayment", "PayPal", undefined).then(
-      (result) => {
-        expect(result).toHaveProperty("braintreeData");
-        expect(result).toHaveProperty("payment");
-      },
-    );
+    return processorRequest<CreatePaymentRequest, CreatePaymentResponse>(
+      {},
+      "createPaymentUrl",
+      { builderType: undefined, paymentMethodType: "PayPal" },
+    ).then((result) => {
+      expect(result).toHaveProperty("braintreeData");
+      expect(result).toHaveProperty("payment");
+    });
   });
 });
