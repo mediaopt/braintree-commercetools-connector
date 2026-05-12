@@ -127,3 +127,9 @@ export type TransactionSaleRequestSchemaDTO = Static<typeof TransactionSaleReque
 
 export const GeneralResponseSuccessSchema = Type.Object({ message: Type.String(), success: Type.Boolean() });
 export type GeneralResponseSuccessSchemaDTO = Static<typeof GeneralResponseSuccessSchema>;
+
+export const RefundRequestSchema = Type.Object({
+  ctPaymentId: Type.String(),
+  braintreeAmount: Type.Optional(Type.String()),
+  transactionId: Type.Optional(Type.String()),
+});

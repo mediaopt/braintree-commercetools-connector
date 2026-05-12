@@ -1,4 +1,3 @@
-import { Payment, Transaction } from '@commercetools/platform-sdk';
 import {
   PaymentMethodCreateRequest as BraintreePaymentMethodCreateRequest,
   PaymentInstrumentType as BraintreePaymentInstrumentType,
@@ -22,11 +21,6 @@ export type ValidatorFunction = (o: object) => boolean;
 export type Wrapper = (
   validator: ValidatorFunction
 ) => (value: object) => boolean;
-
-export type PaymentWithOptionalTransaction = {
-  payment: Payment;
-  transaction?: Transaction;
-};
 
 export type PaymentMethodCreateRequest = BraintreePaymentMethodCreateRequest & {
   options: {

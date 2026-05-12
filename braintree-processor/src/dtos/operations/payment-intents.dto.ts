@@ -1,17 +1,11 @@
 import { Static, Type } from '@sinclair/typebox';
 
-export const AmountSchema = Type.Object({
-  centAmount: Type.Integer(),
-  currencyCode: Type.String(),
-});
-
 export const ActionCapturePaymentSchema = Type.Composite([
   Type.Object({
     action: Type.Literal('capturePayment'),
   }),
   Type.Object({
-    amount: AmountSchema,
-    merchantReference: Type.Optional(Type.String()),
+    transactionId: Type.Optional(Type.String()),
   }),
 ]);
 
@@ -20,8 +14,7 @@ export const ActionRefundPaymentSchema = Type.Composite([
     action: Type.Literal('refundPayment'),
   }),
   Type.Object({
-    amount: AmountSchema,
-    merchantReference: Type.Optional(Type.String()),
+    braintreeAmount: Type.Optional(Type.String()),
     transactionId: Type.Optional(Type.String()),
   }),
 ]);
@@ -29,7 +22,6 @@ export const ActionRefundPaymentSchema = Type.Composite([
 export const ActionCancelPaymentSchema = Type.Composite([
   Type.Object({
     action: Type.Literal('cancelPayment'),
-    merchantReference: Type.Optional(Type.String()),
   }),
 ]);
 
@@ -81,5 +73,3 @@ export const PaymentIntentResponseSchema = Type.Object({
 });
 
 export type PaymentIntentRequestSchemaDTO = Static<typeof PaymentIntentRequestSchema>;
-export type PaymentIntentResponseSchemaDTO = Static<typeof PaymentIntentResponseSchema>;
-export type AmountSchemaDTO = Static<typeof AmountSchema>;
