@@ -295,12 +295,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const [customer, shippingMethodsResult, amountPlanned] = await Promise.all([
       ctCart.customerId ? this.braintreeCustomerService.getCtCustomer(ctCart.customerId) : Promise.resolve(undefined),
       isExpress ? this.getShippingMethods(ctCart.id) : Promise.resolve([]),
-      this.ctCartService.getPaymentAmount({ cart: ctCart }),
+      isPureVault ? ctCart.totalPrice : this.ctCartService.getPaymentAmount({ cart: ctCart }),
     ]);
 
     this.validateCustomerRequiredData(customer, isPureVault);
-
-    if (isPureVault) amountPlanned.centAmount = 0;
 
     const braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
     const shippingMethods = shippingMethodsResult || [];
@@ -319,13 +317,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
       ...customerPaymentInfo,
     });
 
-    await this.ctCartService.addPayment({
-      resource: {
-        id: ctCart.id,
-        version: ctCart.version,
-      },
-      paymentId: ctPayment.id,
-    });
+    if (!isPureVault)
+      await this.ctCartService.addPayment({
+        resource: {
+          id: ctCart.id,
+          version: ctCart.version,
+        },
+        paymentId: ctPayment.id,
+      }); //it is not possible to add the payment to empty cart via checkout API, but for the pure vault all relevant data will be saved on customer anyway
     const requestInteraction = handleInterfaceInteraction({
       messageName: 'getClientToken',
       message: { merchantAccountId, isPureVault, builderType, paymentMethodType },
