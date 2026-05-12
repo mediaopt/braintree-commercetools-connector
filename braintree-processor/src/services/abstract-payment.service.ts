@@ -4,13 +4,12 @@ import {
   ErrorInvalidOperation,
 } from '@commercetools/connect-payments-sdk';
 import {
-  CancelPaymentRequest,
-  ConfigResponse,
   ModifyPayment,
-  PaymentProviderModificationResponse,
+  ConfigResponse,
   RefundPaymentRequest,
-  ReversePaymentRequest,
   StatusResponse,
+  SettlementPaymentRequest,
+  CancelPaymentRequest,
 } from './types/operation.type';
 
 import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-componets.dto';
@@ -30,6 +29,7 @@ import {
  * - Existing commercetools connector Braintree extension implementation
  * - Braintree frontend components implementations
  * Where applicable, original method names from the commercetools template are noted in individual method comments.
+ * Exception: modifyPayment method uses commercetools naming scheme for routing clarity https://docs.commercetools.com/checkout/payment-intents-api
  *
  * Note on CoCo stored payment methods - only Braintree customer Id is stored on commercetools side.
  * Frontend gets the stored methods on braintree side by token.
@@ -125,38 +125,37 @@ export abstract class AbstractPaymentService {
   abstract transactionSale(request: TransactionSaleRequestSchemaDTO): Promise<GeneralResponseSuccessSchemaDTO>;
 
   /**
-   * Cancel payment
-   *
-   * @remarks
-   * Abstract method to cancel a payment authorization. The actual implementation should be provided by subclasses.
-   *
-   * @param request - commercetools payment object with authorization transaction to cancel
-   * @returns Promise with operation outcome and PSP reference
-   */
-  abstract cancelPayment(request: CancelPaymentRequest): Promise<PaymentProviderModificationResponse>;
-
-  /**
    * Refund payment
    *
    * @remarks
    * Abstract method to refund a captured payment. The actual implementation should be provided by subclasses.
    *
-   * @param request - commercetools payment object, refund amount, transaction ID, and merchant reference
-   * @returns Promise with operation outcome and PSP reference
+   * @param request - commercetools payment object, optional braintree money refund amount, optional transaction ID
+   * @returns Promise with success response
    */
-  abstract refundPayment(request: RefundPaymentRequest): Promise<PaymentProviderModificationResponse>;
+  abstract refundPayment(request: RefundPaymentRequest): Promise<GeneralResponseSuccessSchemaDTO>;
 
   /**
-   * Reverse payment
+   * Settlement
    *
    * @remarks
-   * Abstract method to reverse a payment (either refund a charge or cancel an authorization).
-   * The actual implementation should be provided by subclasses.
+   * Abstract method to submit an authorized transaction for settlement (capture). The actual implementation should be provided by subclasses.
    *
-   * @param request - commercetools payment object to reverse
-   * @returns Promise with operation outcome and PSP reference
+   * @param request - commercetools payment and optional transaction ID to settle
+   * @returns Promise with success response
    */
-  abstract reversePayment(request: ReversePaymentRequest): Promise<PaymentProviderModificationResponse>;
+  abstract settlement(request: SettlementPaymentRequest): Promise<GeneralResponseSuccessSchemaDTO>;
+
+  /**
+   * Cancel payment (void)
+   *
+   * @remarks
+   * Abstract method to void an authorized transaction. The actual implementation should be provided by subclasses.
+   *
+   * @param request - commercetools payment
+   * @returns Promise with success response
+   */
+  abstract void(request: CancelPaymentRequest): Promise<GeneralResponseSuccessSchemaDTO>;
 
   /**
    * Modify payment
@@ -165,33 +164,42 @@ export abstract class AbstractPaymentService {
    * This method is used to execute Capture/Cancel/Refund payment in external PSPs and update composable commerce.
    * The actual invocation to PSPs should be implemented in subclasses
    *
+   * The names for commecetools and braintree methods are mapped in the following way:
+   *
+   * | commercetools | braintree |
+   * |---------------|-----------|
+   * | capture       | settlement|
+   * | refund        | refund    |
+   * | cancel        | void      |
+   *
+   * reverse is not relevant for braintree connector and not implemented in current connector iteration
+   *
    * @param opts - input for payment modification including payment ID, action and payment amount
-   * @returns Promise with outcome of payment modification after invocation to PSPs
+   * @returns Promise with success response
    */
 
-  public async modifyPayment(opts: ModifyPayment): Promise<PaymentProviderModificationResponse> {
+  public async modifyPayment(opts: ModifyPayment): Promise<GeneralResponseSuccessSchemaDTO> {
     const ctPayment = await this.ctPaymentService.getPayment({
       id: opts.paymentId,
     });
     const request = opts.data.actions[0];
 
     switch (request.action) {
+      case 'capturePayment': {
+        return await this.settlement({ payment: ctPayment, transactionId: request.transactionId });
+      }
       case 'cancelPayment': {
-        return await this.cancelPayment({ payment: ctPayment, merchantReference: request.merchantReference });
+        return await this.void({ payment: ctPayment });
       }
       case 'refundPayment': {
         return await this.refundPayment({
-          amount: request.amount,
+          braintreeAmount: request.braintreeAmount,
           payment: ctPayment,
-          merchantReference: request.merchantReference,
           transactionId: request.transactionId,
         });
       }
       case 'reversePayment': {
-        return await this.reversePayment({
-          payment: ctPayment,
-          merchantReference: request.merchantReference,
-        });
+        throw new ErrorInvalidOperation(`Operation not supported.`);
       }
       default: {
         throw new ErrorInvalidOperation(`Operation not supported.`);

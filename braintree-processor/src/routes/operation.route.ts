@@ -8,14 +8,10 @@ import { Type } from '@sinclair/typebox';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { ConfigResponseSchema, ConfigResponseSchemaDTO } from '../dtos/operations/config.dto';
 import { SupportedPaymentComponentsSchema } from '../dtos/operations/payment-componets.dto';
-import {
-  PaymentIntentRequestSchema,
-  PaymentIntentRequestSchemaDTO,
-  PaymentIntentResponseSchema,
-  PaymentIntentResponseSchemaDTO,
-} from '../dtos/operations/payment-intents.dto';
+import { PaymentIntentRequestSchema, PaymentIntentRequestSchemaDTO } from '../dtos/operations/payment-intents.dto';
 import { StatusResponseSchema, StatusResponseSchemaDTO } from '../dtos/operations/status.dto';
 import { AbstractPaymentService } from '../services/abstract-payment.service';
+import { GeneralResponseSuccessSchema, GeneralResponseSuccessSchemaDTO } from '../dtos/braintree-payment.dto';
 
 type OperationRouteOptions = {
   sessionHeaderAuthHook: SessionHeaderAuthenticationHook;
@@ -74,7 +70,7 @@ export const operationsRoute = async (fastify: FastifyInstance, opts: FastifyPlu
     },
   );
 
-  fastify.post<{ Body: PaymentIntentRequestSchemaDTO; Reply: PaymentIntentResponseSchemaDTO; Params: { id: string } }>(
+  fastify.post<{ Body: PaymentIntentRequestSchemaDTO; Reply: GeneralResponseSuccessSchemaDTO; Params: { id: string } }>(
     '/payment-intents/:id',
     {
       preHandler: [
@@ -92,7 +88,7 @@ export const operationsRoute = async (fastify: FastifyInstance, opts: FastifyPlu
         },
         body: PaymentIntentRequestSchema,
         response: {
-          200: PaymentIntentResponseSchema,
+          200: GeneralResponseSuccessSchema,
         },
       },
     },

@@ -6,22 +6,23 @@ import {
   Transaction as CTTransaction,
   Cart,
   Customer,
+  Payment,
+  CustomFieldsDraft,
 } from '@commercetools/connect-payments-sdk';
 
 import { CustomerResourceIdentifier } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/customer';
-import { ShippingMethod, CentPrecisionMoney } from '@commercetools/platform-sdk';
+import { ShippingMethod, CentPrecisionMoney, PaymentMethodInfoDraft } from '@commercetools/platform-sdk';
+import { Transaction } from 'braintree';
 
 import {
   CancelPaymentRequest,
   ConfigResponse,
-  PaymentProviderModificationResponse,
   RefundPaymentRequest,
-  ReversePaymentRequest,
+  SettlementPaymentRequest,
   StatusResponse,
 } from './types/operation.type';
 
 import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-componets.dto';
-import { PaymentModificationStatus } from '../dtos/operations/payment-intents.dto';
 import packageJSON from '../../package.json';
 
 import { AbstractPaymentService } from './abstract-payment.service';
@@ -51,6 +52,11 @@ import {
   mapBraintreeTransactionToCommercetoolsTransaction,
   submitForSettlement,
   getPaymentMethodHint,
+  refund as braintreeRefund,
+  voidTransaction as braintreeVoidTransaction,
+  findSuitableTransactionId,
+  deletePayment as braintreeDeletePayment,
+  getCurrentTimestamp,
 } from 'common-connect/dist';
 import { handleCustomTransactionFields, handleCustomFieldResponse } from '../utils/customEntities.utils';
 
@@ -71,16 +77,42 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
-   * Helper method to check if payment has a transaction in a specific state
+   * Helper method to ensure that all relevant fields will be included for update payment state with transaction involved
    */
-  private hasTransactionInState(opts: {
-    payment: { transactions?: { type: string; state: string }[] };
-    transactionType: string;
-    states: string[];
-  }): boolean {
-    return (
-      opts.payment.transactions?.some((t) => t.type === opts.transactionType && opts.states.includes(t.state)) || false
-    );
+
+  private async updatePaymentWithTransaction({
+    messageName,
+    request,
+    ctPayment,
+    response,
+    customFields,
+    paymentMethodInfo,
+  }: {
+    messageName: string;
+    request: string | object;
+    ctPayment: Payment;
+    response: Transaction;
+    customFields?: CustomFieldsDraft;
+    paymentMethodInfo?: PaymentMethodInfoDraft;
+  }): Promise<void> {
+    const requestInteraction = handleInterfaceInteraction({
+      messageName,
+      message: request,
+      messageType: 'Request',
+    });
+    const responseInteraction = handleInterfaceInteraction({
+      messageName,
+      message: response,
+      messageType: 'Response',
+    });
+    await this.ctPaymentService.updatePayment({
+      id: ctPayment.id,
+      customFields,
+      pspInteractions: [requestInteraction, responseInteraction],
+      transaction: mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response),
+      pspReference: response.id,
+      paymentMethodInfo,
+    });
   }
 
   /**
@@ -221,98 +253,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
         log.warn(`No shipping available for ${ctCartId}`, { error: err });
         return;
       });
-  }
-
-  /**
-   * Cancel payment
-   *
-   * @remarks
-   * Implementation to provide the mocking data for payment cancel in external PSPs
-   *
-   * @param request - contains {@link https://docs.commercetools.com/api/projects/payments | Payment } defined in composable commerce
-   * @returns Promise with mocking data containing operation status and PSP reference
-   */
-  public async cancelPayment(request: CancelPaymentRequest): Promise<PaymentProviderModificationResponse> {
-    await this.ctPaymentService.updatePayment({
-      id: request.payment.id,
-      transaction: {
-        type: 'CancelAuthorization',
-        amount: request.payment.amountPlanned,
-        interactionId: request.payment.interfaceId,
-        state: 'Success',
-      },
-    });
-    return { outcome: PaymentModificationStatus.APPROVED, pspReference: request.payment.interfaceId as string };
-  }
-
-  /**
-   * Refund payment
-   *
-   * @remarks
-   * Implementation to provide the mocking data for payment refund in external PSPs
-   *
-   * @param request - contains amount and {@link https://docs.commercetools.com/api/projects/payments | Payment } defined in composable commerce
-   * @returns Promise with mocking data containing operation status and PSP reference
-   */
-  public async refundPayment(request: RefundPaymentRequest): Promise<PaymentProviderModificationResponse> {
-    await this.ctPaymentService.updatePayment({
-      id: request.payment.id,
-      transaction: {
-        type: 'Refund',
-        amount: request.amount,
-        interactionId: request.payment.interfaceId,
-        state: 'Success',
-      },
-    });
-    return { outcome: PaymentModificationStatus.APPROVED, pspReference: request.payment.interfaceId as string };
-  }
-
-  /**
-   * Reverse payment
-   *
-   * @remarks
-   * Abstract method to execute payment reversals in support of automated reversals to be triggered by checkout api. The actual invocation to PSPs should be implemented in subclasses
-   *
-   * @param request
-   * @returns Promise with outcome containing operation status and PSP reference
-   */
-  public async reversePayment(request: ReversePaymentRequest): Promise<PaymentProviderModificationResponse> {
-    const hasCharge = this.hasTransactionInState({
-      payment: request.payment,
-      transactionType: 'Charge',
-      states: ['Success'],
-    });
-    const hasRefund = this.hasTransactionInState({
-      payment: request.payment,
-      transactionType: 'Refund',
-      states: ['Success', 'Pending'],
-    });
-    const hasCancelAuthorization = this.hasTransactionInState({
-      payment: request.payment,
-      transactionType: 'CancelAuthorization',
-      states: ['Success', 'Pending'],
-    });
-
-    const wasPaymentReverted = hasRefund || hasCancelAuthorization;
-
-    if (hasCharge && !wasPaymentReverted) {
-      return this.refundPayment({
-        payment: request.payment,
-        merchantReference: request.merchantReference,
-        amount: request.payment.amountPlanned,
-      });
-    }
-
-    const hasAuthorization = this.hasTransactionInState({
-      payment: request.payment,
-      transactionType: 'Authorization',
-      states: ['Success'],
-    });
-    if (hasAuthorization && !wasPaymentReverted) {
-      return this.cancelPayment({ payment: request.payment });
-    }
-
-    throw new ErrorInvalidOperation('There is no successful payment transaction to reverse.');
   }
 
   /**
@@ -496,28 +436,18 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (braintreePaymentDetails?.extraShippingCost) {
       transactionRequest.shippingAmount = Number(braintreePaymentDetails.extraShippingCost).toFixed(2);
     } //see enabler PayPalMask onShippingChange and onApprove
-    const requestInteraction = handleInterfaceInteraction({
-      messageName: 'transactionSale',
-      message: transactionRequest,
-      messageType: 'Request',
-    });
     try {
       const response = await transactionSale({
         ...transactionRequest, // discountAmount: '18.29', //todo - verify if for Braintree discount, tax and so on mush match
       });
       const customFields = handleCustomFieldResponse('transactionSale', response); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
-      const responseInteraction = handleInterfaceInteraction({
-        messageName: 'transactionSale',
-        message: response,
-        messageType: 'Response',
-      });
       handleCustomTransactionFields(customFields, response, ctPayment);
-      await this.ctPaymentService.updatePayment({
-        id: ctPayment.id,
+      await this.updatePaymentWithTransaction({
+        messageName: 'transactionSale',
+        request: transactionRequest,
+        ctPayment,
+        response,
         customFields,
-        pspInteractions: [requestInteraction, responseInteraction],
-        transaction: mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response),
-        pspReference: response.id, //TODO - verify that pspReference do sets interaction id
       });
       return successGeneralResponse;
     } catch (e) {
@@ -528,19 +458,19 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   //see also extension module submitForSettlement
-  public async settlement(request: { ctPaymentId: string; transactionId?: string }): Promise<void> {
-    const ctPayment = await this.ctPaymentService.getPayment({ id: request.ctPaymentId });
+  public async settlement(request: SettlementPaymentRequest): Promise<GeneralResponseSuccessSchemaDTO> {
+    const { payment: ctPayment, transactionId } = request;
     let relevantTransaction: CTTransaction;
-    if (request.transactionId) {
+    if (transactionId) {
       const targetTransaction = ctPayment.transactions.find(({ id }) => id === request.transactionId);
       if (!targetTransaction)
         throw new ErrorInvalidOperation(
-          `Payment ${request.ctPaymentId} doesn't have a transaction with this id ${request.transactionId}`,
+          `Payment ${ctPayment.id} doesn't have a transaction with this id ${request.transactionId}`,
         );
       else {
         if (targetTransaction.type !== 'Authorization')
           throw new ErrorInvalidOperation(
-            `Transaction with this id ${request.transactionId} can't be settled due to it's type`, //todo - verify which statuses can actually be settled
+            `Transaction with this id ${transactionId} can't be settled due to it's type`, //todo - verify which statuses can actually be settled
           );
       }
       relevantTransaction = targetTransaction;
@@ -548,33 +478,86 @@ export class BraintreePaymentService extends AbstractPaymentService {
       const targetTransactions = ctPayment.transactions.filter(({ type }) => type === 'Authorization');
       if (!targetTransactions.length)
         throw new ErrorInvalidOperation(
-          `Payment ${request.ctPaymentId} doesn't have a transaction with a type suitable for settlement`,
+          `Payment ${ctPayment.id} doesn't have a transaction with a type suitable for settlement`,
         );
       relevantTransaction = targetTransactions[targetTransactions.length - 1];
     }
-    const requestInteraction = handleInterfaceInteraction({
-      messageName: 'submitForSettlement',
-      message: request,
-      messageType: 'Request',
-    });
     const response = await submitForSettlement(relevantTransaction.id); //for submitting part of the transaction extension through the API should be used
-    const responseInteraction = handleInterfaceInteraction({
-      messageName: 'submitForSettlement',
-      message: response,
-      messageType: 'Response',
-    });
     const paymentMethodHint = getPaymentMethodHint(response);
-    await this.ctPaymentService.updatePayment({
-      id: ctPayment.id,
-      pspInteractions: [requestInteraction, responseInteraction],
-      transaction: mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response), //todo - get sure that charge is properly mapped
-      pspReference: response.id, //TODO - verify that pspReference do sets interaction id
+    await this.updatePaymentWithTransaction({
+      messageName: 'submitForSettlement',
+      request: request,
+      ctPayment,
+      response,
       paymentMethodInfo: { method: `${response.paymentInstrumentType} ${paymentMethodHint || ''}`.trim() },
       //todo - find out what are the alternatives for status interface code and text
     });
+    return successGeneralResponse;
   }
 
-  //todo - verify that payPalOrderRequest was never used through frontend flow
+  /**
+   * Refund payment
+   *
+   * @remarks
+   * Refund braintree payment including partial refund and refund specific transaction
+   *
+   * @param request - contains payment id (required), optional refund amount (braintree money) and optional transaction id.
+   * If amount is provided - refund will be attempted with this amount.
+   * If transaction id is provided - refund will be attempted for this transaction
+   * @returns successGeneralResponse
+   */
+  async refundPayment(request: RefundPaymentRequest): Promise<GeneralResponseSuccessSchemaDTO> {
+    request.transactionId = request.transactionId ?? findSuitableTransactionId({ payment: request.payment }, 'Charge');
+    const { payment: ctPayment, braintreeAmount, transactionId } = request;
+
+    if (!transactionId) {
+      throw new ErrorInvalidOperation(
+        `No suitable for refund transaction found for payment ${ctPayment.id}. Target transaction id: ${transactionId}`,
+      );
+    }
+    const response = await braintreeRefund(transactionId, braintreeAmount);
+    const customFields = handleCustomFieldResponse('refund', response);
+    await this.updatePaymentWithTransaction({
+      messageName: 'refund',
+      request: { transactionId: request.transactionId, amount: braintreeAmount },
+      ctPayment,
+      response,
+      customFields,
+    });
+    return successGeneralResponse;
+  }
+
+  async void(request: CancelPaymentRequest): Promise<GeneralResponseSuccessSchemaDTO> {
+    const { payment: ctPayment } = request;
+    const transactionId = findSuitableTransactionId({ payment: ctPayment }, 'Authorization');
+    if (!transactionId) {
+      throw new ErrorInvalidOperation(
+        `No suitable for void transaction found for payment ${ctPayment.id}. Target transaction id: ${transactionId}`,
+      );
+    }
+    const transaction = ctPayment.transactions.find(
+      (transaction) => transaction.interactionId === transactionId && transaction.type === 'Authorization',
+    );
+    let response: Transaction;
+    if (transaction?.state === 'Initial') {
+      await braintreeDeletePayment(transactionId);
+      response = {
+        amount: mapCommercetoolsMoneyToBraintreeMoney(transaction.amount),
+        status: 'voided',
+        id: transactionId,
+        updatedAt: getCurrentTimestamp(),
+      } as Transaction; //other required by type definition fields are not used in communication with commercetools
+    } else response = await braintreeVoidTransaction(transactionId);
+    const customFields = handleCustomFieldResponse('void', response);
+    await this.updatePaymentWithTransaction({
+      messageName: 'void',
+      request: { transactionId },
+      ctPayment,
+      response,
+      customFields,
+    });
+    return successGeneralResponse;
+  }
 
   //this method corresponds to handleStoredPaymentMethod part for create a new stored method
   public async pureVault({

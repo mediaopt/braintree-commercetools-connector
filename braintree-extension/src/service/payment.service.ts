@@ -9,13 +9,11 @@ import {
   LocalPaymentTransaction,
   PaymentInstrumentType,
   PaymentMethodCreateRequest,
-  PaymentWithOptionalTransaction,
 } from '../types/index.types';
 import {
   Payment,
   Transaction as CommercetoolsTransaction,
   TransactionType,
-  TransactionState,
 } from '@commercetools/platform-sdk';
 import {
   handleError,
@@ -43,6 +41,8 @@ import {
   UpdateActions,
   mapRequestToBraintreeTransactionSale,
   mapBraintreeStatusToCommercetoolsTransactionType,
+  findSuitableTransactionId,
+  PaymentWithOptionalTransaction,
 } from 'common-connect/dist';
 
 const getPayPalOrderPaymentToken = (payment: Payment) => {
@@ -108,26 +108,6 @@ function parseRequest(
     request.transactionId ??
     findSuitableTransactionId(paymentWithOptionalTransaction, transactionType);
   return request;
-}
-
-function findSuitableTransactionId(
-  paymentWithOptionalTransaction: PaymentWithOptionalTransaction,
-  type?: TransactionType,
-  status?: TransactionState
-) {
-  if (paymentWithOptionalTransaction?.transaction) {
-    return paymentWithOptionalTransaction?.transaction.interactionId;
-  }
-  const transactions =
-    paymentWithOptionalTransaction?.payment?.transactions.filter(
-      (transaction: CommercetoolsTransaction): boolean =>
-        (!type || transaction.type === type) &&
-        (!status || status === transaction.state)
-    );
-  if (!transactions || transactions.length === 0) {
-    throw new CustomError(500, 'The payment has no suitable transaction');
-  }
-  return transactions[transactions.length - 1].interactionId;
 }
 
 function parsePayPalOrderRequest(payment: Payment) {
