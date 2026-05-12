@@ -1,6 +1,9 @@
-async function preUndeploy() {
-  // TODO: Implement pre undeploy scripts if any
-}
+/**
+ * Note: Custom types are managed by the extension module's post-deploy script
+ * to prevent concurrent modification issues, so this file is intentionally left blank
+ */
+
+async function preUndeploy() {}
 
 async function run() {
   try {
