@@ -190,6 +190,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                             email: payload.details.email,
                           },
                           billing: {
+                            //todo - sync cart shipping address and shipping method id if relevant
                             firstName: payload.details.firstName,
                             lastName: payload.details.lastName,
                             streetName: payload.details.shippingAddress.line1,
@@ -205,7 +206,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               ? shippingOptions?.find(
                                   ({ id }) => id === payload.shippingOptionId,
                                 )?.amount.value
-                              : undefined, //only will be returned if shipping was changed inside the PayPal express, than it must be used to update the total payment amount, this methods doesnt support total cart discounts for shipping
+                              : undefined, //only will be returned if shipping was changed inside the PayPal express, then it must be used to update the total payment amount
                           },
                         });
                       }
