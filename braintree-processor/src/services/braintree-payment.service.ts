@@ -422,16 +422,23 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }: TransactionSaleRequestSchemaDTO): Promise<GeneralResponseSuccessSchemaDTO> {
     //todo - handle address change for PayPal express here
     //todo - handle payment amount change if relevant here
-    const ctPayment = await this.ctPaymentService.getPayment({ id: ctPaymentId });
+    const [updatedCart, ctPayment] = await Promise.all([
+      braintreePaymentDetails?.extraShippingCost
+        ? this.ctCartService.getCart({
+            id: getCartIdFromContext(),
+          })
+        : Promise.resolve(undefined),
+      await this.ctPaymentService.getPayment({ id: ctPaymentId }),
+    ]);
+    const relevantPaymentInfo = updatedCart ? { ...ctPayment, amountPlanned: updatedCart.totalPrice } : ctPayment;
     const transactionRequest = mapRequestToBraintreeTransactionSale(
-      ctPayment,
+      relevantPaymentInfo,
       storeInVaultOnSuccess,
       storeShipping,
       paymentMethodNonce,
       paymentToken,
       //{ lineItems: braintreePaymentDetails?.braintreeLineItems, shipping: braintreePaymentDetails?.braintreeShipping },
     ); //todo - handle other params
-    //todo - sync cart shipping address and shipping method id if relevant
     if (braintreePaymentDetails?.extraShippingCost) {
       transactionRequest.shippingAmount = Number(braintreePaymentDetails.extraShippingCost).toFixed(2);
     } //see enabler PayPalMask onShippingChange and onApprove
