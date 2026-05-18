@@ -25,7 +25,7 @@ export const BRAINTREE_CUSTOMER_TYPE_KEY = 'braintree-customer-type';
 
 export const BRAINTREE_API_PAYMENT_ENDPOINTS = [
   'getClientToken',
-  'transactionSaleUrl',
+  'transactionSale',
   'refund',
   'submitForSettlement',
   'void',
@@ -165,6 +165,10 @@ type FieldDefinitionData = {
 const apiCallNameToFieldData = (apiCallName: string): FieldDefinitionData[] => [
   {
     name: `${apiCallName}Request`,
+    inputHint: 'MultiLine',
+  },
+  {
+    name: `${apiCallName}ProcessorRequest`, //this field is only required for checkout mode but is added via extension to prevent concurrent modifications conflict
     inputHint: 'MultiLine',
   },
   {
