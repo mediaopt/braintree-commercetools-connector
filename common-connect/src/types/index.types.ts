@@ -21,7 +21,7 @@ export type Package = {
 export type MessageFieldData = {
   messageName: string;
   message: string | object;
-  messageType: "Request" | "Response";
+  messageType: "Request" | "ProcessorRequest" | "Response";
 };
 
 export type PaymentWithOptionalTransaction = {
