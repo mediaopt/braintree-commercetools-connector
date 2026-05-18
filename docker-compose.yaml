@@ -32,13 +32,13 @@ services:
   processor:
     image: node:lts-bookworm-slim
     volumes:
-      - ./braintree-processor:/home/node/app
+      - ./processor:/home/node/app
       - ./common-connect:/home/node/common-connect
     working_dir: /home/node/app
     depends_on:
       - jwt-server
     env_file:
-      - ./braintree-processor/.env
+      - processor/.env
     environment:
       - CTP_JWKS_URL=http://jwt-server:9000/jwt/.well-known/jwks.json
       - CTP_JWT_ISSUER=https://issuer.com
