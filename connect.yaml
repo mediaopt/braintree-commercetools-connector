@@ -34,7 +34,7 @@ deployAs:
           description: Automatically transfer the Tracking Data to Braintree when a Parcel is created for a delivery of an Order (true OR false)
           default: "false"
           required: true
-  - name: braintree-enabler
+  - name: enabler
     applicationType: assets
   - name: braintree-processor
     applicationType: service
