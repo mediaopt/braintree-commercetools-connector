@@ -199,7 +199,7 @@ export abstract class AbstractPaymentService {
         });
       }
       case 'reversePayment': {
-        throw new ErrorInvalidOperation(`Operation not supported.`);
+        return await this.void({ payment: ctPayment });
       }
       default: {
         throw new ErrorInvalidOperation(`Operation not supported.`);
