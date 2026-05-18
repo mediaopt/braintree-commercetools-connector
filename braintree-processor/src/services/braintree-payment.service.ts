@@ -98,7 +98,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const requestInteraction = handleInterfaceInteraction({
       messageName,
       message: request,
-      messageType: 'Request',
+      messageType: 'ProcessorRequest',
     });
     const responseInteraction = handleInterfaceInteraction({
       messageName,
@@ -328,7 +328,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const requestInteraction = handleInterfaceInteraction({
       messageName: 'getClientToken',
       message: { merchantAccountId, isPureVault, builderType, paymentMethodType },
-      messageType: 'Request',
+      messageType: 'ProcessorRequest',
     });
     const tokenResponse = await getClientToken({
       merchantAccountId: merchantAccountId,
@@ -361,9 +361,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         ),
         braintreeLineItems: isPureVault
           ? []
-          : isExpress
-            ? ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale))
-            : undefined,
+          : ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale)),
         braintreeShipping: ctCart.shippingAddress
           ? mapCTShippingToBraintreeShipping(ctCart.shippingAddress)
           : undefined,
@@ -446,7 +444,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       const response = await transactionSale({
         ...transactionRequest, // discountAmount: '18.29', //todo - verify if for Braintree discount, tax and so on mush match
       });
-      const customFields = handleCustomFieldResponse('transactionSale', response); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
+      const customFields = handleCustomFieldResponse('transactionSale', response);
       handleCustomTransactionFields(customFields, response, ctPayment);
       await this.updatePaymentWithTransaction({
         messageName: 'transactionSale',
@@ -488,7 +486,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
         );
       relevantTransaction = targetTransactions[targetTransactions.length - 1];
     }
-    const response = await submitForSettlement(relevantTransaction.id); //for submitting part of the transaction extension through the API should be used
+    if (!relevantTransaction.interactionId)
+      throw new ErrorRequiredField('interactionId', {
+        privateMessage: `missing required field for Braintree submit for settlement - interactionId`,
+      });
+    const response = await submitForSettlement(relevantTransaction.interactionId);
     const paymentMethodHint = getPaymentMethodHint(response);
     await this.updatePaymentWithTransaction({
       messageName: 'submitForSettlement',
