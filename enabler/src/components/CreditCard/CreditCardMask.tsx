@@ -546,7 +546,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
         </form>
       </div>
       {selectedCard && selectedCard !== "new" && (
-        <div className="m-auto p-8 max-w-screen-md">
+        <div className="m-auto p-8 max-w-3xl">
           <button
             onClick={submitVaultedCard}
             className={renderMaskButtonClasses(fullWidth, true, false)}

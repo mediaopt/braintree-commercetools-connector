@@ -120,21 +120,23 @@ async function loadMethods({ includeDropins }) {
     currencyCode: "EUR",
     countryCode: "DE",
   });
-  const enablerDropin = new Enabler({
-    processorUrl: __VITE_PROCESSOR_URL__,
-    sessionId: sessionIdDropin,
-    merchantAccountId: __BRAINTREE_MERCHANT_ACCOUNT_ID__,
-    currencyCode: "EUR",
-    countryCode: "DE",
-  });
+  // const enablerDropin = new Enabler({
+  //   processorUrl: __VITE_PROCESSOR_URL__,
+  //   sessionId: sessionIdDropin,
+  //   merchantAccountId: __BRAINTREE_MERCHANT_ACCOUNT_ID__,
+  //   currencyCode: "EUR",
+  //   countryCode: "DE",
+  // });
 
   async function registerMethod(category, type, meta) {
     const methodId = `${category}-${type}`;
-    const enabler = category === "dropin" ? enablerDropin : enablerGeneral;
+    const enabler = //category === "dropin" ? enablerDropin :
+      enablerGeneral;
     let builder;
-    if (category === "dropin")
-      builder = await enabler.createDropinBuilder(type);
-    else if (category === "express")
+    // if (category === "dropin")
+    //   builder = await enabler.createDropinBuilder(type);
+    //else
+    if (category === "express")
       builder = await enabler.createExpressBuilder(type);
     else if (category === "component")
       builder = await enabler.createComponentBuilder(type);
@@ -207,7 +209,10 @@ async function loadMethods({ includeDropins }) {
 
   methodsContainer.innerHTML = "";
   for (const [methodId, method] of methodsStore.entries())
-    createRadioForMethod(methodId, `${method.category} — ${method.type}`);
+    createRadioForMethod(
+      methodId,
+      `${method.category === "express" && !method.type.endsWith("Vault") ? "Buy Now " : ""} ${method.type.replace("Vault", " Vault Without Purchase")}`,
+    );
 
   const firstRadio = document.querySelector('input[name="paymentMethodRadio"]');
   if (firstRadio) {
@@ -223,11 +228,11 @@ btnLoadOthers.addEventListener("click", (e) => {
   ckoCartId = cartId;
   loadMethods({ includeDropins: false });
 });
-btnLoadDropins.addEventListener("click", (e) => {
+btnLoadDropins?.addEventListener("click", (e) => {
   e.preventDefault();
   loadMethods({ includeDropins: true });
 });
-btnLoadStored.addEventListener("click", async (e) => {
+btnLoadStored?.addEventListener("click", async (e) => {
   e.preventDefault();
   const cartId = document.getElementById("cartId").value.trim();
   const sessionIdSavedPayments = await getSessionId(cartId, false);

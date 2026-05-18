@@ -16,14 +16,14 @@ services:
   enabler:
     image: node:lts-bookworm-slim
     volumes:
-      - ./braintree-enabler:/home/node/app
+      - ./enabler:/home/node/app
     restart: always
     working_dir: /home/node/app
     depends_on:
       - processor
     command: /bin/sh -c 'npm install && npm run dev -- --host 0.0.0.0 --port 3000'
     env_file:
-      - ./braintree-enabler/.env
+      - ./enabler/.env
     environment:
       - VITE_PROCESSOR_URL=http://localhost:8080
     ports:

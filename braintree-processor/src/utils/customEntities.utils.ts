@@ -12,7 +12,9 @@ const BRAINTREE_PAYMENT_TYPE: RestrictedFields['type'] = {
 export const handleCustomFieldResponse = (messageName: string, message?: string | object): RestrictedFields => {
   return {
     type: BRAINTREE_PAYMENT_TYPE,
-    fields: { [`${messageName}Response`]: message ? `${JSON.stringify(message)}` : '' },
+    fields: {
+      [`${messageName}Response`]: message ? `${JSON.stringify(message)}` : '', //only in extension the request has to be deleted - as if it exists the extension will be re-triggered, processor is triggered when user makes request from enabler or when shop makes request to processor
+    },
   };
 };
 
