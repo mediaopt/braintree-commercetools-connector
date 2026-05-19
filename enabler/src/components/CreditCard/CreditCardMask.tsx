@@ -468,7 +468,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           action="/"
           method="post"
           id="cardForm"
-          className="m-auto p-8 max-w-screen-md"
+          className="m-auto p-8 max-w-3xl"
         >
           <label className={HOSTED_FIELDS_LABEL} htmlFor="card-number">
             Card Number

@@ -181,11 +181,6 @@ export type EnablerOptions = {
   sessionId: string;
 
   /**
-   * Optional Braintreee merchant account id. See https://developer.paypal.com/braintree/articles/control-panel/important-gateway-credentials#merchant-account-id
-   */
-  merchantAccountId?: string;
-
-  /**
    * The locale for the payment.
    */
   locale?: string;
@@ -200,7 +195,7 @@ export type EnablerOptions = {
    * A callback function that is called when the payment is completed.
    * @param result - The result of the payment.
    */
-  onComplete?: (result: PaymentResult) => void;
+  onComplete?: (result: PaymentResult, options: any) => void;
 
   /**
    * A callback function that is called when an error occurs during the payment process.
@@ -208,21 +203,6 @@ export type EnablerOptions = {
    * @param paymentReference - The payment reference.
    */
   onError?: (error: any, context?: { paymentReference?: string }) => void;
-
-  /**
-   * fallback style for Braintree payment buttons
-   */
-  fullWidth?: boolean;
-
-  /**
-   * fallback button text for Braintree payment buttons
-   */
-  buttonText?: string;
-
-  /**
-   * callback action set on the shop level, can be overwritten by processor
-   */
-  purchaseCallback?: (result: PaymentResult, options: any) => void;
 };
 
 /**

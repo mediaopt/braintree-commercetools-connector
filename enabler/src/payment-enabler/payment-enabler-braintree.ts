@@ -14,7 +14,7 @@ import { BaseOptions } from "./interfaces/baseOptions";
 import { BraintreeBuilder } from "../components/Builder/BraintreeBuilder";
 import { sessionHeader } from "../helpers/sessionHeader";
 import {
-  BraintreePaymentMethodDropInType,
+  // BraintreePaymentMethodDropInType,
   BraintreePaymentMethodExpressType,
   BraintreePaymentMethodType,
 } from "../components/Builder/types";
@@ -46,22 +46,17 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
 
     const configJson = await configResponse.json();
 
-    const sdkOptions = {
-      // environment: configJson.environment,
-      environment: "test",
-    };
-
     return Promise.resolve({
       baseOptions: {
         processorUrl: options.processorUrl,
         sessionId: options.sessionId,
-        merchantAccountId: options.merchantAccountId,
+        merchantAccountId: configJson.merchantAccountId,
         useKount: !!configJson.useKount,
-        fullWidth: options.fullWidth !== undefined ? options.fullWidth : true, //todo - check if add config full width is relevant
-        buttonText: configJson.buttonText || options.buttonText,
+        fullWidth: configJson.fullWidth !== undefined ? configJson.fullWidth : true, //todo - check if add config full width is relevant
+        buttonText: configJson.buttonText,
         purchaseCallback:
           configJson.purchaseCallback ||
-          options.purchaseCallback ||
+          options.onComplete ||
           ((result: any, options: any) => {
             console.log("Do something", result, options);
           }),
@@ -69,25 +64,25 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     });
   };
   async createComponentBuilder(
-    paymentMethodType: BraintreePaymentMethodType,
-  ): Promise<PaymentComponentBuilder> {
+    type: BraintreePaymentMethodType,
+  ): Promise<PaymentComponentBuilder | never> {
     const { baseOptions } = await this.setupData;
     return Promise.resolve(
-      new BraintreeBuilder(paymentMethodType, baseOptions, undefined),
+      new BraintreeBuilder(type, baseOptions, undefined),
     );
   }
 
-  async createDropinBuilder(type: DropinType): Promise<PaymentDropinBuilder> {
-    return Promise.resolve(undefined);
+  async createDropinBuilder(type: DropinType): Promise<PaymentDropinBuilder | never> {
+    throw new Error(`Drop-in builder is not supported for Braintree`);
   }
 
   async createExpressBuilder(
-    paymentMethodType: BraintreePaymentMethodExpressType,
-  ): Promise<PaymentComponentBuilder> {
+    type: BraintreePaymentMethodExpressType,
+  ): Promise<PaymentComponentBuilder|never> {
     //todo - check if different type for PaymentExpressBuilder makes sence
     const { baseOptions } = await this.setupData;
     return Promise.resolve(
-      new BraintreeBuilder(paymentMethodType, baseOptions, "express"),
+      new BraintreeBuilder(type, baseOptions, "express"),
     );
   }
 
