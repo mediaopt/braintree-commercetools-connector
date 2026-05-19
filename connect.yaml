@@ -43,13 +43,6 @@ deployAs:
         - key: MERCHANT_RETURN_URL
           description: Merchant website return URL for redirect-based payment methods
           required: false
-        - key: HEALTH_CHECK_TIMEOUT
-          description: Time in milliseconds to wait for a response from the payment provider during health checks
-          required: false
-        - key: LOGGER_LEVEL
-          description: Log level for the application logger (info, debug, error)
-          required: false
-          default: error
   - name: braintree-extension
     applicationType: service
     endpoint: /braintree-extension
