@@ -31,6 +31,7 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     // getStorePaymentDetails: () => boolean,
     // setStorePaymentDetails: (enabled: boolean) => void,
   ): Promise<{ baseOptions: BaseOptions }> => {
+    console.log("[braintree-enabler] processorUrl:", options.processorUrl, "| sessionId:", options.sessionId);//todo - remove after testing
     // Fetch SDK config from processor
     const configResponse = await fetch(
       options.processorUrl + "/operations/config",
@@ -39,6 +40,7 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
         headers: sessionHeader(options.sessionId),
       },
     );
+    console.log("[braintree-enabler] configResponse:", configResponse);//todo - remove after testing
 
     if (!configResponse.ok) {
       throw new Error("Could not fetch config");
