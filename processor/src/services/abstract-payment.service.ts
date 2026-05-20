@@ -6,10 +6,9 @@ import {
 import {
   ModifyPayment,
   ConfigResponse,
-  RefundPaymentRequest,
   StatusResponse,
-  SettlementPaymentRequest,
   CancelPaymentRequest,
+  ModifyPaymentWithTransactionRequest,
 } from './types/operation.type';
 
 import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-componets.dto';
@@ -20,6 +19,7 @@ import {
   PureVaultRequestSchemaDTO,
   TransactionSaleRequestSchemaDTO,
 } from '../dtos/braintree-payment.dto';
+import { logger } from 'common-connect';
 
 /**
  * Abstract base class for payment service implementations.
@@ -29,7 +29,7 @@ import {
  * - Existing commercetools connector Braintree extension implementation
  * - Braintree frontend components implementations
  * Where applicable, original method names from the commercetools template are noted in individual method comments.
- * Exception: modifyPayment method uses commercetools naming scheme for routing clarity https://docs.commercetools.com/checkout/payment-intents-api
+ * Exception: modifyPayment method uses commercetools naming scheme to keep compatibility with https://docs.commercetools.com/checkout/payment-intents-api
  *
  * Note on CoCo stored payment methods - only Braintree customer Id is stored on commercetools side.
  * Frontend gets the stored methods on braintree side by token.
@@ -133,7 +133,7 @@ export abstract class AbstractPaymentService {
    * @param request - commercetools payment object, optional braintree money refund amount, optional transaction ID
    * @returns Promise with success response
    */
-  abstract refundPayment(request: RefundPaymentRequest): Promise<GeneralResponseSuccessSchemaDTO>;
+  abstract refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<GeneralResponseSuccessSchemaDTO>;
 
   /**
    * Settlement
@@ -144,7 +144,7 @@ export abstract class AbstractPaymentService {
    * @param request - commercetools payment and optional transaction ID to settle
    * @returns Promise with success response
    */
-  abstract settlement(request: SettlementPaymentRequest): Promise<GeneralResponseSuccessSchemaDTO>;
+  abstract settlement(request: ModifyPaymentWithTransactionRequest): Promise<GeneralResponseSuccessSchemaDTO>;
 
   /**
    * Cancel payment (void)
@@ -183,17 +183,20 @@ export abstract class AbstractPaymentService {
       id: opts.paymentId,
     });
     const request = opts.data.actions[0];
-
+    logger.info(`Received request to modify payment ${opts.paymentId} with action ${request.action}`);
     switch (request.action) {
       case 'capturePayment': {
-        return await this.settlement({ payment: ctPayment, transactionId: request.transactionId });
+        return await this.settlement({
+          payment: ctPayment,
+          amount: request.amount,
+        });
       }
       case 'cancelPayment': {
         return await this.void({ payment: ctPayment });
       }
       case 'refundPayment': {
         return await this.refundPayment({
-          braintreeAmount: request.braintreeAmount,
+          amount: request.amount,
           payment: ctPayment,
           transactionId: request.transactionId,
         });

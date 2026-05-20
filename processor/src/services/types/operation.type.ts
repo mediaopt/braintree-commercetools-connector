@@ -1,15 +1,10 @@
 import { ConfigResponseSchemaDTO } from '../../dtos/operations/config.dto';
 import { StatusResponseSchemaDTO } from '../../dtos/operations/status.dto';
 import { PaymentIntentRequestSchemaDTO } from '../../dtos/operations/payment-intents.dto';
-import { Payment } from '@commercetools/connect-payments-sdk';
+import { Money, Payment } from '@commercetools/connect-payments-sdk';
 
-export type RefundPaymentRequest = {
-  braintreeAmount?: string;
-  payment: Payment;
-  transactionId?: string;
-};
-
-export type SettlementPaymentRequest = {
+export type ModifyPaymentWithTransactionRequest = {
+  amount: Money;
   payment: Payment;
   transactionId?: string;
 };

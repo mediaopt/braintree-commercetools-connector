@@ -3,7 +3,6 @@ import {
   healthCheckCommercetoolsPermissions,
   ErrorRequiredField,
   ErrorInvalidOperation,
-  Transaction as CTTransaction,
   Cart,
   Customer,
   Payment,
@@ -17,8 +16,7 @@ import { Transaction } from 'braintree';
 import {
   CancelPaymentRequest,
   ConfigResponse,
-  RefundPaymentRequest,
-  SettlementPaymentRequest,
+  ModifyPaymentWithTransactionRequest,
   StatusResponse,
 } from './types/operation.type';
 
@@ -56,7 +54,7 @@ import {
   voidTransaction as braintreeVoidTransaction,
   findSuitableTransactionId,
   deletePayment as braintreeDeletePayment,
-  getCurrentTimestamp,
+  getCurrentTimestamp, logger,
 } from 'common-connect/dist';
 import { handleCustomTransactionFields, handleCustomFieldResponse } from '../utils/customEntities.utils';
 
@@ -462,35 +460,20 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   //see also extension module submitForSettlement
-  public async settlement(request: SettlementPaymentRequest): Promise<GeneralResponseSuccessSchemaDTO> {
-    const { payment: ctPayment, transactionId } = request;
-    let relevantTransaction: CTTransaction;
-    if (transactionId) {
-      const targetTransaction = ctPayment.transactions.find(({ id }) => id === request.transactionId);
-      if (!targetTransaction)
-        throw new ErrorInvalidOperation(
-          `Payment ${ctPayment.id} doesn't have a transaction with this id ${request.transactionId}`,
-        );
-      else {
-        if (targetTransaction.type !== 'Authorization')
-          throw new ErrorInvalidOperation(
-            `Transaction with this id ${transactionId} can't be settled due to it's type`, //todo - verify which statuses can actually be settled
-          );
-      }
-      relevantTransaction = targetTransaction;
-    } else {
-      const targetTransactions = ctPayment.transactions.filter(({ type }) => type === 'Authorization');
-      if (!targetTransactions.length)
-        throw new ErrorInvalidOperation(
-          `Payment ${ctPayment.id} doesn't have a transaction with a type suitable for settlement`,
-        );
-      relevantTransaction = targetTransactions[targetTransactions.length - 1];
-    }
+  public async settlement(request: ModifyPaymentWithTransactionRequest): Promise<GeneralResponseSuccessSchemaDTO> {
+    const { payment: ctPayment, amount } = request;
+    const targetTransactions = ctPayment.transactions.filter(({ type }) => type === 'Authorization');
+    if (!targetTransactions.length)
+      throw new ErrorInvalidOperation(
+        `Payment ${ctPayment.id} doesn't have a transaction with a type suitable for settlement`,
+      );
+    const relevantTransaction = targetTransactions[targetTransactions.length - 1];
     if (!relevantTransaction.interactionId)
       throw new ErrorRequiredField('interactionId', {
         privateMessage: `missing required field for Braintree submit for settlement - interactionId`,
       });
-    const response = await submitForSettlement(relevantTransaction.interactionId);
+    const braintreeAmount = mapCommercetoolsMoneyToBraintreeMoney({ ...ctPayment.amountPlanned, ...amount });
+    const response = await submitForSettlement(relevantTransaction.interactionId, braintreeAmount);
     const paymentMethodHint = getPaymentMethodHint(response);
     await this.updatePaymentWithTransaction({
       messageName: 'submitForSettlement',
@@ -514,20 +497,21 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * If transaction id is provided - refund will be attempted for this transaction
    * @returns successGeneralResponse
    */
-  async refundPayment(request: RefundPaymentRequest): Promise<GeneralResponseSuccessSchemaDTO> {
-    request.transactionId = request.transactionId ?? findSuitableTransactionId({ payment: request.payment }, 'Charge');
-    const { payment: ctPayment, braintreeAmount, transactionId } = request;
-
-    if (!transactionId) {
+  async refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<GeneralResponseSuccessSchemaDTO> {
+    const relevantTransactionId =
+      request.transactionId || findSuitableTransactionId({ payment: request.payment }, 'Charge');
+    const { payment: ctPayment, amount } = request;
+    if (!relevantTransactionId) {
       throw new ErrorInvalidOperation(
-        `No suitable for refund transaction found for payment ${ctPayment.id}. Target transaction id: ${transactionId}`,
+        `No suitable for refund transaction found for payment ${ctPayment.id}. Target transaction id: ${relevantTransactionId}`,
       );
     }
-    const response = await braintreeRefund(transactionId, braintreeAmount);
+    const braintreeAmount = mapCommercetoolsMoneyToBraintreeMoney({ ...ctPayment.amountPlanned, ...amount });
+    const response = await braintreeRefund(relevantTransactionId, braintreeAmount);
     const customFields = handleCustomFieldResponse('refund', response);
     await this.updatePaymentWithTransaction({
       messageName: 'refund',
-      request: { transactionId: request.transactionId, amount: braintreeAmount },
+      request: { relevantTransactionId, amount },
       ctPayment,
       response,
       customFields,

@@ -1,10 +1,16 @@
 import { Static, Type } from '@sinclair/typebox';
 
+export const AmountSchema = Type.Object({
+  centAmount: Type.Integer(),
+  currencyCode: Type.String(),
+});
+
 export const ActionCapturePaymentSchema = Type.Composite([
   Type.Object({
     action: Type.Literal('capturePayment'),
   }),
   Type.Object({
+    amount: AmountSchema,
     transactionId: Type.Optional(Type.String()),
   }),
 ]);
@@ -14,7 +20,7 @@ export const ActionRefundPaymentSchema = Type.Composite([
     action: Type.Literal('refundPayment'),
   }),
   Type.Object({
-    braintreeAmount: Type.Optional(Type.String()),
+    amount: AmountSchema,
     transactionId: Type.Optional(Type.String()),
   }),
 ]);
