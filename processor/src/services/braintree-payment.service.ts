@@ -54,7 +54,7 @@ import {
   voidTransaction as braintreeVoidTransaction,
   findSuitableTransactionId,
   deletePayment as braintreeDeletePayment,
-  getCurrentTimestamp, logger,
+  getCurrentTimestamp,
 } from 'common-connect/dist';
 import { handleCustomTransactionFields, handleCustomFieldResponse } from '../utils/customEntities.utils';
 
