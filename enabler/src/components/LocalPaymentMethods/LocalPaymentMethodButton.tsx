@@ -23,7 +23,6 @@ export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
   fallbackButtonText = PAY_BUTTON_TEXT_FALLBACK,
   shippingAddressRequired,
   useKount,
-  braintreeLineItems,
   shipping,
 }: LocalPaymentMethod) => {
   return (
@@ -38,7 +37,6 @@ export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
       fallbackButtonText={fallbackButtonText}
       shippingAddressRequired={shippingAddressRequired}
       useKount={useKount}
-      braintreeLineItems={braintreeLineItems}
       shipping={shipping}
     />
   );
