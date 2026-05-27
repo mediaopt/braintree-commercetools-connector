@@ -1,7 +1,7 @@
 /**
  * See also braintree-extension customer service.
  */
-import { GeneralResponseSuccessSchemaDTO, PureVaultBaseSchemaDTO } from '../dtos/braintree-payment.dto';
+import { PaymentUpdateResponseSchemaDTO, PureVaultBaseSchemaDTO } from '../dtos/braintree-payment.dto';
 import {
   Customer,
   CustomerSetCustomFieldAction,
@@ -67,7 +67,7 @@ export class BraintreeCustomerService {
     braintreeCustomerId,
     paymentMethodNonce,
     //braintree CustomerCreateRequest data (includes nonce) or braintree  PaymentMethodCreateRequest
-  }: PureVaultBaseSchemaDTO): Promise<GeneralResponseSuccessSchemaDTO> {
+  }: PureVaultBaseSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO> {
     let response: CustomerResponse;
     let ctVersion = ctCustomerVersion;
 

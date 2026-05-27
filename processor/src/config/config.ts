@@ -23,7 +23,8 @@ export const config = {
   braintreeMerchantId: process.env.BRAINTREE_MERCHANT_ID,
 
   // Payment Providers config
-  returnUrl: process.env.MERCHANT_RETURN_URL,
+  returnUrl: process.env.MERCHANT_RETURN_URL || '',
+  paymentInterface: 'Braintree',
 
   // TODO review these configurations
   // supportedUIElements: convertStringCommaSeparatedValuesToArray(process.env.SUPPORTED_UI_ELEMENTS),

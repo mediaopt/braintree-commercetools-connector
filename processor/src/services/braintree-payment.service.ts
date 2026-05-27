@@ -24,11 +24,11 @@ import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-
 import packageJSON from '../../package.json';
 
 import { AbstractPaymentService } from './abstract-payment.service';
-import { getConfig } from '../config/config';
+import { config, getConfig } from '../config/config';
 import { appLogger, paymentSDK } from '../payment-sdk';
 import { BraintreePaymentServiceOptions } from './types/braintree-payment.type';
 import {
-  GeneralResponseSuccessSchemaDTO,
+  PaymentUpdateResponseSchemaDTO,
   PaymentMethodType,
   PaymentOutcome,
   PaymentRequestSchemaDTO,
@@ -36,7 +36,7 @@ import {
   PureVaultRequestSchemaDTO,
   TransactionSaleRequestSchemaDTO,
 } from '../dtos/braintree-payment.dto';
-import { getCartIdFromContext, getPaymentInterfaceFromContext } from '../libs/fastify/context/context';
+import { getCartIdFromContext, getMerchantReturnUrlFromContext } from '../libs/fastify/context/context';
 import { getStoredPaymentMethodsConfig } from '../config/stored-payment-methods.config';
 
 import { log } from '../libs/logger';
@@ -114,6 +114,49 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
+   * Get configurations
+   *
+   * @remarks
+   * Implementation to provide mocking configuration information
+   *
+   * @returns Promise with mocking object containing configuration information
+   */
+  public async config(): Promise<ConfigResponse> {
+    const config = getConfig();
+
+    return {
+      returnUrl: config.returnUrl,
+      environment: config.braintreeEnvironment,
+      storedPaymentMethodsConfig: {
+        isEnabled: await this.isStoredPaymentMethodsEnabled(),
+      },
+    };
+  }
+
+  private buildRedirectMerchantUrl(paymentReference: string, paymentStatus?: string): string | undefined {
+    const merchantReturnUrl = getMerchantReturnUrlFromContext() || config.returnUrl;
+    if (!merchantReturnUrl?.length) return undefined;
+    const redirectUrl = new URL(merchantReturnUrl);
+
+    redirectUrl.searchParams.append('paymentReference', paymentReference);
+    if (paymentStatus) {
+      redirectUrl.searchParams.append('paymentStatus', 'paymentStatus');
+    }
+    return redirectUrl.toString();
+  }
+
+  private paymentActionSuccessResponse(
+    paymentReference: string,
+    paymentStatus?: string,
+  ): PaymentUpdateResponseSchemaDTO {
+    return {
+      ...successGeneralResponse,
+      paymentReference,
+      merchantReturnUrl: this.buildRedirectMerchantUrl(paymentReference, paymentStatus),
+    };
+  }
+
+  /**
    * Indicates if the feature stored payment methods is enabled/available.
    * It can be enhanced with further checks if so required.
    */
@@ -127,25 +170,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
     });
 
     return ctCart.customerId !== undefined;
-  }
-
-  /**
-   * Get configurations
-   *
-   * @remarks
-   * Implementation to provide mocking configuration information
-   *
-   * @returns Promise with mocking object containing configuration information
-   */
-  public async config(): Promise<ConfigResponse> {
-    const config = getConfig();
-
-    return {
-      environment: config.braintreeEnvironment,
-      storedPaymentMethodsConfig: {
-        isEnabled: await this.isStoredPaymentMethodsEnabled(),
-      },
-    };
   }
 
   /**
@@ -310,7 +334,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const ctPayment = await this.ctPaymentService.createPayment({
       amountPlanned,
       paymentMethodInfo: {
-        paymentInterface: getPaymentInterfaceFromContext() || 'Braintree', //todo - check if a more relevant interface exists
+        paymentInterface: getConfig().paymentInterface, //todo - check if a more relevant interface exists
       },
       ...customerPaymentInfo,
     });
@@ -415,7 +439,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     storeInVaultOnSuccess,
     storeShipping,
     braintreePaymentDetails,
-  }: TransactionSaleRequestSchemaDTO): Promise<GeneralResponseSuccessSchemaDTO> {
+  }: TransactionSaleRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO> {
     //todo - handle address change for PayPal express here
     //todo - handle payment amount change if relevant here
     const [updatedCart, ctPayment] = await Promise.all([
@@ -433,8 +457,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
       storeShipping,
       paymentMethodNonce,
       paymentToken,
-      //{ lineItems: braintreePaymentDetails?.braintreeLineItems, shipping: braintreePaymentDetails?.braintreeShipping },
+      // {
+      //   //shipping: braintreePaymentDetails?.braintreeShipping
+      // },
     ); //todo - handle other params
+    transactionRequest.lineItems = braintreePaymentDetails?.braintreeLineItems || [];
     if (braintreePaymentDetails?.extraShippingCost) {
       transactionRequest.shippingAmount = Number(braintreePaymentDetails.extraShippingCost).toFixed(2);
     } //see enabler PayPalMask onShippingChange and onApprove
@@ -451,7 +478,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         response,
         customFields,
       });
-      return successGeneralResponse;
+      return this.paymentActionSuccessResponse(ctPayment.id);
     } catch (e) {
       throw new ErrorInvalidOperation(
         `transactionSale failed for payment ${ctPaymentId} with error ${e instanceof Error ? e.message : JSON.stringify(e)}`,
@@ -460,7 +487,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   //see also extension module submitForSettlement
-  public async settlement(request: ModifyPaymentWithTransactionRequest): Promise<GeneralResponseSuccessSchemaDTO> {
+  public async settlement(request: ModifyPaymentWithTransactionRequest): Promise<PaymentUpdateResponseSchemaDTO> {
     const { payment: ctPayment, amount } = request;
     const targetTransactions = ctPayment.transactions.filter(({ type }) => type === 'Authorization');
     if (!targetTransactions.length)
@@ -483,7 +510,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       paymentMethodInfo: { method: `${response.paymentInstrumentType} ${paymentMethodHint || ''}`.trim() },
       //todo - find out what are the alternatives for status interface code and text
     });
-    return successGeneralResponse;
+    return this.paymentActionSuccessResponse(ctPayment.id);
   }
 
   /**
@@ -497,7 +524,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * If transaction id is provided - refund will be attempted for this transaction
    * @returns successGeneralResponse
    */
-  async refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<GeneralResponseSuccessSchemaDTO> {
+  async refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<PaymentUpdateResponseSchemaDTO> {
     const relevantTransactionId =
       request.transactionId || findSuitableTransactionId({ payment: request.payment }, 'Charge');
     const { payment: ctPayment, amount } = request;
@@ -516,10 +543,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
       response,
       customFields,
     });
-    return successGeneralResponse;
+    return this.paymentActionSuccessResponse(ctPayment.id);
   }
 
-  async void(request: CancelPaymentRequest): Promise<GeneralResponseSuccessSchemaDTO> {
+  async void(request: CancelPaymentRequest): Promise<PaymentUpdateResponseSchemaDTO> {
     const { payment: ctPayment } = request;
     const transactionId = findSuitableTransactionId({ payment: ctPayment }, 'Authorization');
     if (!transactionId) {
@@ -548,7 +575,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       response,
       customFields,
     });
-    return successGeneralResponse;
+    return this.paymentActionSuccessResponse(ctPayment.id);
   }
 
   //this method corresponds to handleStoredPaymentMethod part for create a new stored method
@@ -559,7 +586,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     braintreeCustomerId,
     paymentMethodNonce,
     //braintree CustomerCreateRequest data (includes nonce) or braintree  PaymentMethodCreateRequest
-  }: PureVaultRequestSchemaDTO): Promise<GeneralResponseSuccessSchemaDTO> {
+  }: PureVaultRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO> {
     if (!ctCustomerId) {
       throw new ErrorRequiredField('customerId', {
         privateMessage: 'The customerId is not set on the cart yet the customer wants to tokenize the payment',
