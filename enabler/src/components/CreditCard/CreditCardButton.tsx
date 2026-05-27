@@ -20,7 +20,6 @@ export const CreditCardButton: FC<CreditCardButton> = ({
   continueOnLiabilityShiftPossible,
   continueOnNoThreeDS,
   useKount,
-  braintreeLineItems,
   shipping,
   isPureVault,
 }: CreditCardButton) => {
@@ -40,7 +39,6 @@ export const CreditCardButton: FC<CreditCardButton> = ({
       continueOnLiabilityShiftPossible={continueOnLiabilityShiftPossible}
       continueOnNoThreeDS={continueOnNoThreeDS}
       useKount={useKount}
-      braintreeLineItems={braintreeLineItems}
       shipping={shipping}
       isPureVault={isPureVault}
     />

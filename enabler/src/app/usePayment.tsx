@@ -34,9 +34,11 @@ import { processorUrls } from "../components/constants";
 import { sessionHeader } from "../helpers/sessionHeader";
 import { LoadingOverlay } from "../components/LoadingOverlay";
 
-type GeneralResponseSuccess = {
+type PaymentActionResponseData = {
   message: string;
   success: boolean;
+  paymentReference?: string;
+  merchantReturnUrl?: string;
 };
 
 type HandleTransactionSaleType = (
@@ -119,7 +121,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
 
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
-
   useEffect(() => {
     const handleInitPayment = async () => {
       setInitializingPayment(true);
@@ -223,10 +224,15 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       // if (discountAmount) {
       //   additional.discountAmount = discountAmount;
       // }
+      console.log("in transaction sale", paymentInfo.braintreeLineItems);
 
       const requestBody = {
         ctPaymentId: paymentInfo.ctPaymentId,
         paymentMethodNonce: paymentNonce,
+        braintreePaymentDetails: {
+          braintreeLineItems: paymentInfo.braintreeLineItems,
+          braintreeShipping: paymentInfo.braintreeShipping,
+        },
         ...additional,
       };
 
@@ -235,22 +241,25 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         requestHeader,
         transactionSaleUrl,
         requestBody,
-      )) as GeneralResponseSuccess;
+      )) as PaymentActionResponseData;
       isLoading(false);
       if (!response?.success) {
         notify("Error", response.message ?? "An error occurred");
         return;
       }
 
-      const { message, success } = response;
+      const { message, success, merchantReturnUrl } = response;
       setResultSuccess(success);
-      setResultMessage(message);
-
-      setShowResult(true);
-      if (purchaseCallback && success) {
-        //todo - implement here redirect to return url
-        delete options?.deviceData;
-        purchaseCallback(response, options);
+      if (merchantReturnUrl) {
+        window.location.href = merchantReturnUrl;
+      } else {
+        setResultMessage(message);
+        setShowResult(true);
+        if (purchaseCallback && success) {
+          //todo - implement here redirect to return url
+          delete options?.deviceData;
+          purchaseCallback(response, options);
+        }
       }
     };
 

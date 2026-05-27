@@ -28,7 +28,6 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
   shippingAddressEditable,
   shippingAddressOverride,
   useKount,
-  braintreeLineItems,
   shipping,
   shape,
   size,
@@ -56,7 +55,6 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
       shippingAddressEditable={shippingAddressEditable}
       shippingAddressOverride={shippingAddressOverride}
       useKount={useKount}
-      braintreeLineItems={braintreeLineItems}
       shipping={shipping}
       shape={shape}
       size={size}

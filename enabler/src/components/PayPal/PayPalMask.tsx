@@ -48,7 +48,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   fullWidth,
   buttonText,
   useKount,
-  braintreeLineItems,
   shipping,
   shape,
   size,
@@ -73,6 +72,8 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   const { shippingOptions } = paymentInfo;
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
+
+  console.log("braintreeLineItems", paymentInfo.braintreeLineItems);
 
   useEffect(() => {
     if (isPureVault) {
@@ -184,7 +185,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                       } else {
                         handleTransactionSale(payload.nonce, {
                           deviceData: deviceData,
-                          braintreeLineItems: braintreeLineItems,
                           shipping: shipping,
                           account: {
                             email: payload.details.email,
@@ -201,6 +201,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               payload.details.shippingAddress.postalCode,
                           },
                           braintreePaymentDetails: {
+                            braintreeLineItems: paymentInfo.braintreeLineItems,
                             braintreeShipping: payload.shippingAddress,
                             extraShippingCost: payload.shippingOptionId
                               ? shippingOptions?.find(
@@ -323,7 +324,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           return paypalCheckoutInstance.updatePayment({
                             amount: actualPaymentAmount,
                             currency: paymentInfo.currency,
-                            lineItems: braintreeLineItems,
+                            lineItems: paymentInfo.braintreeLineItems,
                             paymentId: data.paymentId,
                             shippingOptions: braintreeShippingOptions,
                           });
@@ -333,6 +334,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           return paypalCheckoutInstance.createPayment({
                             flow: flow,
                             locale: locale,
+                            lineItems: paymentInfo.braintreeLineItems,
                             amount: paymentInfo.braintreeAmount,
                             currency: paymentInfo.currency,
                             intent: intent,
@@ -371,7 +373,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     intent,
     isLoading,
     locale,
-    braintreeLineItems,
+    paymentInfo.braintreeLineItems,
     billingAgreementDescription,
     shippingAddressEditable,
     shippingAddressOverride,
@@ -390,7 +392,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     isLoading(true);
     await handleTransactionSale(selectedAccount, {
       deviceData: deviceData,
-      lineItems: braintreeLineItems,
+      lineItems: paymentInfo.braintreeLineItems,
       shipping: shipping,
     });
     isLoading(false);
