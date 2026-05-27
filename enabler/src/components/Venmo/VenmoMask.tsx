@@ -41,7 +41,6 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
   setVenmoUserName,
   ignoreBowserSupport,
   useKount,
-  braintreeLineItems,
   shipping,
 }: VenmoMaskType) => {
   const { handleTransactionSale, paymentInfo, clientToken } = usePayment();
@@ -66,7 +65,7 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
   const handleVenmoSuccess = (payload: VenmoTokenizePayload) => {
     handleTransactionSale(payload.nonce, {
       deviceData: deviceData,
-      lineItems: braintreeLineItems,
+      lineItems: paymentInfo.braintreeLineItems,
       shipping: shipping,
     });
     setVenmoUserName(payload.details.username);

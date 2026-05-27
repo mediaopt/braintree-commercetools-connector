@@ -14,7 +14,6 @@ export const ACHButton: FC<ACHButtonProps> = ({
   buttonText,
   mandateText,
   useKount,
-  braintreeLineItems,
   shipping,
 }: ACHButtonProps) => {
   return (
@@ -24,7 +23,6 @@ export const ACHButton: FC<ACHButtonProps> = ({
       mandateText={mandateText}
       processorUrl={processorUrl}
       useKount={useKount}
-      braintreeLineItems={braintreeLineItems}
       shipping={shipping}
     />
   );

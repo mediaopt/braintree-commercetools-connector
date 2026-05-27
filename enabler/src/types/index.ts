@@ -45,7 +45,6 @@ export type BraintreeLineItem = {
 export type UseKount = { useKount?: boolean };
 
 type LineItemsShipping = {
-  braintreeLineItems?: BraintreeLineItem[];
   shipping?: BraintreeShipping;
 };
 
