@@ -8,9 +8,9 @@ import {
   TransactionSaleRequestSchema,
   TransactionSaleRequestSchemaDTO,
   PureVaultRequestSchema,
-  GeneralResponseSuccessSchema,
+  PaymentUpdateResponseSchema,
   PureVaultRequestSchemaDTO,
-  GeneralResponseSuccessSchemaDTO,
+  PaymentUpdateResponseSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { BraintreePaymentService } from '../services/braintree-payment.service';
 import { Type } from '@sinclair/typebox';
@@ -41,7 +41,7 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
 
   fastify.post<{
     Body: TransactionSaleRequestSchemaDTO;
-    Reply: GeneralResponseSuccessSchemaDTO;
+    Reply: PaymentUpdateResponseSchemaDTO;
   }>(
     '/payments/transactionSale',
     {
@@ -49,13 +49,13 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
       schema: {
         body: TransactionSaleRequestSchema,
         response: {
-          200: GeneralResponseSuccessSchema,
+          200: PaymentUpdateResponseSchema,
         },
       },
     },
     async (request, reply) => {
-      await opts.paymentService.transactionSale(request.body);
-      return reply.status(200).send({ message: 'Transaction sale processed', success: true });
+      const paymentUpdateResult = await opts.paymentService.transactionSale(request.body);
+      return reply.status(200).send(paymentUpdateResult);
     },
   );
 
@@ -85,7 +85,7 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
 
   fastify.post<{
     Body: PureVaultRequestSchemaDTO;
-    Reply: GeneralResponseSuccessSchemaDTO;
+    Reply: PaymentUpdateResponseSchemaDTO;
   }>(
     '/customer/pureVault',
     {
@@ -93,12 +93,16 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
       schema: {
         body: PureVaultRequestSchema,
         response: {
-          200: GeneralResponseSuccessSchema,
+          200: PaymentUpdateResponseSchema,
         },
       },
       onError: (request, reply, error) => {
         log.error(`Error processing pure vault request: ${error.message}, paymentId:${request?.body?.ctPaymentId}`);
-        reply.status(500).send({ message: 'Failed to save payment method', success: false });
+        reply.status(500).send({
+          message: 'Failed to save payment method',
+          success: false,
+          paymentReference: request?.body?.ctPaymentId,
+        });
       },
     },
     async (request, reply) => {

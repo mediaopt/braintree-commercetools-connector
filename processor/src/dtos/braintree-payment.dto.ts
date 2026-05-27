@@ -125,8 +125,13 @@ export const TransactionSaleRequestSchema = Type.Object({
 
 export type TransactionSaleRequestSchemaDTO = Static<typeof TransactionSaleRequestSchema>;
 
-export const GeneralResponseSuccessSchema = Type.Object({ message: Type.String(), success: Type.Boolean() });
-export type GeneralResponseSuccessSchemaDTO = Static<typeof GeneralResponseSuccessSchema>;
+export const PaymentUpdateResponseSchema = Type.Object({
+  message: Type.String(),
+  success: Type.Boolean(),
+  paymentReference: Type.Optional(Type.String()),
+  merchantReturnUrl: Type.Optional(Type.String()),
+});
+export type PaymentUpdateResponseSchemaDTO = Static<typeof PaymentUpdateResponseSchema>;
 
 export const RefundRequestSchema = Type.Object({
   ctPaymentId: Type.String(),

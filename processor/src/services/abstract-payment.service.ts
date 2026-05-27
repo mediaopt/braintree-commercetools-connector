@@ -13,7 +13,7 @@ import {
 
 import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-componets.dto';
 import {
-  GeneralResponseSuccessSchemaDTO,
+  PaymentUpdateResponseSchemaDTO,
   PaymentRequestSchemaDTO,
   PaymentResponseSchemaDTO,
   PureVaultRequestSchemaDTO,
@@ -122,7 +122,7 @@ export abstract class AbstractPaymentService {
    * @param request - payment ID, payment method details (nonce or token), and optional additional transaction details
    * @returns Promise with success response
    */
-  abstract transactionSale(request: TransactionSaleRequestSchemaDTO): Promise<GeneralResponseSuccessSchemaDTO>;
+  abstract transactionSale(request: TransactionSaleRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO>;
 
   /**
    * Refund payment
@@ -133,7 +133,7 @@ export abstract class AbstractPaymentService {
    * @param request - commercetools payment object, optional braintree money refund amount, optional transaction ID
    * @returns Promise with success response
    */
-  abstract refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<GeneralResponseSuccessSchemaDTO>;
+  abstract refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<PaymentUpdateResponseSchemaDTO>;
 
   /**
    * Settlement
@@ -144,7 +144,7 @@ export abstract class AbstractPaymentService {
    * @param request - commercetools payment and optional transaction ID to settle
    * @returns Promise with success response
    */
-  abstract settlement(request: ModifyPaymentWithTransactionRequest): Promise<GeneralResponseSuccessSchemaDTO>;
+  abstract settlement(request: ModifyPaymentWithTransactionRequest): Promise<PaymentUpdateResponseSchemaDTO>;
 
   /**
    * Cancel payment (void)
@@ -155,7 +155,7 @@ export abstract class AbstractPaymentService {
    * @param request - commercetools payment
    * @returns Promise with success response
    */
-  abstract void(request: CancelPaymentRequest): Promise<GeneralResponseSuccessSchemaDTO>;
+  abstract void(request: CancelPaymentRequest): Promise<PaymentUpdateResponseSchemaDTO>;
 
   /**
    * Modify payment
@@ -178,7 +178,7 @@ export abstract class AbstractPaymentService {
    * @returns Promise with success response
    */
 
-  public async modifyPayment(opts: ModifyPayment): Promise<GeneralResponseSuccessSchemaDTO> {
+  public async modifyPayment(opts: ModifyPayment): Promise<PaymentUpdateResponseSchemaDTO> {
     const ctPayment = await this.ctPaymentService.getPayment({
       id: opts.paymentId,
     });
@@ -226,5 +226,5 @@ export abstract class AbstractPaymentService {
    * @returns Promise with success response
    */
 
-  abstract pureVault(request: PureVaultRequestSchemaDTO): Promise<GeneralResponseSuccessSchemaDTO>;
+  abstract pureVault(request: PureVaultRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO>;
 }
