@@ -461,7 +461,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
       //   //shipping: braintreePaymentDetails?.braintreeShipping
       // },
     ); //todo - handle other params
-    transactionRequest.lineItems = braintreePaymentDetails?.braintreeLineItems || [];
+    transactionRequest.lineItems = (braintreePaymentDetails?.braintreeLineItems || []).map((item) => ({
+      ...item,
+      name: item.name.substring(0, 35),
+    })); //braintree has 35 char limit for line item name, so we need to cut it to avoid errors, see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
     if (braintreePaymentDetails?.extraShippingCost) {
       transactionRequest.shippingAmount = Number(braintreePaymentDetails.extraShippingCost).toFixed(2);
     } //see enabler PayPalMask onShippingChange and onApprove
