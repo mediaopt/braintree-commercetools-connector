@@ -1,6 +1,6 @@
 import { CustomerSetCustomFieldAction } from "@commercetools/platform-sdk";
 
-import { CustomerResponse, UpdateActions } from "../types/index.types";
+import { CustomerResponse } from "../types/index.types";
 import { stringifyData } from "./customEntitites.utils";
 
 export const removeEmptyProperties = (response: any) => {
