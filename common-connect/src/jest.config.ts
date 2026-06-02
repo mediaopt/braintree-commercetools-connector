@@ -5,4 +5,5 @@ export default {
   testEnvironment: "node",
   roots: ["./test"],
   transform: { "^.+\\.tsx?$": "ts-jest" },
+  collectCoverageFrom: ["./**/*.ts", "!./test/**"],
 };

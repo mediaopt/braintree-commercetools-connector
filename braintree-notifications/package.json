@@ -12,6 +12,7 @@
     "lint": "eslint . --ext .ts",
     "prettier": "prettier --write '**/*.{js,ts}'",
     "test": "jest --config jest.config.cjs",
+    "test.coverage": "jest --config jest.config.cjs --runInBand --no-cache --coverage",
     "test:watch": "jest --watch",
     "connector:post-deploy": "node build/connector/post-deploy.js"
   },
