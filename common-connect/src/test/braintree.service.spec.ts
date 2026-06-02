@@ -15,7 +15,7 @@ import {
   findTransaction,
   deletePayment,
   updatePayment,
-} from "../service/braintree.service";
+} from '../service';
 import { CustomError } from "..";
 
 jest.mock("braintree", () => {
