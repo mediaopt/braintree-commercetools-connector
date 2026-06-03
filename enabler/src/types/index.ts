@@ -1,4 +1,3 @@
-import { FC } from "react";
 import {
   ButtonColorOption,
   ButtonLabelOption,
@@ -11,8 +10,11 @@ import {
   ThreeDSecureAdditionalInformation,
   ThreeDSecureBillingAddress,
 } from "braintree-web/three-d-secure";
-import { BraintreePaymentMethodType } from "../components/Builder/types";
+import {
+  BraintreePaymentMethodType
+} from "../components/Builder/types";
 import { ShippingOption } from "paypal-checkout-components/modules/callback-data";
+import { SupportedLocalPaymentTypes } from '../components/LocalPaymentMethods/types';
 
 export type ClientTokenRequest = {
   paymentId: string;
@@ -113,6 +115,7 @@ type OptionalPerMethodPaymentData = {
   braintreeShipping?: BraintreeShipping; //PayPal express (Buy Now)
   ctCustomerId?: string; //vault
   ctCustomerVersion?: string; //vault
+  countryCode?: string; //local payment methods
 };
 
 export type PaymentInfo = RequiredPaymentData & OptionalPerMethodPaymentData;
@@ -239,68 +242,12 @@ export type AchVaultResponse = {
 };
 
 export type LocalPaymentMethodsType = {
-  paymentType: any;
-  countryCode: any;
-  currencyCode: any;
+  paymentType: SupportedLocalPaymentTypes;
   shippingAddressRequired?: boolean;
-  fallbackUrl: string;
+  fallbackUrl?: string;
   fallbackButtonText?: string;
   merchantAccountId?: string;
 };
-
-interface LocalPaymentBancontact extends LocalPaymentMethodsType {
-  paymentType: "bancontact";
-  countryCode: "BE";
-  currencyCode: "EUR";
-}
-
-interface LocalPaymentBLIK extends LocalPaymentMethodsType {
-  paymentType: "blik";
-  countryCode: "PL";
-  currencyCode: "PLN";
-}
-
-interface LocalPaymentEPS extends LocalPaymentMethodsType {
-  paymentType: "eps";
-  countryCode: "AT";
-  currencyCode: "EUR";
-}
-
-interface LocalPaymentGiropay extends LocalPaymentMethodsType {
-  paymentType: "giropay";
-  countryCode: "DE";
-  currencyCode: "EUR";
-}
-
-interface LocalPaymentGrabpay extends LocalPaymentMethodsType {
-  paymentType: "grabpay";
-  countryCode: "SG";
-  currencyCode: "SGD";
-}
-
-interface LocalPaymentIdeal extends LocalPaymentMethodsType {
-  paymentType: "ideal";
-  countryCode: "NL";
-  currencyCode: "EUR";
-}
-
-interface LocalPaymentSofort extends LocalPaymentMethodsType {
-  paymentType: "sofort";
-  countryCode: "AT" | "BE" | "DE" | "IT" | "NL" | "ES" | "GB";
-  currencyCode: "EUR" | "GBP";
-}
-
-interface LocalPaymentMyBank extends LocalPaymentMethodsType {
-  paymentType: "mybank";
-  countryCode: "IT";
-  currencyCode: "EUR";
-}
-
-interface LocalPaymentP24 extends LocalPaymentMethodsType {
-  paymentType: "p24";
-  countryCode: "PL";
-  currencyCode: "EUR" | "PL";
-}
 
 export type BraintreeShipping = {
   //todo - check if Braintree shipping must be extended or this one can be reduced
@@ -317,35 +264,3 @@ export type BraintreeShipping = {
   region?: string;
   streetAddress?: string;
 };
-
-export type LocalPaymentBancontactType = FC<
-  GeneralComponentsProps & LocalPaymentBancontact
->;
-
-export type LocalPaymentP24Type = FC<GeneralComponentsProps & LocalPaymentP24>;
-
-export type LocalPaymentSofortType = FC<
-  GeneralComponentsProps & LocalPaymentSofort
->;
-
-export type LocalPaymentBLIKType = FC<
-  GeneralComponentsProps & LocalPaymentBLIK
->;
-
-export type LocalPaymentEPSType = FC<GeneralComponentsProps & LocalPaymentEPS>;
-
-export type LocalPaymentGiropayType = FC<
-  GeneralComponentsProps & LocalPaymentGiropay
->;
-
-export type LocalPaymentGrabpayType = FC<
-  GeneralComponentsProps & LocalPaymentGrabpay
->;
-
-export type LocalPaymentIDealType = FC<
-  GeneralComponentsProps & LocalPaymentIdeal
->;
-
-export type LocalPaymentMyBankType = FC<
-  GeneralComponentsProps & LocalPaymentMyBank
->;
