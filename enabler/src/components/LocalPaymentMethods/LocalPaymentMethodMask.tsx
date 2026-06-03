@@ -24,6 +24,7 @@ import {
 import { useLoader } from "../../app/useLoader";
 import { renderMaskButtonClasses } from "../../styles";
 import { processorUrls } from "../constants";
+import { validateCountryAndCurrency } from "./validateCountryAndCurrency";
 
 type LocalPaymentMethodMaskType = LocalPaymentMethodsType &
   GeneralPayButtonProps &
@@ -34,8 +35,6 @@ export const LocalPaymentMethodMask: FC<
 > = ({
   processorUrl,
   paymentType,
-  countryCode,
-  currencyCode,
   fullWidth = true,
   buttonText,
   merchantAccountId,
@@ -58,6 +57,22 @@ export const LocalPaymentMethodMask: FC<
   const { saveLocalPaymentIdUrl } = processorUrls(processorUrl);
 
   const invokePayment = (e: MouseEvent<HTMLButtonElement>): void => {
+    if (!paymentInfo.countryCode) {
+      notify("Error", "Missing country information");
+      return;
+    }
+    const { isCountryValid, isCurrencyValid } = validateCountryAndCurrency(
+      paymentType,
+      paymentInfo.countryCode,
+      paymentInfo.currency,
+    );
+    if (!isCountryValid || !isCurrencyValid) {
+      const invalid = [!isCountryValid && "country", !isCurrencyValid && "currency"]
+        .filter(Boolean)
+        .join(" and ");
+      notify("Error", `This payment method is not available for the selected ${invalid}.`);
+      return;
+    }
     let overridePaymentVersion: number;
     e.preventDefault();
     if (!localPaymentInstance) {
@@ -76,9 +91,9 @@ export const LocalPaymentMethodMask: FC<
         email: paymentInfo.email,
         givenName: paymentInfo.firstName,
         surname: paymentInfo.lastName,
-        countryCode: countryCode,
-        paymentTypeCountryCode: countryCode,
-        currencyCode: currencyCode,
+        countryCode: paymentInfo.countryCode,
+        paymentTypeCountryCode: paymentInfo.countryCode,
+        currencyCode: paymentInfo.currency,
         shippingAddressRequired: shippingAddressRequired,
         onPaymentStart: function (data, start) {
           setLocalPaymentId(data.paymentId, saveLocalPaymentIdUrl).then(

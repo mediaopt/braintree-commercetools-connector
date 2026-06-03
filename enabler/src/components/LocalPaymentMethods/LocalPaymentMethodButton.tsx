@@ -17,8 +17,6 @@ export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
   fullWidth = true,
   buttonText = PAY_BUTTON_TEXT_FALLBACK,
   paymentType,
-  currencyCode,
-  countryCode,
   fallbackUrl,
   fallbackButtonText = PAY_BUTTON_TEXT_FALLBACK,
   shippingAddressRequired,
@@ -29,8 +27,6 @@ export const LocalPaymentMethodButton: FC<LocalPaymentMethod> = ({
     <LocalPaymentMethodMask
       processorUrl={processorUrl}
       paymentType={paymentType}
-      countryCode={countryCode}
-      currencyCode={currencyCode}
       fullWidth={fullWidth}
       buttonText={buttonText}
       fallbackUrl={fallbackUrl}

@@ -22,7 +22,10 @@ import { CreditCardButton } from "../CreditCard/CreditCardButton";
 import { GooglePayButton } from "../GooglePay/GooglePayButton";
 import { PayPalButton } from "../PayPal/PayPalButton";
 import { VenmoButton } from "../Venmo/VenmoButton";
+import { LocalPaymentMethodButton } from "../LocalPaymentMethods/LocalPaymentMethodButton";
 import { BuilderType } from "../../types";
+import { SupportedLocalPaymentTypes } from "../LocalPaymentMethods/types";
+import { SUPPORTED_LOCAL_PAYMENT_TYPES } from "../LocalPaymentMethods/constants";
 
 type BraintreeBuilderTemplateProps = {
   paymentMethodType: BraintreePaymentMethodType;
@@ -53,8 +56,6 @@ const ComponentWithCustomOptions = ({
           {...customOptions}
         />
       );
-    // case "LocalPaymentMethods":
-    //   return <LocalPaymentMethodButton {...customOptions} />
     case "PayPal":
       if (`${builderType}` === "express") {
         // Express: shipping is handled through the PayPal flow — enableShippingAddress is locked on
@@ -97,18 +98,20 @@ const ComponentWithCustomOptions = ({
           {...customOptions}
           flow={"vault" as FlowType}
           isPureVault={true}
-
         />
       );
     case "CreditCardVault":
-      return (
-        <CreditCardButton
-          {...customOptions}
-          isPureVault={true}
-        />
-      );
+      return <CreditCardButton {...customOptions} isPureVault={true} />;
 
     default:
+      if (SUPPORTED_LOCAL_PAYMENT_TYPES.includes(paymentMethodType as SupportedLocalPaymentTypes)) {
+        return (
+          <LocalPaymentMethodButton
+            paymentType={paymentMethodType as SupportedLocalPaymentTypes}
+            {...customOptions}
+          />
+        );
+      }
       return <CreditCardButton {...customOptions} />;
   }
 };

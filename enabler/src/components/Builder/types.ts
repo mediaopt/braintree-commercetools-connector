@@ -1,10 +1,11 @@
-export type BraintreePaymentMethodType =
+import { SupportedLocalPaymentTypes } from '../LocalPaymentMethods/types';
+
+export type BraintreePaymentMethodType = SupportedLocalPaymentTypes
   | "ACH"
   | "ApplePay"
   | "CreditCard"
   | "CreditCardVault"
   | "GooglePay"
-  | "LocalPaymentMethod"
   | "PayPal"
   | "PayPalVault"
   | "Venmo";
