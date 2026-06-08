@@ -13,7 +13,14 @@ export enum PaymentMethodType {
   CREDIT_CARD = 'CreditCard',
   CREDIT_CARD_VAULT = 'CreditCardVault',
   GOOGLE_PAY = 'GooglePay',
-  LOCAL_PAYMENT_METHOD = 'LocalPaymentMethod',
+  BANCONTACT = 'bancontact',
+  BLIK = 'blik',
+  EPS = 'eps',
+  GIROPAY = 'giropay',
+  IDEAL = 'ideal',
+  SOFORT = 'sofort',
+  MYBANK = 'mybank',
+  P24 = 'p24',
   PAYPAL = 'PayPal',
   PAYPAL_VAULT = 'PayPalVault',
   VENMO = 'Venmo',
@@ -42,6 +49,8 @@ const PaymentFrontendRenderingSchema = Type.Object({
   streetName: Type.Optional(Type.String()),
   streetNumber: Type.Optional(Type.String()),
   postalCode: Type.Optional(Type.String()),
+  countryCode: Type.Optional(Type.String()),
+  fallbackUrl: Type.Optional(Type.String()),
   braintreeLineItems: Type.Optional(Type.Array(BraintreeLineItemSchema)),
 });
 
@@ -66,7 +75,6 @@ export const InitPaymentResponseSchema = Type.Object({
 export const PaymentOutcomeSchema = Type.Enum(PaymentOutcome);
 
 export const InitPaymentRequestSchema = Type.Object({
-  merchantAccountId: Type.Optional(Type.String()),
   paymentMethodType: Type.Enum(PaymentMethodType),
   builderType: Type.Optional(Type.Enum(CustomBuilderType)),
 
