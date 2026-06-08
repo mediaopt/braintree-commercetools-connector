@@ -172,7 +172,7 @@ export abstract class AbstractPaymentService {
    * | refund        | refund    |
    * | cancel        | void      |
    *
-   * reverse is not relevant for braintree connector and not implemented in current connector iteration
+   * reverse is not implemented in current connector iteration
    *
    * @param opts - input for payment modification including payment ID, action and payment amount
    * @returns Promise with success response
