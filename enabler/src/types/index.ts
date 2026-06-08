@@ -10,11 +10,9 @@ import {
   ThreeDSecureAdditionalInformation,
   ThreeDSecureBillingAddress,
 } from "braintree-web/three-d-secure";
-import {
-  BraintreePaymentMethodType
-} from "../components/Builder/types";
+import { BraintreePaymentMethodType } from "../components/Builder/types";
 import { ShippingOption } from "paypal-checkout-components/modules/callback-data";
-import { SupportedLocalPaymentTypes } from '../components/LocalPaymentMethods/types';
+import { SupportedLocalPaymentTypes } from "../components/LocalPaymentMethods/types";
 
 export type ClientTokenRequest = {
   paymentId: string;
@@ -104,8 +102,8 @@ type RequiredPaymentData = {
 };
 
 type OptionalPerMethodPaymentData = {
-  firstName?: string; //ACH
-  lastName?: string; //ACH
+  firstName?: string; //ACH, local payment methods
+  lastName?: string; //ACH, local payment methods
   streetName?: string; //ACH
   streetNumber?: string; //ACH
   postalCode?: string; //ACH

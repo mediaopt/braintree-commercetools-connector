@@ -254,7 +254,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
         { type: PaymentMethodType.GOOGLE_PAY },
         { type: PaymentMethodType.PAYPAL },
         { type: PaymentMethodType.VENMO },
-        { type: PaymentMethodType.LOCAL_PAYMENT_METHOD, subtypes: ['IDEALO', 'BLIK'] },
+        { type: PaymentMethodType.BANCONTACT },
+        { type: PaymentMethodType.BLIK },
+        { type: PaymentMethodType.EPS },
+        { type: PaymentMethodType.GIROPAY },
+        { type: PaymentMethodType.IDEAL },
+        { type: PaymentMethodType.SOFORT },
+        { type: PaymentMethodType.MYBANK },
+        { type: PaymentMethodType.P24 },
       ],
       express: [
         { type: PaymentMethodType.PAYPAL },
@@ -291,9 +298,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
     builderType,
     paymentMethodType,
   }: PaymentRequestSchemaDTO): Promise<PaymentResponseSchemaDTO> {
-    this.validatePaymentMethod({ merchantAccountId, paymentMethodType });
     const merchantAccountId = getConfig().merchantAccountId;
 
+    this.validatePaymentMethod(paymentMethodType, merchantAccountId);
     const isPureVault =
       paymentMethodType === PaymentMethodType.PAYPAL_VAULT || paymentMethodType === PaymentMethodType.CREDIT_CARD_VAULT;
     const isExpress = paymentMethodType === 'PayPal' && builderType === 'express';
@@ -373,6 +380,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     return {
       braintreeData: { clientToken: tokenResponse, braintreeCustomerId },
       payment: {
+        firstName: ctCart.billingAddress?.firstName,
+        lastName: ctCart.billingAddress?.lastName,
         ctPaymentId: updatedPayment.id,
         currency: ctPayment.amountPlanned.currencyCode,
         braintreeAmount: Number(mapCommercetoolsMoneyToBraintreeMoney(ctPayment.amountPlanned)),

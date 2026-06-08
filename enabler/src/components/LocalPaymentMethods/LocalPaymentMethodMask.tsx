@@ -25,6 +25,7 @@ import { useLoader } from "../../app/useLoader";
 import { renderMaskButtonClasses } from "../../styles";
 import { processorUrls } from "../constants";
 import { validateCountryAndCurrency } from "./validateCountryAndCurrency";
+import { invalidDataLog } from "./invalidDataLog";
 
 type LocalPaymentMethodMaskType = LocalPaymentMethodsType &
   GeneralPayButtonProps &
@@ -38,7 +39,6 @@ export const LocalPaymentMethodMask: FC<
   fullWidth = true,
   buttonText,
   merchantAccountId,
-  fallbackUrl,
   fallbackButtonText,
   shippingAddressRequired,
   useKount,
@@ -57,8 +57,19 @@ export const LocalPaymentMethodMask: FC<
   const { saveLocalPaymentIdUrl } = processorUrls(processorUrl);
 
   const invokePayment = (e: MouseEvent<HTMLButtonElement>): void => {
-    if (!paymentInfo.countryCode) {
-      notify("Error", "Missing country information");
+    if (
+      !paymentInfo.countryCode ||
+      !paymentInfo.firstName ||
+      !paymentInfo.lastName
+    ) {
+      notify(
+        "Error",
+        invalidDataLog([
+          !paymentInfo.countryCode && "country",
+          !paymentInfo.firstName && "name",
+          !paymentInfo.lastName && "last name",
+        ]),
+      );
       return;
     }
     const { isCountryValid, isCurrencyValid } = validateCountryAndCurrency(
@@ -67,10 +78,13 @@ export const LocalPaymentMethodMask: FC<
       paymentInfo.currency,
     );
     if (!isCountryValid || !isCurrencyValid) {
-      const invalid = [!isCountryValid && "country", !isCurrencyValid && "currency"]
-        .filter(Boolean)
-        .join(" and ");
-      notify("Error", `This payment method is not available for the selected ${invalid}.`);
+      notify(
+        "Error",
+        invalidDataLog(
+          [!isCountryValid && "country", !isCurrencyValid && "currency"],
+          "This method is not available for",
+        ),
+      );
       return;
     }
     let overridePaymentVersion: number;
@@ -81,11 +95,12 @@ export const LocalPaymentMethodMask: FC<
     }
     isLoading(true);
     localPaymentInstance.startPayment(
+      //see https://braintree.github.io/braintree-web/current/LocalPayment.html#~StartPaymentOptions
       {
         paymentType: paymentType,
         amount: paymentInfo.braintreeAmount,
         fallback: {
-          url: fallbackUrl,
+          url: paymentInfo.fallbackUrl,
           buttonText: fallbackButtonText,
         },
         email: paymentInfo.email,
@@ -146,8 +161,9 @@ export const LocalPaymentMethodMask: FC<
           notify("Error", clientError.message);
           return;
         }
-        const localPaymentAuthOption: any = merchantAccountId
-          ? { merchantAccountId: merchantAccountId }
+        const localPaymentAuthOption: any =
+          merchantAccountId
+          ? { merchantAccountId:merchantAccountId }
           : { authorization: clientToken };
         localPaymentAuthOption.client = clientInstance;
         localPayment.create(
