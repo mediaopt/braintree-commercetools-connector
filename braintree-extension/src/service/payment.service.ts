@@ -37,12 +37,12 @@ import {
   getCurrentTimestamp,
   mapCommercetoolsMoneyToBraintreeMoney,
   mapBraintreeTransactionToCommercetoolsTransaction,
-  getPaymentMethodHint,
   UpdateActions,
   mapRequestToBraintreeTransactionSale,
   mapBraintreeStatusToCommercetoolsTransactionType,
   findSuitableTransactionId,
   PaymentWithOptionalTransaction,
+  updatePaymentFields,
 } from 'common-connect/dist';
 
 const getPayPalOrderPaymentToken = (payment: Payment) => {
@@ -257,26 +257,6 @@ export async function refund(
       paymentWithOptionalTransaction?.transaction?.id
     );
   }
-}
-
-function updatePaymentFields(response: Transaction): UpdateActions {
-  const updateActions: UpdateActions = [];
-  updateActions.push({
-    action: 'setStatusInterfaceCode',
-    interfaceCode: response.status,
-  });
-  updateActions.push({
-    action: 'setStatusInterfaceText',
-    interfaceText: response.status,
-  });
-  const paymentMethodHint = getPaymentMethodHint(response);
-  updateActions.push({
-    action: 'setMethodInfoMethod',
-    method:
-      response.paymentInstrumentType +
-      (paymentMethodHint ? ` (${paymentMethodHint})` : ''),
-  });
-  return updateActions;
 }
 
 export async function submitForSettlement(

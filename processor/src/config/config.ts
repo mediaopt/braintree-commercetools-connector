@@ -21,9 +21,11 @@ export const config = {
   braintreeEnvironment: process.env.BRAINTREE_ENVIRONMENT || 'Sandbox',
   //recommended for Braintree
   braintreeMerchantId: process.env.BRAINTREE_MERCHANT_ID,
+  merchantAccountId: process.env.BRAINTREE_MERCHANT_ACCOUNT, //required for local payment methods, recommended for all
 
   // Payment Providers config
   returnUrl: process.env.MERCHANT_RETURN_URL || '',
+  localPaymentFallbackUrl: process.env.LOCAL_PAYMENT_FALLBACK_URL || '', //required for local payment methods
   paymentInterface: 'Braintree',
 
   // TODO review these configurations
