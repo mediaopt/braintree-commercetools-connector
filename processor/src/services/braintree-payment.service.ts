@@ -24,7 +24,7 @@ import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-
 import packageJSON from '../../package.json';
 
 import { AbstractPaymentService } from './abstract-payment.service';
-import { config, getConfig } from '../config/config';
+import { getConfig } from '../config/config';
 import { appLogger, paymentSDK } from '../payment-sdk';
 import { BraintreePaymentServiceOptions } from './types/braintree-payment.type';
 import {
@@ -134,7 +134,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   private buildRedirectMerchantUrl(paymentReference: string, paymentStatus?: string): string | undefined {
-    const merchantReturnUrl = getMerchantReturnUrlFromContext() || config.returnUrl;
+    const merchantReturnUrl = getMerchantReturnUrlFromContext() || getConfig().returnUrl;
     if (!merchantReturnUrl?.length) return undefined;
     const redirectUrl = new URL(merchantReturnUrl);
 
@@ -288,11 +288,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
    */
 
   public async createPayment({
-    merchantAccountId,
     builderType,
     paymentMethodType,
   }: PaymentRequestSchemaDTO): Promise<PaymentResponseSchemaDTO> {
     this.validatePaymentMethod({ merchantAccountId, paymentMethodType });
+    const merchantAccountId = getConfig().merchantAccountId;
+
     const isPureVault =
       paymentMethodType === PaymentMethodType.PAYPAL_VAULT || paymentMethodType === PaymentMethodType.CREDIT_CARD_VAULT;
     const isExpress = paymentMethodType === 'PayPal' && builderType === 'express';
@@ -389,6 +390,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
           : undefined,
         ctCustomerId: customer?.id,
         ctCustomerVersion: customer?.version,
+        countryCode: ctCart.billingAddress?.country,
+        fallbackUrl: getConfig().localPaymentFallbackUrl || undefined,
         //taxAmount
         //shippingAmount
         //discountAmount
@@ -640,9 +643,19 @@ export class BraintreePaymentService extends AbstractPaymentService {
       throw new ErrorInvalidOperation('Required data missing: email or address');
   }
 
-  private validatePaymentMethod({ merchantAccountId, paymentMethodType }: PaymentRequestSchemaDTO): void {
-    if (paymentMethodType === 'LocalPaymentMethod' && !merchantAccountId)
-      throw new ErrorRequiredField('merchantAccountId');
+  private validatePaymentMethod(paymentMethodType: PaymentMethodType, braintreeMerchantAccount?: string): void {
+    const localPaymentTypes = new Set<string>([
+      PaymentMethodType.BANCONTACT,
+      PaymentMethodType.BLIK,
+      PaymentMethodType.EPS,
+      PaymentMethodType.GIROPAY,
+      PaymentMethodType.IDEAL,
+      PaymentMethodType.SOFORT,
+      PaymentMethodType.MYBANK,
+      PaymentMethodType.P24,
+    ]);
+    if (localPaymentTypes.has(paymentMethodType) && !braintreeMerchantAccount)
+      throw new ErrorRequiredField('braintreeMerchantAccount');
   }
 
   private validateCustomerRequiredData(ctCustomer: Customer | void, isPureVault?: boolean): void {

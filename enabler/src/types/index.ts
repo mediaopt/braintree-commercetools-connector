@@ -116,6 +116,7 @@ type OptionalPerMethodPaymentData = {
   ctCustomerId?: string; //vault
   ctCustomerVersion?: string; //vault
   countryCode?: string; //local payment methods
+  fallbackUrl?: string; //local payment methods
 };
 
 export type PaymentInfo = RequiredPaymentData & OptionalPerMethodPaymentData;
@@ -244,7 +245,6 @@ export type AchVaultResponse = {
 export type LocalPaymentMethodsType = {
   paymentType: SupportedLocalPaymentTypes;
   shippingAddressRequired?: boolean;
-  fallbackUrl?: string;
   fallbackButtonText?: string;
   merchantAccountId?: string;
 };
