@@ -435,7 +435,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (isTokenFresh && existingPayment.custom?.fields?.getClientTokenResponse) {
       return {
         payment: existingPayment,
-        clientToken: existingPayment.custom.fields.getClientTokenResponse as string,
+        clientToken: JSON.parse(existingPayment.custom.fields.getClientTokenResponse) as string,
       };
     }
 
