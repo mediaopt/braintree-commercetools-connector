@@ -125,6 +125,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
     const handleInitPayment = async () => {
       setInitializingPayment(true);
       isLoading(true);
+      console.log("init payment");
       try {
         const createPaymentResult = await processorRequest<
           CreatePaymentRequest,
@@ -134,6 +135,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
           paymentMethodType,
           merchantAccountId,
         });
+        console.log(createPaymentResult);
         if (createPaymentResult) {
           setClientToken(createPaymentResult.braintreeData.clientToken);
           setBraintreeCustomerId(
@@ -151,6 +153,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       } finally {
         setInitializingPayment(false);
         isLoading(false);
+        console.log("reached finally");
       }
     };
     handleInitPayment();
