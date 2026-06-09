@@ -10,7 +10,7 @@ import {
 } from '@commercetools/connect-payments-sdk';
 
 import { CustomerResourceIdentifier } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/customer';
-import { ShippingMethod, CentPrecisionMoney, PaymentMethodInfoDraft } from '@commercetools/platform-sdk';
+import { ShippingMethod, CentPrecisionMoney, PaymentMethodInfoDraft, CustomFields } from '@commercetools/platform-sdk';
 import { Transaction } from 'braintree';
 
 import {
@@ -55,6 +55,7 @@ import {
   findSuitableTransactionId,
   deletePayment as braintreeDeletePayment,
   getCurrentTimestamp,
+  logger,
 } from 'common-connect/dist';
 import { handleCustomTransactionFields, handleCustomFieldResponse } from '../utils/customEntities.utils';
 
@@ -65,6 +66,8 @@ import {
 } from '../utils/shipping.utils';
 import { BraintreeCustomerService } from './braintree-customer.service';
 import { successGeneralResponse } from './constants';
+
+const TOKEN_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 export class BraintreePaymentService extends AbstractPaymentService {
   private braintreeCustomerService: BraintreeCustomerService;
@@ -299,7 +302,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
     paymentMethodType,
   }: PaymentRequestSchemaDTO): Promise<PaymentResponseSchemaDTO> {
     const merchantAccountId = getConfig().merchantAccountId;
-
     this.validatePaymentMethod(paymentMethodType, merchantAccountId);
     const isPureVault =
       paymentMethodType === PaymentMethodType.PAYPAL_VAULT || paymentMethodType === PaymentMethodType.CREDIT_CARD_VAULT;
@@ -321,11 +323,16 @@ export class BraintreePaymentService extends AbstractPaymentService {
           anonymousId: ctCart.anonymousId,
         };
 
+    const lastPaymentRef = !isPureVault
+      ? ctCart.paymentInfo?.payments?.[ctCart.paymentInfo.payments.length - 1]
+      : undefined;
+
     // Execute all optional data fetching in parallel
-    const [customer, shippingMethodsResult, amountPlanned] = await Promise.all([
+    const [customer, shippingMethodsResult, amountPlanned, existingPayment] = await Promise.all([
       ctCart.customerId ? this.braintreeCustomerService.getCtCustomer(ctCart.customerId) : Promise.resolve(undefined),
       isExpress ? this.getShippingMethods(ctCart.id) : Promise.resolve([]),
       isPureVault ? ctCart.totalPrice : this.ctCartService.getPaymentAmount({ cart: ctCart }),
+      lastPaymentRef ? this.ctPaymentService.getPayment({ id: lastPaymentRef.id }) : Promise.resolve(undefined),
     ]);
 
     this.validateCustomerRequiredData(customer, isPureVault);
@@ -333,56 +340,123 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
     const shippingMethods = shippingMethodsResult || [];
 
-    /**
-     * We intentionally don't check if a payment already exists because:
-     * It cannot be done through the Checkout API yet
-     * Therefore it would unnecessarily slow down the createPayment call
-     */
-
-    const ctPayment = await this.ctPaymentService.createPayment({
+    const { payment: reusedPayment, clientToken: cachedToken } = this.existingPaymentAndToken(
+      existingPayment,
       amountPlanned,
-      paymentMethodInfo: {
-        paymentInterface: getConfig().paymentInterface, //todo - check if a more relevant interface exists
+    );
+
+    const [newPayment, fetchedToken] = await Promise.all([
+      reusedPayment
+        ? Promise.resolve()
+        : this.ctPaymentService.createPayment({
+            amountPlanned,
+            paymentMethodInfo: { paymentInterface: getConfig().paymentInterface }, //todo - check if a more relevant interface exists
+            ...customerPaymentInfo,
+            paymentStatus: { interfaceCode: 'Initial', interfaceText: 'Initial' },
+          }),
+      cachedToken !== undefined
+        ? Promise.resolve()
+        : getClientToken({ merchantAccountId, customerId: braintreeCustomerId }),
+    ]);
+
+    const ctPayment = reusedPayment ?? newPayment;
+    const clientToken = cachedToken ?? fetchedToken;
+    if (!ctPayment || !clientToken)
+      throw new ErrorInvalidOperation(
+        `Payment or token resolution failed, payment id ${ctPayment?.id}, cart id: ${ctCart.id}`,
+      );
+
+    await Promise.all([
+      newPayment && !isPureVault
+        ? this.ctCartService.addPayment({
+            resource: { id: ctCart.id, version: ctCart.version },
+            paymentId: newPayment.id,
+          }) //it is not possible to add the payment to empty cart via checkout API, but for the pure vault all relevant data will be saved on customer anyway
+        : Promise.resolve(),
+      cachedToken === undefined
+        ? this.ctPaymentService.updatePayment({
+            id: ctPayment.id,
+            customFields: handleCustomFieldResponse('getClientToken', clientToken),
+            pspInteractions: [
+              handleInterfaceInteraction({
+                messageName: 'getClientToken',
+                message: { merchantAccountId, isPureVault, builderType, paymentMethodType },
+                messageType: 'ProcessorRequest',
+              }),
+              handleInterfaceInteraction({
+                messageName: 'getClientToken',
+                message: clientToken,
+                messageType: 'Response',
+              }),
+            ],
+          })
+        : Promise.resolve(),
+    ]);
+
+    return this.buildCreatePaymentResponse(
+      ctPayment,
+      clientToken,
+      ctCart,
+      isPureVault,
+      customer ?? undefined,
+      shippingMethods,
+      braintreeCustomerId,
+    );
+  }
+
+  private existingPaymentAndToken(
+    existingPayment: Payment | undefined,
+    amountPlanned: { centAmount: number; currencyCode: string },
+  ): { payment: Payment | undefined; clientToken: string | undefined } {
+    if (!existingPayment) return { payment: undefined, clientToken: undefined };
+
+    const isAmountMismatch =
+      existingPayment.amountPlanned.centAmount !== amountPlanned.centAmount ||
+      existingPayment.amountPlanned.currencyCode !== amountPlanned.currencyCode;
+
+    if (isAmountMismatch || existingPayment.transactions.length > 0) {
+      return { payment: undefined, clientToken: undefined };
+    }
+
+    const tokenInteraction = existingPayment.interfaceInteractions.reduce<CustomFields | undefined>(
+      (latest, current) => {
+        if (current.fields?.type !== 'getClientTokenResponse') return latest;
+        if (!latest) return current;
+        return new Date(current.fields.timestamp).getTime() > new Date(latest.fields.timestamp).getTime()
+          ? current
+          : latest;
       },
-      ...customerPaymentInfo,
-    });
+      undefined,
+    );
 
-    if (!isPureVault)
-      await this.ctCartService.addPayment({
-        resource: {
-          id: ctCart.id,
-          version: ctCart.version,
-        },
-        paymentId: ctPayment.id,
-      }); //it is not possible to add the payment to empty cart via checkout API, but for the pure vault all relevant data will be saved on customer anyway
-    const requestInteraction = handleInterfaceInteraction({
-      messageName: 'getClientToken',
-      message: { merchantAccountId, isPureVault, builderType, paymentMethodType },
-      messageType: 'ProcessorRequest',
-    });
-    const tokenResponse = await getClientToken({
-      merchantAccountId: merchantAccountId,
-      customerId: braintreeCustomerId,
-    });
-    const customFields = handleCustomFieldResponse('getClientToken', tokenResponse); //request is only needed for braintree extension to trigger API flow, for processor it can be seen in interaction logs
-    const responseInteraction = handleInterfaceInteraction({
-      messageName: 'getClientToken',
-      message: tokenResponse,
-      messageType: 'Response',
-    });
+    const isTokenFresh =
+      !!tokenInteraction && Date.now() - new Date(tokenInteraction.fields.timestamp).getTime() < TOKEN_MAX_AGE_MS;
 
-    const updatedPayment = await this.ctPaymentService.updatePayment({
-      id: ctPayment.id,
-      customFields,
-      pspInteractions: [requestInteraction, responseInteraction],
-    });
+    if (isTokenFresh && existingPayment.custom?.fields?.getClientTokenResponse) {
+      return {
+        payment: existingPayment,
+        clientToken: existingPayment.custom.fields.getClientTokenResponse as string,
+      };
+    }
 
+    return { payment: existingPayment, clientToken: undefined };
+  }
+
+  private buildCreatePaymentResponse(
+    ctPayment: Payment,
+    clientToken: string,
+    ctCart: Cart,
+    isPureVault: boolean,
+    customer: Customer | undefined,
+    shippingMethods: ShippingMethod[],
+    braintreeCustomerId: string | undefined,
+  ): PaymentResponseSchemaDTO {
     return {
-      braintreeData: { clientToken: tokenResponse, braintreeCustomerId },
+      braintreeData: { clientToken, braintreeCustomerId },
       payment: {
         firstName: ctCart.billingAddress?.firstName,
         lastName: ctCart.billingAddress?.lastName,
-        ctPaymentId: updatedPayment.id,
+        ctPaymentId: ctPayment.id,
         currency: ctPayment.amountPlanned.currencyCode,
         braintreeAmount: Number(mapCommercetoolsMoneyToBraintreeMoney(ctPayment.amountPlanned)),
         email: ctCart.customerEmail,
