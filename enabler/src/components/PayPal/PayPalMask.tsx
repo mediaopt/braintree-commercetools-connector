@@ -1,4 +1,11 @@
-import { useEffect, useState, FC, PropsWithChildren, ChangeEvent } from "react";
+import {
+  useEffect,
+  useState,
+  FC,
+  PropsWithChildren,
+  ChangeEvent,
+  useMemo,
+} from "react";
 import {
   client as braintreeClient,
   paypalCheckout,
@@ -14,6 +21,7 @@ import {
   PayPalProps,
   GeneralPayButtonProps,
   PayPalFundingSourcesProp,
+  LineItemKind,
 } from "../../types";
 
 import { HOSTED_FIELDS_LABEL, renderMaskButtonClasses } from "../../styles";
@@ -31,6 +39,14 @@ type LimitedVaultedPayment = {
 };
 
 const FUNDING_SOURCES = ["paypal"];
+
+const lineItemPlaceholders = {
+  quantity: "1",
+  unitTaxAmount: "0.00",
+  description: "",
+  url: "",
+};
+
 
 export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   flow,
@@ -73,7 +89,34 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
 
-  console.log("braintreeLineItems", paymentInfo.braintreeLineItems);
+  const [updatedTotal, setUpdatedTotal] = useState<string>();
+  const [updatedDiscount, setUpdatedDiscount] = useState<string>();
+
+  // When shipping changes on express flow, the discount amount in braintreeLineItems may also change,
+  // or a discount may appear that wasn't present at payment creation
+  const extendedItems = useMemo(() => {
+    const items = paymentInfo.braintreeLineItems;
+    if (!items || !updatedDiscount) return items;
+    const hasDiscount = items.some((item) => item.productCode === "DISCOUNT");
+    if (hasDiscount) {
+      return items.map((item) =>
+        item.productCode === "DISCOUNT"
+          ? { ...item, unitAmount: updatedDiscount, totalAmount: updatedDiscount }
+          : item,
+      );
+    }
+    return [
+      ...items,
+      {
+        name: "Discount",
+        kind: LineItemKind.Credit,
+        unitAmount: updatedDiscount,
+        totalAmount: updatedDiscount,
+        productCode: "DISCOUNT",
+        ...lineItemPlaceholders,
+      },
+    ];
+  }, [paymentInfo.braintreeLineItems, updatedDiscount]);
 
   useEffect(() => {
     if (isPureVault) {
@@ -201,7 +244,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               payload.details.shippingAddress.postalCode,
                           },
                           braintreePaymentDetails: {
-                            braintreeLineItems: paymentInfo.braintreeLineItems,
+                            braintreeLineItems: extendedItems,
                             braintreeShipping: payload.shippingAddress,
                             extraShippingCost: payload.shippingOptionId
                               ? shippingOptions?.find(
@@ -237,11 +280,10 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                       createBillingAgreement: function () {
                         return paypalCheckoutInstance.createPayment({
                           flow: flow,
-                          billingAgreementDescription:
-                            billingAgreementDescription,
-                          enableShippingAddress: enableShippingAddress,
-                          shippingAddressEditable: shippingAddressEditable,
-                          shippingAddressOverride: shippingAddressOverride,
+                          billingAgreementDescription,
+                          enableShippingAddress,
+                          shippingAddressEditable,
+                          shippingAddressOverride,
                         });
                       },
                       //@ts-ignore
@@ -284,9 +326,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           if (!relevantShippingOptions.length)
                             return actions.reject();
 
-                          let actualPaymentAmount =
-                            paymentInfo.braintreeAmount.toFixed(2);
-
                           const initSelectedMethod = shippingOptions.find(
                             ({ selected }) => selected,
                           );
@@ -315,34 +354,34 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                             initSelectedMethod?.id !==
                             relevantShippingOptions[activateIndex].id
                           ) {
-                            actualPaymentAmount = await updateCartShipping(
+                            const shippingResult = await updateCartShipping(
                               relevantShippingOptions[activateIndex].id,
                             );
+                            setUpdatedTotal(shippingResult.braintreeAmount);
+                            setUpdatedDiscount(shippingResult.discountAmount);
+                            return paypalCheckoutInstance.updatePayment({
+                              amount: shippingResult.braintreeAmount,
+                              currency: paymentInfo.currency,
+                              lineItems: extendedItems,
+                              paymentId: data.paymentId,
+                              shippingOptions: braintreeShippingOptions,
+                            });
                           } //shipping id matters for the final amount and can be influences by other props like cart discount so it must be updated prior to PayPal payment
-                          //address doesn't influence the payment directly - only if it forces the shipping to change, so it could be synced after
-
-                          return paypalCheckoutInstance.updatePayment({
-                            amount: actualPaymentAmount,
-                            currency: paymentInfo.currency,
-                            lineItems: paymentInfo.braintreeLineItems,
-                            paymentId: data.paymentId,
-                            shippingOptions: braintreeShippingOptions,
-                          });
+                          //address doesn't influence the payment directly - only if it forces the shipping to change, so it could be synced at transactionSale step on the processor if shipping method doesn't need to change
                         },
 
                         createOrder: () => {
                           return paypalCheckoutInstance.createPayment({
                             flow: flow,
                             locale: locale,
-                            lineItems: paymentInfo.braintreeLineItems,
-                            amount: paymentInfo.braintreeAmount,
+                            lineItems: extendedItems,
+                            amount: updatedTotal ?? paymentInfo.braintreeAmount,
                             currency: paymentInfo.currency,
-                            intent: intent,
-                            enableShippingAddress: enableShippingAddress,
-                            shippingAddressEditable: shippingAddressEditable,
-                            billingAgreementDescription:
-                              billingAgreementDescription,
-                            shippingAddressOverride: shippingAddressOverride,
+                            intent,
+                            enableShippingAddress,
+                            shippingAddressEditable,
+                            billingAgreementDescription,
+                            shippingAddressOverride,
                           });
                         },
 

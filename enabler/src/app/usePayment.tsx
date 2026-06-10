@@ -59,7 +59,7 @@ type PaymentContextT = {
   paymentInfo: PaymentInfo;
   vaultedPaymentMethods: FetchPaymentMethodsPayload[];
   handleGetVaultedPaymentMethods: () => Promise<FetchPaymentMethodsPayload[]>;
-  updateCartShipping: (newShippingMethodId: string) => Promise<string>;
+  updateCartShipping: (newShippingMethodId: string) => Promise<{ braintreeAmount: string; discountAmount?: string }>;
   braintreeCustomerId: string;
   requestHeader: RequestHeader;
 };
@@ -82,7 +82,7 @@ const PaymentContext = createContext<PaymentContextT>({
     new Promise<FetchPaymentMethodsPayload[]>(
       (resolve) => [] as FetchPaymentMethodsPayload[],
     ),
-  updateCartShipping: () => new Promise<string>(() => ""),
+  updateCartShipping: () => new Promise<{ braintreeAmount: string; discountAmount?: string }>(() => ({ braintreeAmount: "" })),
   braintreeCustomerId: "",
   requestHeader: {},
 });
@@ -125,7 +125,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
     const handleInitPayment = async () => {
       setInitializingPayment(true);
       isLoading(true);
-      console.log("init payment");
       try {
         const createPaymentResult = await processorRequest<
           CreatePaymentRequest,
@@ -135,7 +134,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
           paymentMethodType,
           merchantAccountId,
         });
-        console.log(createPaymentResult);
         if (createPaymentResult) {
           setClientToken(createPaymentResult.braintreeData.clientToken);
           setBraintreeCustomerId(
@@ -153,7 +151,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       } finally {
         setInitializingPayment(false);
         isLoading(false);
-        console.log("reached finally");
       }
     };
     handleInitPayment();
@@ -214,29 +211,17 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       paymentNonce,
       options?,
     ) => {
-      const additional = options ?? {};
-
-      // if (taxAmount) {
-      //   additional.taxAmount = taxAmount;
-      // }
-      //
-      // if (shippingAmount) {
-      //   additional.shippingAmount = shippingAmount;
-      // }
-      //
-      // if (discountAmount) {
-      //   additional.discountAmount = discountAmount;
-      // }
-      console.log("in transaction sale", paymentInfo.braintreeLineItems);
+      const { braintreePaymentDetails: incomingDetails, ...rest } = options ?? {};
 
       const requestBody = {
         ctPaymentId: paymentInfo.ctPaymentId,
         paymentMethodNonce: paymentNonce,
         braintreePaymentDetails: {
-          braintreeLineItems: paymentInfo.braintreeLineItems,
-          braintreeShipping: paymentInfo.braintreeShipping,
+          braintreeLineItems: incomingDetails?.braintreeLineItems ?? paymentInfo.braintreeLineItems,
+          braintreeShipping: incomingDetails?.braintreeShipping ?? paymentInfo.braintreeShipping,
+          extraShippingCost: incomingDetails?.extraShippingCost,
         },
-        ...additional,
+        ...rest,
       };
 
       isLoading(true);
@@ -296,15 +281,11 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
     };
 
     const updateCartShipping = async (newShippingMethodId: string) => {
-      const requestBody = {
-        newShippingMethodId,
-      };
-      const response = (await processorRequest<ChangeShippingRequest>(
+      return (await processorRequest<ChangeShippingRequest>(
         requestHeader,
         updateCartShippingUrl,
-        requestBody,
-      )) as { braintreeAmount: string };
-      return response.braintreeAmount;
+        { newShippingMethodId },
+      )) as { braintreeAmount: string; discountAmount?: string };
     };
 
     return {

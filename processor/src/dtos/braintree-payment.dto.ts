@@ -59,6 +59,7 @@ const PaymentVaultSchema = Type.Object({
   ctCustomerVersion: Type.Optional(Type.Number()),
 });
 
+// Shape must match CreatePaymentResponse in enabler/src/types/index.ts
 export const InitPaymentResponseSchema = Type.Object({
   braintreeData: Type.Object({
     clientToken: Type.String(),
@@ -146,3 +147,9 @@ export const RefundRequestSchema = Type.Object({
   braintreeAmount: Type.Optional(Type.String()),
   transactionId: Type.Optional(Type.String()),
 });
+
+export const UpdateCartShippingResponseSchema = Type.Object({
+  braintreeAmount: Type.String(),
+  discountAmount: Type.Optional(Type.String()),
+});
+export type UpdateCartShippingResponseSchemaDTO = Static<typeof UpdateCartShippingResponseSchema>;

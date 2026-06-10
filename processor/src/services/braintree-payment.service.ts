@@ -35,6 +35,7 @@ import {
   PaymentResponseSchemaDTO,
   PureVaultRequestSchemaDTO,
   TransactionSaleRequestSchemaDTO,
+  UpdateCartShippingResponseSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { getCartIdFromContext, getMerchantReturnUrlFromContext } from '../libs/fastify/context/context';
 import { getStoredPaymentMethodsConfig } from '../config/stored-payment-methods.config';
@@ -59,7 +60,7 @@ import {
 } from 'common-connect/dist';
 import { handleCustomTransactionFields, handleCustomFieldResponse } from '../utils/customEntities.utils';
 
-import { mapCTLineItemToBraintreeLineItem } from '../utils/lineItem.utils';
+import { LineItemKind, mapCTLineItemToBraintreeLineItem } from '../utils/lineItem.utils';
 import {
   mapCTShippingToBraintreeShipping,
   mapShippingMethodsToBraintreeShippingOptions,
@@ -68,6 +69,17 @@ import { BraintreeCustomerService } from './braintree-customer.service';
 import { successGeneralResponse } from './constants';
 
 const TOKEN_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+const lineItemPlaceholders = {
+  quantity: '1',
+  unitTaxAmount: '0.00',
+  description: '',
+  url: '',
+  commodityCode: '',
+  discountAmount: '',
+  taxAmount: '',
+  unitOfMeasure: 'unit' as const,
+};
 
 export class BraintreePaymentService extends AbstractPaymentService {
   private braintreeCustomerService: BraintreeCustomerService;
@@ -397,6 +409,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       ctPayment,
       clientToken,
       ctCart,
+      isExpress,
       isPureVault,
       customer ?? undefined,
       shippingMethods,
@@ -446,11 +459,39 @@ export class BraintreePaymentService extends AbstractPaymentService {
     ctPayment: Payment,
     clientToken: string,
     ctCart: Cart,
+    isExpress: boolean,
     isPureVault: boolean,
     customer: Customer | undefined,
     shippingMethods: ShippingMethod[],
     braintreeCustomerId: string | undefined,
   ): PaymentResponseSchemaDTO {
+    const extendedLineItems = isPureVault
+      ? []
+      : ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale));
+    if (!isPureVault) {
+      if (ctCart.discountOnTotalPrice?.discountedAmount) {
+        const amount = mapCommercetoolsMoneyToBraintreeMoney(ctCart.discountOnTotalPrice.discountedAmount);
+        extendedLineItems.push({
+          name: 'Discount',
+          kind: 'credit' as LineItemKind,
+          unitAmount: amount,
+          totalAmount: amount,
+          productCode: 'DISCOUNT',
+          ...lineItemPlaceholders,
+        });
+      }
+      if (!isExpress && ctCart.shippingInfo) {
+        const amount = mapCommercetoolsMoneyToBraintreeMoney(ctCart.shippingInfo.price);
+        extendedLineItems.push({
+          name: ctCart.shippingInfo.shippingMethodName || 'Shipping',
+          kind: 'debit' as LineItemKind,
+          unitAmount: amount,
+          totalAmount: amount,
+          productCode: 'SHIPPING',
+          ...lineItemPlaceholders,
+        });
+      }
+    }
     return {
       braintreeData: { clientToken, braintreeCustomerId },
       payment: {
@@ -460,14 +501,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
         currency: ctPayment.amountPlanned.currencyCode,
         braintreeAmount: Number(mapCommercetoolsMoneyToBraintreeMoney(ctPayment.amountPlanned)),
         email: ctCart.customerEmail,
-        shippingOptions: mapShippingMethodsToBraintreeShippingOptions(
-          shippingMethods,
-          ctPayment.amountPlanned.currencyCode,
-          ctCart.shippingInfo?.shippingMethod?.id,
-        ),
-        braintreeLineItems: isPureVault
-          ? []
-          : ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale)),
+        shippingOptions: isExpress
+          ? mapShippingMethodsToBraintreeShippingOptions(
+              shippingMethods,
+              ctPayment.amountPlanned.currencyCode,
+              ctCart.shippingInfo?.shippingMethod?.id,
+            )
+          : undefined,
+        braintreeLineItems: extendedLineItems,
         braintreeShipping: ctCart.shippingAddress
           ? mapCTShippingToBraintreeShipping(ctCart.shippingAddress)
           : undefined,
@@ -475,14 +516,15 @@ export class BraintreePaymentService extends AbstractPaymentService {
         ctCustomerVersion: customer?.version,
         countryCode: ctCart.billingAddress?.country,
         fallbackUrl: getConfig().localPaymentFallbackUrl || undefined,
-        //taxAmount
-        //shippingAmount
-        //discountAmount
       },
     };
   }
 
-  public async updateCartShipping({ newShippingMethodId }: { newShippingMethodId: string }): Promise<string> {
+  public async updateCartShipping({
+    newShippingMethodId,
+  }: {
+    newShippingMethodId: string;
+  }): Promise<UpdateCartShippingResponseSchemaDTO> {
     const ctCart = await this.ctCartService.getCart({
       id: getCartIdFromContext(),
     });
@@ -515,7 +557,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
       );
     }
     const costWithNewShipping = await this.ctCartService.getPaymentAmount({ cart: updatedCard });
-    return Number(mapCommercetoolsMoneyToBraintreeMoney(costWithNewShipping as CentPrecisionMoney)).toFixed(2);
+    return {
+      braintreeAmount: Number(mapCommercetoolsMoneyToBraintreeMoney(costWithNewShipping as CentPrecisionMoney)).toFixed(
+        2,
+      ),
+      discountAmount: updatedCard.discountOnTotalPrice?.discountedAmount
+        ? mapCommercetoolsMoneyToBraintreeMoney(updatedCard.discountOnTotalPrice.discountedAmount)
+        : undefined,
+    }; //as checkout api doesn't support updatePayment amountPlanned - it is postponed to transaction sale in order to speed up the response
   }
 
   public async transactionSale({
@@ -526,8 +575,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
     storeShipping,
     braintreePaymentDetails,
   }: TransactionSaleRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO> {
-    //todo - handle address change for PayPal express here
-    //todo - handle payment amount change if relevant here
     const [updatedCart, ctPayment] = await Promise.all([
       braintreePaymentDetails?.extraShippingCost
         ? this.ctCartService.getCart({
@@ -536,6 +583,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
         : Promise.resolve(undefined),
       await this.ctPaymentService.getPayment({ id: ctPaymentId }),
     ]);
+    if (!ctPayment) {
+      throw new ErrorInvalidOperation(`payment is missing for transactionSale payment ${ctPaymentId}}`);
+    }
+    if (!updatedCart && braintreePaymentDetails?.extraShippingCost)
+      throw new ErrorInvalidOperation(`could not find updated cart for transactionsSale payment ${ctPaymentId}`);
     const relevantPaymentInfo = updatedCart ? { ...ctPayment, amountPlanned: updatedCart.totalPrice } : ctPayment;
     const transactionRequest = mapRequestToBraintreeTransactionSale(
       relevantPaymentInfo,
@@ -550,8 +602,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
     transactionRequest.lineItems = (braintreePaymentDetails?.braintreeLineItems || []).map((item) => ({
       ...item,
       name: item.name.substring(0, 35),
-    })); //braintree has 35 char limit for line item name, so we need to cut it to avoid errors, see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
+    })); //braintree has 35 char limit for line item name in transactionSale, so we need to cut it to avoid errors, see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
     if (braintreePaymentDetails?.extraShippingCost) {
+      //will be only submitted in express mode, than shipping was submtted via SDK through update and can be mapped properly
       transactionRequest.shippingAmount = Number(braintreePaymentDetails.extraShippingCost).toFixed(2);
     } //see enabler PayPalMask onShippingChange and onApprove
     try {

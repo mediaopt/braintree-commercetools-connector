@@ -119,6 +119,7 @@ type OptionalPerMethodPaymentData = {
 
 export type PaymentInfo = RequiredPaymentData & OptionalPerMethodPaymentData;
 
+// Shape must match InitPaymentResponseSchema in processor/src/dtos/braintree-payment.dto.ts
 export type CreatePaymentResponse = {
   braintreeData: BraintreePaymentData;
   payment: PaymentInfo;
