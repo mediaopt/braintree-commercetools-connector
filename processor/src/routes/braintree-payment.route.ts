@@ -11,6 +11,8 @@ import {
   PaymentUpdateResponseSchema,
   PureVaultRequestSchemaDTO,
   PaymentUpdateResponseSchemaDTO,
+  UpdateCartShippingResponseSchema,
+  UpdateCartShippingResponseSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { BraintreePaymentService } from '../services/braintree-payment.service';
 import { Type } from '@sinclair/typebox';
@@ -61,7 +63,7 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
 
   fastify.post<{
     Body: { newShippingMethodId: string };
-    Reply: { braintreeAmount: string };
+    Reply: UpdateCartShippingResponseSchemaDTO;
   }>(
     '/payments/updateCartShipping',
     {
@@ -71,15 +73,13 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
           newShippingMethodId: Type.String(),
         }),
         response: {
-          200: Type.Object({
-            braintreeAmount: Type.String(),
-          }),
+          200: UpdateCartShippingResponseSchema,
         },
       },
     },
     async (request, reply) => {
-      const braintreeAmount = await opts.paymentService.updateCartShipping(request.body);
-      return reply.status(200).send({ braintreeAmount });
+      const result = await opts.paymentService.updateCartShipping(request.body);
+      return reply.status(200).send(result);
     },
   );
 

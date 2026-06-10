@@ -7,20 +7,21 @@ export enum LineItemKind {
   Credit = 'credit',
 }
 
+// Fields reference: PayPalCheckoutUpdatePaymentOptions in braintree-web/paypal-checkout — not a 1:1 match but the closest type
 export const BraintreeLineItemSchema = Type.Object({
   name: Type.String(),
   kind: Type.Enum(LineItemKind),
-  unitOfMeasure: Type.Literal('unit'),
-  taxAmount: Type.String(),
-  discountAmount: Type.String(),
   quantity: Type.String(),
   unitAmount: Type.String(),
   totalAmount: Type.String(),
   productCode: Type.String(),
-  commodityCode: Type.String(),
   unitTaxAmount: Type.String(),
   description: Type.String(),
   url: Type.String(),
+  unitOfMeasure: Type.Optional(Type.Literal('unit')),
+  taxAmount: Type.Optional(Type.String()),
+  discountAmount: Type.Optional(Type.String()),
+  commodityCode: Type.Optional(Type.String()),
 });
 
 export type BraintreeLineItem = Static<typeof BraintreeLineItemSchema>;
