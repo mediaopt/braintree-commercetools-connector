@@ -1,7 +1,9 @@
 import { CustomerSetCustomFieldAction } from "@commercetools/platform-sdk";
 
-import { CustomerResponse } from "../types/index.types";
+import { CustomerResponse, UpdateActions } from "../types/index.types";
 import { stringifyData } from "./customEntitites.utils";
+import { Transaction } from "braintree";
+import { getPaymentMethodHint } from "./map.utils";
 
 export const removeEmptyProperties = (response: any) => {
   for (const prop in response) {
@@ -48,5 +50,25 @@ export const handleCustomerResponse = (
       value: response.id,
     });
   }
+  return updateActions;
+};
+
+export const updatePaymentFields = (response: Transaction): UpdateActions => {
+  const updateActions: UpdateActions = [];
+  updateActions.push({
+    action: "setStatusInterfaceCode",
+    interfaceCode: response.status,
+  });
+  updateActions.push({
+    action: "setStatusInterfaceText",
+    interfaceText: response.status,
+  });
+  const paymentMethodHint = getPaymentMethodHint(response);
+  updateActions.push({
+    action: "setMethodInfoMethod",
+    method:
+      response.paymentInstrumentType +
+      (paymentMethodHint ? ` (${paymentMethodHint})` : ""),
+  });
   return updateActions;
 };
