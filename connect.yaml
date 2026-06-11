@@ -43,6 +43,17 @@ deployAs:
         - key: MERCHANT_RETURN_URL
           description: Merchant website return URL for redirect-based payment methods
           required: false
+        - key: LOCAL_PAYMENT_FALLBACK_URL
+          description: Merchant website fallback URL, only required for local payment methods
+          required: false
+        - key: BRAINTREE_BUTTON_STYLES
+          description: JSON map of per-button style overrides. Keys paypal, paypalExpress, paypalVault, ach, applePay — all optional. Other components can be styled via CSS.
+          required: false
+          default:
+            {
+              "paypalExpress": { "buttonColor": "blue" },
+              "paypal": { "buttonColor": "silver" },
+            }
   - name: braintree-extension
     applicationType: service
     endpoint: /braintree-extension

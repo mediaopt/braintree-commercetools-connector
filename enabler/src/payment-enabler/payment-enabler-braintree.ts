@@ -56,6 +56,8 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
         useKount: !!configJson.useKount,
         fullWidth: configJson.fullWidth !== undefined ? configJson.fullWidth : true, //todo - check if add config full width is relevant
         buttonText: configJson.buttonText,
+        buttonStyleOverrides: configJson.buttonStyleOverrides,
+        braintreeEnvironment: configJson.environment,
         purchaseCallback:
           configJson.purchaseCallback ||
           options.onComplete ||

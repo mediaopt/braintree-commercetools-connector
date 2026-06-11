@@ -38,6 +38,12 @@ export const config = {
   storedPaymentMethodsEnabled: process.env.STORED_PAYMENT_METHODS_ENABLED || 'false',
   storedPaymentMethodsPaymentInterface: process.env.STORED_PAYMENT_METHODS_PAYMENT_INTERFACE || 'psp-template',
   storedPaymentMethodsInterfaceAccount: process.env.STORED_PAYMENT_METHODS_INTERFACE_ACCOUNT || undefined,
+
+  // Per-button style overrides forwarded via /operations/config → enabler baseOptions → RenderTemplate buttonStyleOverrides
+  // Format: JSON object with keys: paypal, paypalExpress, paypalVault, ach, applePay — all optional
+  buttonStyleOverrides: process.env.BRAINTREE_BUTTON_STYLES
+    ? JSON.parse(process.env.BRAINTREE_BUTTON_STYLES)
+    : undefined,
 };
 
 export const getConfig = () => {

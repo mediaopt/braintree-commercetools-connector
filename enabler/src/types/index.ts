@@ -101,6 +101,26 @@ type RequiredPaymentData = {
   ctCustomerVersion?: number;
 };
 
+type PayPalButtonStyleOverride = {
+  buttonColor?: ButtonColorOption;
+  buttonLabel?: ButtonLabelOption;
+  payLaterButtonColor?: ButtonColorOption;
+  locale?: string;
+  shape?: ButtonShapeOption;
+  size?: ButtonSizeOption;
+  tagline?: boolean;
+  height?: number;
+};
+
+// Shape must match BRAINTREE_BUTTON_STYLES env var in processor/src/config/config.ts
+export type ButtonStyleOverrides = {
+  paypal?:        PayPalButtonStyleOverride & { payLater?: boolean };
+  paypalExpress?: PayPalButtonStyleOverride;
+  paypalVault?:   PayPalButtonStyleOverride;
+  ach?:           { mandateText?: string };
+  applePay?:      { applePayDisplayName?: string };
+};
+
 type OptionalPerMethodPaymentData = {
   firstName?: string; //ACH, local payment methods
   lastName?: string; //ACH, local payment methods

@@ -145,6 +145,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       storedPaymentMethodsConfig: {
         isEnabled: await this.isStoredPaymentMethodsEnabled(),
       },
+      buttonStyleOverrides: config.buttonStyleOverrides,
     };
   }
 

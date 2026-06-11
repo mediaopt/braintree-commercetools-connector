@@ -1,11 +1,13 @@
 import { Client } from "braintree-web";
 import { PaymentResult } from "./enabler";
-import { GeneralComponentsProps } from "../../types";
+import { ButtonStyleOverrides, GeneralComponentsProps } from "../../types";
 
 export type BaseOptions = Omit<
   GeneralComponentsProps,
   "paymentMethodType" | "builderType"
 > & {
+  buttonStyleOverrides?: ButtonStyleOverrides;
+  braintreeEnvironment?: string;
   //todo - clarify if implement onError here makes sense
   //optional
   // countryCode?: string;

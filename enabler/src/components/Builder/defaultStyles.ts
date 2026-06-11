@@ -4,7 +4,6 @@ import {
   ButtonShapeOption,
   ButtonSizeOption,
   FlowType,
-  Intent,
 } from "paypal-checkout-components";
 
 export const ACHDefaultStyleProps = {
@@ -25,9 +24,6 @@ const PayPalCommonDefaultStyles = {
 };
 
 export const PayPalDefaultStyleProps = {
-  // flow: "checkout", //todo - move commented out to config or to base options
-  // intent: "capture",
-  //useKount: true,
   ...PayPalCommonDefaultStyles,
   buttonLabel: "pay" as ButtonLabelOption,
   payLater: true,
@@ -37,21 +33,15 @@ export const PayPalDefaultStyleProps = {
 
 export const PayPalExpressStyleProps = {
   ...PayPalCommonDefaultStyles,
-  flow: "checkout" as FlowType, //required
+  flow: "checkout" as FlowType,
   buttonLabel: "buynow" as ButtonLabelOption,
-  payLater: false,
   commit: true,
-  intent: "capture" as Intent,
-  enableShippingAddress: true,
   shippingAddressEditable: true,
+  // payLater, intent, enableShippingAddress are fixed in RenderTemplate
 };
 
 export const PayPalVaultStyleProps = {
   ...PayPalCommonDefaultStyles,
-  flow: "vault", //required for pure vault
-  buttonColor: "gold" as ButtonColorOption,
   buttonLabel: "pay" as ButtonLabelOption,
-  payLater: false,
-  commit: false,
-  intent: "tokenize" as Intent,
+  // flow, payLater, commit, intent are fixed in RenderTemplate
 };

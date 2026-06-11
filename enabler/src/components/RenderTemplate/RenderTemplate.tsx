@@ -15,7 +15,7 @@ import {
   PayPalExpressStyleProps,
   PayPalVaultStyleProps,
 } from "../Builder/defaultStyles";
-import { FlowType } from "paypal-checkout-components";
+import { FlowType, Intent } from "paypal-checkout-components";
 import { ACHButton } from "../ACH/ACHButton";
 import { ApplePayButton } from "../ApplePay/ApplePayButton";
 import { CreditCardButton } from "../CreditCard/CreditCardButton";
@@ -38,13 +38,17 @@ const ComponentWithCustomOptions = ({
   customOptions,
   builderType,
 }: BraintreeBuilderTemplateProps) => {
+  // buttonStyleOverrides: from BRAINTREE_BUTTON_STYLES env var via processor /operations/config
+  // braintreeEnvironment: "Sandbox" | "Production" from processor config
+  const { buttonStyleOverrides, braintreeEnvironment, ...restCustomOptions } = customOptions;
+
   switch (paymentMethodType) {
     // --- Standard component/dropin methods ---
     case "ACH":
-      return <ACHButton {...ACHDefaultStyleProps} {...customOptions} />;
+      return <ACHButton {...ACHDefaultStyleProps} {...buttonStyleOverrides?.ach} {...restCustomOptions} />;
     case "ApplePay":
       return (
-        <ApplePayButton {...ApplePayDefaultStyleProps} {...customOptions} />
+        <ApplePayButton {...ApplePayDefaultStyleProps} {...buttonStyleOverrides?.applePay} {...restCustomOptions} />
       );
     case "GooglePay":
       return (
@@ -52,18 +56,21 @@ const ComponentWithCustomOptions = ({
           totalPriceStatus={"FINAL"} //todo - move params to options and config and add to options a possobility to set styles params
           googleMerchantId={"merchant-id-from-google"}
           acquirerCountryCode={"DE"}
-          environment={"TEST"}
-          {...customOptions}
+          environment={braintreeEnvironment === "Production" ? "PRODUCTION" : "TEST"}
+          {...restCustomOptions}
         />
       );
     case "PayPal":
-      if (`${builderType}` === "express") {
-        // Express: shipping is handled through the PayPal flow — enableShippingAddress is locked on
+      if (builderType === "express") {
+        // Express: shipping is handled through the PayPal flow — enableShippingAddress, payLater and intent are locked
         return (
           <PayPalButton
             {...PayPalExpressStyleProps}
-            {...customOptions}
+            {...buttonStyleOverrides?.paypalExpress}
+            {...restCustomOptions}
             enableShippingAddress={true}
+            payLater={false}
+            intent={"capture" as Intent}
           />
         );
       }
@@ -72,7 +79,8 @@ const ComponentWithCustomOptions = ({
         <PayPalButton
           flow={"checkout" as FlowType}
           {...PayPalDefaultStyleProps}
-          {...customOptions}
+          {...buttonStyleOverrides?.paypal}
+          {...restCustomOptions}
           enableShippingAddress={false}
           shippingAddressEditable={false}
         />
@@ -86,7 +94,7 @@ const ComponentWithCustomOptions = ({
           useTestNonce={true}
           setVenmoUserName={(venmoName) => console.log(venmoName)}
           ignoreBowserSupport={true}
-          {...customOptions}
+          {...restCustomOptions}
         />
       );
 
@@ -95,24 +103,28 @@ const ComponentWithCustomOptions = ({
       return (
         <PayPalButton
           {...PayPalVaultStyleProps}
-          {...customOptions}
+          {...buttonStyleOverrides?.paypalVault}
+          {...restCustomOptions}
           flow={"vault" as FlowType}
           isPureVault={true}
+          payLater={false}
+          commit={false}
+          intent={"tokenize" as Intent}
         />
       );
     case "CreditCardVault":
-      return <CreditCardButton {...customOptions} isPureVault={true} />;
+      return <CreditCardButton {...restCustomOptions} isPureVault={true} />;
 
     default:
       if (SUPPORTED_LOCAL_PAYMENT_TYPES.includes(paymentMethodType as SupportedLocalPaymentTypes)) {
         return (
           <LocalPaymentMethodButton
             paymentType={paymentMethodType as SupportedLocalPaymentTypes}
-            {...customOptions}
+            {...restCustomOptions}
           />
         );
       }
-      return <CreditCardButton {...customOptions} />;
+      return <CreditCardButton {...restCustomOptions} />;
   }
 };
 
