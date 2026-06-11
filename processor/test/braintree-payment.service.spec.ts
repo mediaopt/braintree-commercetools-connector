@@ -63,15 +63,29 @@ describe('braintree-payment.service', () => {
 
   test('getSupportedPaymentComponents', async () => {
     const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
-    expect(result?.components).toHaveLength(7);
-    expect(result?.components[0]?.type).toStrictEqual('ACH');
-    expect(result?.components[1]?.type).toStrictEqual('ApplePay');
-    expect(result?.components[2]?.type).toStrictEqual('CreditCard');
-    expect(result?.components[3]?.type).toStrictEqual('GooglePay');
-    expect(result?.components[4]?.type).toStrictEqual('PayPal');
-    expect(result?.components[5]?.type).toStrictEqual('Venmo');
-    expect(result?.components[6]?.type).toStrictEqual('LocalPaymentMethod');
+    const components = result?.components;
+    expect(components).toHaveLength(14);
+    const expectedTypes = [
+      'ACH',
+      'ApplePay',
+      'CreditCard',
+      'GooglePay',
+      'PayPal',
+      'Venmo',
+      'bancontact',
+      'blik',
+      'eps',
+      'giropay',
+      'ideal',
+      'sofort',
+      'mybank',
+      'p24',
+    ];
+    expect((components as { type: string }[])?.map(({ type }) => type)).toEqual(expectedTypes);
     expect(result?.dropins).toHaveLength(0);
+    const expectedExpressTypes = ['PayPal', 'PayPalVault', 'CreditCardVault'];
+    expect(result?.express).toHaveLength(3);
+    expect((result?.express as { type: string }[]).map(({ type }) => type)).toEqual(expectedExpressTypes);
   });
 
   // test('getStatus', async () => {
