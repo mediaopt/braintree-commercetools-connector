@@ -23,7 +23,6 @@ import {
 } from "../../types";
 import { useLoader } from "../../app/useLoader";
 import { renderMaskButtonClasses } from "../../styles";
-import { processorUrls } from "../constants";
 import { validateCountryAndCurrency } from "./validateCountryAndCurrency";
 import { invalidDataLog } from "./invalidDataLog";
 
@@ -50,11 +49,9 @@ export const LocalPaymentMethodMask: FC<
 
   const paymentButton = useRef<HTMLButtonElement>(null);
 
-  const { handleTransactionSale, paymentInfo, clientToken, setLocalPaymentId } =
-    usePayment();
+  const { handleTransactionSale, paymentInfo, clientToken } = usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
-  const { saveLocalPaymentIdUrl } = processorUrls(processorUrl);
 
   const invokePayment = (e: MouseEvent<HTMLButtonElement>): void => {
     if (
@@ -87,7 +84,7 @@ export const LocalPaymentMethodMask: FC<
       );
       return;
     }
-    let overridePaymentVersion: number;
+    let localPaymentId = "";
     e.preventDefault();
     if (!localPaymentInstance) {
       notify("Error", "No payment instance");
@@ -111,12 +108,8 @@ export const LocalPaymentMethodMask: FC<
         currencyCode: paymentInfo.currency,
         shippingAddressRequired: shippingAddressRequired,
         onPaymentStart: function (data, start) {
-          setLocalPaymentId(data.paymentId, saveLocalPaymentIdUrl).then(
-            (result) => {
-              overridePaymentVersion = result;
-              start();
-            },
-          );
+          localPaymentId = data.paymentId;
+          start();
         },
       },
       function (startPaymentError, payload) {
@@ -133,12 +126,9 @@ export const LocalPaymentMethodMask: FC<
               deviceData: deviceData,
               lineItems: paymentInfo.braintreeLineItems,
               shipping: shipping,
+              localPaymentId,
             };
-            handleTransactionSale(
-              payload.nonce,
-              handlePurchaseOptions,
-              overridePaymentVersion,
-            );
+            handleTransactionSale(payload.nonce, handlePurchaseOptions);
           } else {
             isLoading(false);
             notify("Error", "No payload received");

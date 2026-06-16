@@ -16,8 +16,8 @@ import { processorRequest } from "../services/processorRequest";
 import { Result } from "../components/Result";
 import {
   CreatePaymentRequest,
+  TransactionSaleOptions,
   TransactionSaleRequest,
-  SetLocalPaymentRequest,
   VaultRequest,
   ChangeShippingRequest,
 } from "../services/types";
@@ -43,17 +43,12 @@ type PaymentActionResponseData = {
 
 type HandleTransactionSaleType = (
   paymentNonce: string,
-  options?: { [index: string]: any },
-  overridePaymentVersion?: number,
+  options?: TransactionSaleOptions,
 ) => Promise<void>;
 
 type PaymentContextT = {
   gettingClientToken: boolean;
   clientToken?: string;
-  setLocalPaymentId: (
-    localPaymentId: string,
-    saveLocalPaymentUrl: string,
-  ) => Promise<number>;
   handleTransactionSale: HandleTransactionSaleType;
   handlePureVault: (paymentNonce: string) => Promise<void>;
   paymentInfo: PaymentInfo;
@@ -73,7 +68,6 @@ const PaymentInfoInitialObject: PaymentInfo = {
 const PaymentContext = createContext<PaymentContextT>({
   gettingClientToken: false,
   clientToken: undefined,
-  setLocalPaymentId: () => new Promise<number>(() => 0),
   handleTransactionSale: () => Promise.resolve(),
   handlePureVault: () => Promise.resolve(),
   paymentInfo: PaymentInfoInitialObject,
@@ -192,21 +186,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       );
     };
 
-    const setLocalPaymentId = async (
-      localPaymentId: string,
-      saveLocalPaymentUrl: string,
-    ) => {
-      const response = (await processorRequest<SetLocalPaymentRequest>(
-        requestHeader,
-        saveLocalPaymentUrl,
-        { paymentId: paymentInfo.ctPaymentId, localPaymentId },
-      )) as { paymentVersion: number };
-
-      setPaymentInfo({ ...paymentInfo });
-
-      return response.paymentVersion;
-    };
-
     const handleTransactionSale: HandleTransactionSaleType = async (
       paymentNonce,
       options?,
@@ -292,7 +271,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       sessionId,
       gettingClientToken: initializingPayment,
       clientToken,
-      setLocalPaymentId,
       handleTransactionSale,
       handlePureVault,
       paymentInfo,

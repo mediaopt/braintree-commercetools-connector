@@ -116,7 +116,11 @@ const ComponentWithCustomOptions = ({
       return <CreditCardButton {...restCustomOptions} isPureVault={true} />;
 
     default:
-      if (SUPPORTED_LOCAL_PAYMENT_TYPES.includes(paymentMethodType as SupportedLocalPaymentTypes)) {
+      if (
+        SUPPORTED_LOCAL_PAYMENT_TYPES.includes(
+          paymentMethodType as SupportedLocalPaymentTypes,
+        )
+      ) {
         return (
           <LocalPaymentMethodButton
             paymentType={paymentMethodType as SupportedLocalPaymentTypes}

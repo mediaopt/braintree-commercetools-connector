@@ -13,11 +13,6 @@ export type TransactionSaleRequest = {
   [key: string]: any;
 };
 
-export type SetLocalPaymentRequest = {
-  paymentId: string;
-  localPaymentId: string;
-};
-
 export type VaultRequest = {
   ctCustomerId?: string;
   ctCustomerVersion?: string | number;

@@ -7,24 +7,52 @@ export enum PaymentOutcome {
   REJECTED = 'Rejected',
 }
 
-export enum PaymentMethodType {
-  ACH = 'ACH',
-  APPLE_PAY = 'ApplePay',
-  CREDIT_CARD = 'CreditCard',
-  CREDIT_CARD_VAULT = 'CreditCardVault',
-  GOOGLE_PAY = 'GooglePay',
-  BANCONTACT = 'bancontact',
-  BLIK = 'blik',
-  EPS = 'eps',
-  GIROPAY = 'giropay',
-  IDEAL = 'ideal',
-  SOFORT = 'sofort',
-  MYBANK = 'mybank',
-  P24 = 'p24',
-  PAYPAL = 'PayPal',
-  PAYPAL_VAULT = 'PayPalVault',
-  VENMO = 'Venmo',
-}
+export const StandardPaymentMethodType = {
+  ACH: 'ACH',
+  APPLE_PAY: 'ApplePay',
+  CREDIT_CARD: 'CreditCard',
+  GOOGLE_PAY: 'GooglePay',
+  PAYPAL: 'PayPal',
+  VENMO: 'Venmo',
+} as const;
+export type StandardPaymentMethodType = (typeof StandardPaymentMethodType)[keyof typeof StandardPaymentMethodType];
+
+export const StoredPaymentMethodType = {
+  CREDIT_CARD_STORED: 'CreditCardStored',
+  PAYPAL_STORED: 'PayPalStored',
+} as const;
+export type StoredPaymentMethodType = (typeof StoredPaymentMethodType)[keyof typeof StoredPaymentMethodType];
+
+export const VaultPaymentMethodType = {
+  CREDIT_CARD_VAULT: 'CreditCardVault',
+  PAYPAL_VAULT: 'PayPalVault',
+} as const;
+
+export type VaultPaymentMethodType = (typeof VaultPaymentMethodType)[keyof typeof VaultPaymentMethodType];
+
+export const LocalPaymentMethodType = {
+  BANCONTACT: 'bancontact',
+  BLIK: 'blik',
+  EPS: 'eps',
+  IDEAL: 'ideal',
+  MYBANK: 'mybank',
+  P24: 'p24',
+} as const;
+
+export type LocalPaymentMethodType = (typeof LocalPaymentMethodType)[keyof typeof LocalPaymentMethodType];
+
+export const PaymentMethodType = {
+  ...StandardPaymentMethodType,
+  ...StoredPaymentMethodType,
+  ...VaultPaymentMethodType,
+  ...LocalPaymentMethodType,
+} as const;
+export type PaymentMethodType =
+  | StandardPaymentMethodType
+  | StoredPaymentMethodType
+  | VaultPaymentMethodType
+  | LocalPaymentMethodType;
+
 export enum CustomBuilderType {
   DROPIN = 'dropin',
   EXPRESS = 'express',
@@ -123,6 +151,7 @@ export const TransactionSaleRequestSchema = Type.Object({
   storeInVaultOnSuccess: Type.Optional(Type.Boolean()),
   storeShipping: Type.Optional(Type.Boolean()),
   deviceData: Type.Optional(Type.String()),
+  localPaymentId: Type.Optional(Type.String()),
   braintreePaymentDetails: Type.Optional(
     Type.Object({
       braintreeLineItems: Type.Optional(Type.Array(BraintreeLineItemSchema)),
