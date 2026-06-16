@@ -575,6 +575,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     storeInVaultOnSuccess,
     storeShipping,
     braintreePaymentDetails,
+    localPaymentId,
   }: TransactionSaleRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO> {
     const [updatedCart, ctPayment] = await Promise.all([
       braintreePaymentDetails?.extraShippingCost
@@ -610,8 +611,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
     } //see enabler PayPalMask onShippingChange and onApprove
     try {
       const response = await transactionSale({
-        ...transactionRequest, // discountAmount: '18.29', //todo - verify if for Braintree discount, tax and so on mush match
+        ...transactionRequest, // discountAmount: '18.29', //todo - clarify external tax
       });
+      const saleLocalPaymentId = (response as any).localPayment?.paymentId;
+      if (localPaymentId && saleLocalPaymentId && localPaymentId !== saleLocalPaymentId) {
+        logger.warn(
+          `localPaymentId mismatch for payment ${ctPaymentId}. Enabler sent: ${localPaymentId}, Braintree returned: ${saleLocalPaymentId}`,
+        );
+      }
       const customFields = handleCustomFieldResponse('transactionSale', response);
       handleCustomTransactionFields(customFields, response, ctPayment);
       await this.updatePaymentWithTransaction({

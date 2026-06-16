@@ -64,7 +64,7 @@ describe('braintree-payment.service', () => {
   test('getSupportedPaymentComponents', async () => {
     const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
     const components = result?.components;
-    expect(components).toHaveLength(14);
+    expect(components).toHaveLength(12);
     const expectedTypes = [
       'ACH',
       'ApplePay',
@@ -75,9 +75,7 @@ describe('braintree-payment.service', () => {
       'bancontact',
       'blik',
       'eps',
-      'giropay',
       'ideal',
-      'sofort',
       'mybank',
       'p24',
     ];
