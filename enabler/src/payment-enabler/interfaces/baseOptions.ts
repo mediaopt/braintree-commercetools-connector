@@ -8,6 +8,7 @@ export type BaseOptions = Omit<
 > & {
   buttonStyleOverrides?: ButtonStyleOverrides;
   braintreeEnvironment?: string;
+  storedPaymentMethodsEnabled?: boolean;
   //todo - clarify if implement onError here makes sense
   //optional
   // countryCode?: string;

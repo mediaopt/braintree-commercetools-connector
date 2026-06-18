@@ -14,8 +14,7 @@ async function fetchDevJwt() {
 }
 
 const methodsStore = new Map();
-const allowedStoredPaymentMethods = ["card"];
-const paymentMethodTypeToUseForSPM = allowedStoredPaymentMethods[0];
+const allowedStoredPaymentMethods = ["CreditCard", "PayPal"];
 
 const btnLoadOthers = document.getElementById("loadComponents");
 const btnLoadDropins = document.getElementById("loadDropins");
@@ -234,47 +233,37 @@ btnLoadDropins?.addEventListener("click", (e) => {
 });
 btnLoadStored?.addEventListener("click", async (e) => {
   e.preventDefault();
+  clearUI();
   const cartId = document.getElementById("cartId").value.trim();
-  const sessionIdSavedPayments = await getSessionId(cartId, false);
+  if (!cartId) return alert("Enter cart ID");
+
+  showSpinner();
+  const sessionId = await getSessionId(cartId, false);
   const enabler = new Enabler({
     processorUrl: __VITE_PROCESSOR_URL__,
     merchantAccountId: __BRAINTREE_MERCHANT_ACCOUNT_ID__,
-    sessionId: sessionIdSavedPayments,
+    sessionId,
     currencyCode: "EUR",
     countryCode: "DE",
   });
-  showSpinner();
-  const builder = await enabler.createStoredPaymentMethodBuilder(
-    paymentMethodTypeToUseForSPM,
-  );
-  const stored = await enabler.getStoredPaymentMethods({
-    allowedMethodTypes: allowedStoredPaymentMethods,
-  });
-  if (!stored.storedPaymentMethods.length) {
-    containerExternal.textContent = "No saved payment methods found";
-    hideSpinner();
-    return;
+
+  // Mount one component per allowed type; each component shows all stored
+  // methods of its type as a radio list and handles payment internally.
+  for (const type of allowedStoredPaymentMethods) {
+    const builder = await enabler.createStoredPaymentMethodBuilder(type);
+    const component = builder.build({ id: "", brands: [], showPayButton: true });
+    const wrapper = document.createElement("div");
+    wrapper.className = "mb-4";
+    const heading = document.createElement("h5");
+    heading.textContent = `Stored ${type}`;
+    wrapper.appendChild(heading);
+    const mountTarget = document.createElement("div");
+    mountTarget.id = `stored-${type}-container`;
+    wrapper.appendChild(mountTarget);
+    containerExternal.appendChild(wrapper);
+    await component.mount(`#stored-${type}-container`);
   }
-  let selectedSPM = stored.storedPaymentMethods[0];
-  if (stored.storedPaymentMethods.length > 1) {
-    for (const spm of stored.storedPaymentMethods) {
-      if (
-        confirm(
-          `Use stored payment method ending ****${spm.displayOptions.endDigits}?`,
-        )
-      ) {
-        selectedSPM = spm;
-        break;
-      }
-    }
-  }
-  const component = await builder.build({
-    id: selectedSPM.id,
-    brands: [selectedSPM.displayOptions.brand.key],
-    showPayButton: !builder.componentHasSubmit,
-  });
-  containerExternal.innerHTML = "";
-  await component.mount("#container--external");
+
   hideSpinner();
 });
 

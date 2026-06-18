@@ -14,6 +14,7 @@ import {
   UpdateCartShippingResponseSchema,
   UpdateCartShippingResponseSchemaDTO,
 } from '../dtos/braintree-payment.dto';
+import { StoredPaymentMethodsResponseSchema, StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
 import { BraintreePaymentService } from '../services/braintree-payment.service';
 import { Type } from '@sinclair/typebox';
 import { log } from '../libs/logger';
@@ -79,6 +80,22 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
     },
     async (request, reply) => {
       const result = await opts.paymentService.updateCartShipping(request.body);
+      return reply.status(200).send(result);
+    },
+  );
+
+  fastify.get<{ Reply: StoredPaymentMethodsResponse }>(
+    '/stored-payment-methods',
+    {
+      preHandler: [opts.sessionHeaderAuthHook.authenticate()],
+      schema: {
+        response: {
+          200: StoredPaymentMethodsResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await opts.paymentService.getStoredPaymentMethods();
       return reply.status(200).send(result);
     },
   );

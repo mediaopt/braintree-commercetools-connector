@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useState,
-  FC,
-  PropsWithChildren,
-  ChangeEvent,
-  useMemo,
-} from "react";
+import { useEffect, useState, FC, PropsWithChildren, useMemo } from "react";
 import {
   client as braintreeClient,
   paypalCheckout,
@@ -24,19 +17,10 @@ import {
   LineItemKind,
 } from "../../types";
 
-import { HOSTED_FIELDS_LABEL, renderMaskButtonClasses } from "../../styles";
+import { renderMaskButtonClasses } from "../../styles";
 import { PayPalCheckoutLoadPayPalSDKOptions } from "braintree-web/paypal-checkout";
 
 type PayPalMaskProps = GeneralPayButtonProps & PayPalProps;
-
-type LimitedVaultedPaymentDetails = {
-  email: string;
-};
-
-type LimitedVaultedPayment = {
-  nonce: string;
-  details: LimitedVaultedPaymentDetails;
-};
 
 const FUNDING_SOURCES = ["paypal"];
 
@@ -46,7 +30,6 @@ const lineItemPlaceholders = {
   description: "",
   url: "",
 };
-
 
 export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   flow,
@@ -71,10 +54,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   height,
   isPureVault = false,
 }) => {
-  const [limitedVaultedPayments, setLimitedVaultedPaymentMethods] = useState<
-    LimitedVaultedPayment[]
-  >([]);
-  const [selectedAccount, setSelectedAccount] = useState("");
   const [deviceData, setDeviceData] = useState("");
 
   const {
@@ -82,7 +61,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     paymentInfo,
     clientToken,
     handlePureVault,
-    handleGetVaultedPaymentMethods,
     updateCartShipping,
   } = usePayment();
   const { shippingOptions } = paymentInfo;
@@ -101,7 +79,11 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     if (hasDiscount) {
       return items.map((item) =>
         item.productCode === "DISCOUNT"
-          ? { ...item, unitAmount: updatedDiscount, totalAmount: updatedDiscount }
+          ? {
+              ...item,
+              unitAmount: updatedDiscount,
+              totalAmount: updatedDiscount,
+            }
           : item,
       );
     }
@@ -117,24 +99,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
       },
     ];
   }, [paymentInfo.braintreeLineItems, updatedDiscount]);
-
-  useEffect(() => {
-    if (isPureVault) {
-      return;
-    }
-    const filteredPaymentMethods: Array<LimitedVaultedPayment> = [];
-    handleGetVaultedPaymentMethods().then((paymentMethods) => {
-      paymentMethods.forEach((paymentMethod) => {
-        if (paymentMethod.type === "PayPalAccount") {
-          filteredPaymentMethods.push({
-            nonce: paymentMethod.nonce,
-            details: paymentMethod.details as LimitedVaultedPaymentDetails,
-          });
-        }
-      });
-      setLimitedVaultedPaymentMethods(filteredPaymentMethods);
-    });
-  }, [clientToken]);
 
   useEffect(() => {
     if (!clientToken) return;
@@ -366,8 +330,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               paymentId: data.paymentId,
                               shippingOptions: braintreeShippingOptions,
                             });
-                          } //shipping id matters for the final amount and can be influences by other props like cart discount so it must be updated prior to PayPal payment
-                          //address doesn't influence the payment directly - only if it forces the shipping to change, so it could be synced at transactionSale step on the processor if shipping method doesn't need to change
+                          }
                         },
 
                         createOrder: () => {
@@ -422,68 +385,5 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     height,
   ]);
 
-  const changeAccount = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSelectedAccount(value);
-  };
-
-  const handleVaultedPurchase = async () => {
-    isLoading(true);
-    await handleTransactionSale(selectedAccount, {
-      deviceData: deviceData,
-      lineItems: paymentInfo.braintreeLineItems,
-      shipping: shipping,
-    });
-    isLoading(false);
-  };
-
-  return (
-    <>
-      {!!limitedVaultedPayments.length && (
-        <div className="block w-full">
-          {limitedVaultedPayments.map((vaultedMethod, index) => {
-            return (
-              <div
-                key={index}
-                className="flex gap-x-5 justify-start content-center border p-2 border-gray-300 rounded my-4"
-              >
-                <input
-                  className="w-3 justify-self-center"
-                  id={`credit-card-${index}`}
-                  type="radio"
-                  name="select-credit-card"
-                  value={vaultedMethod.nonce}
-                  onChange={changeAccount}
-                />
-                <label
-                  htmlFor={`credit-card-${index}`}
-                  className="cursor-pointer w-full"
-                >
-                  <span className={HOSTED_FIELDS_LABEL}>
-                    {vaultedMethod.details.email}
-                  </span>
-                </label>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {selectedAccount !== "" && (
-        <div>
-          <button
-            onClick={handleVaultedPurchase}
-            className={`${renderMaskButtonClasses(
-              fullWidth ?? false,
-              true,
-              false,
-            )} mb-5`}
-          >
-            {buttonText}
-          </button>
-        </div>
-      )}
-      {selectedAccount === "" && <div id="paypal-button"></div>}
-    </>
-  );
+  return <div id="paypal-button"></div>;
 };

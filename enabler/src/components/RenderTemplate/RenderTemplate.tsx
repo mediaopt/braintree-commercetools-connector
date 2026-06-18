@@ -26,6 +26,8 @@ import { LocalPaymentMethodButton } from "../LocalPaymentMethods/LocalPaymentMet
 import { BuilderType } from "../../types";
 import { SupportedLocalPaymentTypes } from "../LocalPaymentMethods/types";
 import { SUPPORTED_LOCAL_PAYMENT_TYPES } from "../LocalPaymentMethods/constants";
+import { CreditCardStoredButton } from "../CreditCard/CreditCardStoredButton";
+import { PayPalStoredButton } from "../PayPal/PayPalStoredButton";
 
 type BraintreeBuilderTemplateProps = {
   paymentMethodType: BraintreePaymentMethodType;
@@ -40,15 +42,26 @@ const ComponentWithCustomOptions = ({
 }: BraintreeBuilderTemplateProps) => {
   // buttonStyleOverrides: from BRAINTREE_BUTTON_STYLES env var via processor /operations/config
   // braintreeEnvironment: "Sandbox" | "Production" from processor config
-  const { buttonStyleOverrides, braintreeEnvironment, ...restCustomOptions } = customOptions;
+  const { buttonStyleOverrides, braintreeEnvironment, ...restCustomOptions } =
+    customOptions;
 
   switch (paymentMethodType) {
     // --- Standard component/dropin methods ---
     case "ACH":
-      return <ACHButton {...ACHDefaultStyleProps} {...buttonStyleOverrides?.ach} {...restCustomOptions} />;
+      return (
+        <ACHButton
+          {...ACHDefaultStyleProps}
+          {...buttonStyleOverrides?.ach}
+          {...restCustomOptions}
+        />
+      );
     case "ApplePay":
       return (
-        <ApplePayButton {...ApplePayDefaultStyleProps} {...buttonStyleOverrides?.applePay} {...restCustomOptions} />
+        <ApplePayButton
+          {...ApplePayDefaultStyleProps}
+          {...buttonStyleOverrides?.applePay}
+          {...restCustomOptions}
+        />
       );
     case "GooglePay":
       return (
@@ -56,7 +69,9 @@ const ComponentWithCustomOptions = ({
           totalPriceStatus={"FINAL"} //todo - move params to options and config and add to options a possobility to set styles params
           googleMerchantId={"merchant-id-from-google"}
           acquirerCountryCode={"DE"}
-          environment={braintreeEnvironment === "Production" ? "PRODUCTION" : "TEST"}
+          environment={
+            braintreeEnvironment === "Production" ? "PRODUCTION" : "TEST"
+          }
           {...restCustomOptions}
         />
       );
@@ -97,6 +112,12 @@ const ComponentWithCustomOptions = ({
           {...restCustomOptions}
         />
       );
+
+    // --- Stored payment methods (display + charge vaulted methods) ---
+    case "CreditCardStored":
+      return <CreditCardStoredButton {...restCustomOptions} />;
+    case "PayPalStored":
+      return <PayPalStoredButton {...restCustomOptions} />;
 
     // --- Express-only vault methods (isPureVault is always true and cannot be overridden by processor settings) ---
     case "PayPalVault":

@@ -4,9 +4,11 @@ export type BraintreePaymentMethodType = SupportedLocalPaymentTypes
   | "ACH"
   | "ApplePay"
   | "CreditCard"
+  | "CreditCardStored"
   | "CreditCardVault"
   | "GooglePay"
   | "PayPal"
+  | "PayPalStored"
   | "PayPalVault"
   | "Venmo";
 
