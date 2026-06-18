@@ -13,6 +13,12 @@ import { CustomerResourceIdentifier } from '@commercetools/platform-sdk/dist/dec
 import { ShippingMethod, CentPrecisionMoney, PaymentMethodInfoDraft, CustomFields } from '@commercetools/platform-sdk';
 import { Transaction } from 'braintree';
 
+// localPayment is an undocumented field Braintree adds to Transaction for local payment methods
+// See: https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side/javascript/v3
+type TransactionWithLocalPayment = Transaction & {
+  localPayment?: { paymentId?: string };
+};
+
 import {
   CancelPaymentRequest,
   ConfigResponse,
@@ -30,6 +36,7 @@ import { BraintreePaymentServiceOptions } from './types/braintree-payment.type';
 import {
   PaymentUpdateResponseSchemaDTO,
   PaymentMethodType,
+  LocalPaymentMethodType,
   PaymentOutcome,
   PaymentRequestSchemaDTO,
   PaymentResponseSchemaDTO,
@@ -37,6 +44,7 @@ import {
   TransactionSaleRequestSchemaDTO,
   UpdateCartShippingResponseSchemaDTO,
 } from '../dtos/braintree-payment.dto';
+import { StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
 import { getCartIdFromContext, getMerchantReturnUrlFromContext } from '../libs/fastify/context/context';
 import { getStoredPaymentMethodsConfig } from '../config/stored-payment-methods.config';
 
@@ -261,6 +269,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * @returns Promise with mocking data containing a list of supported payment components
    */
   public async getSupportedPaymentComponents(): Promise<SupportedPaymentComponentsSchemaDTO> {
+    const hasMerchantAccount = !!getConfig().merchantAccountId;
+    const localComponents = hasMerchantAccount ? Object.values(LocalPaymentMethodType).map((type) => ({ type })) : [];
     return {
       dropins: [],
       components: [
@@ -270,14 +280,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         { type: PaymentMethodType.GOOGLE_PAY },
         { type: PaymentMethodType.PAYPAL },
         { type: PaymentMethodType.VENMO },
-        { type: PaymentMethodType.BANCONTACT },
-        { type: PaymentMethodType.BLIK },
-        { type: PaymentMethodType.EPS },
-        { type: PaymentMethodType.GIROPAY },
-        { type: PaymentMethodType.IDEAL },
-        { type: PaymentMethodType.SOFORT },
-        { type: PaymentMethodType.MYBANK },
-        { type: PaymentMethodType.P24 },
+        ...localComponents,
       ],
       express: [
         { type: PaymentMethodType.PAYPAL },
@@ -340,11 +343,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
       ? ctCart.paymentInfo?.payments?.[ctCart.paymentInfo.payments.length - 1]
       : undefined;
 
+    logger.info(`ct customer ${ctCart.customerId}`);
+
     // Execute all optional data fetching in parallel
     const [customer, shippingMethodsResult, amountPlanned, existingPayment] = await Promise.all([
       ctCart.customerId ? this.braintreeCustomerService.getCtCustomer(ctCart.customerId) : Promise.resolve(undefined),
       isExpress ? this.getShippingMethods(ctCart.id) : Promise.resolve([]),
-      isPureVault ? ctCart.totalPrice : this.ctCartService.getPaymentAmount({ cart: ctCart }),
+      isPureVault ? ctCart.totalPrice : this.ctCartService.getPaymentAmount({ cart: ctCart }), //set 0 for vault if possible
       lastPaymentRef ? this.ctPaymentService.getPayment({ id: lastPaymentRef.id }) : Promise.resolve(undefined),
     ]);
 
@@ -352,6 +357,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
     const braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
     const shippingMethods = shippingMethodsResult || [];
+
+    logger.info(`braintree customer ${braintreeCustomerId}`);
 
     const { payment: reusedPayment, clientToken: cachedToken } = this.existingPaymentAndToken(
       existingPayment,
@@ -601,23 +608,31 @@ export class BraintreePaymentService extends AbstractPaymentService {
       //   //shipping: braintreePaymentDetails?.braintreeShipping
       // },
     ); //todo - handle other params
-    transactionRequest.lineItems = (braintreePaymentDetails?.braintreeLineItems || []).map((item) => ({
+    // braintree has 35 char limit for line item name in transactionSale, see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
+    const lineItemsForSale = (braintreePaymentDetails?.braintreeLineItems || []).map((item) => ({
       ...item,
       name: item.name.substring(0, 35),
     })); //braintree has 35 char limit for line item name in transactionSale, so we need to cut it to avoid errors, see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
     if (braintreePaymentDetails?.extraShippingCost) {
-      //will be only submitted in express mode, than shipping was submtted via SDK through update and can be mapped properly
+      //will be only submitted in express mode, then shipping was submitted via SDK through update and can be mapped properly
       transactionRequest.shippingAmount = Number(braintreePaymentDetails.extraShippingCost).toFixed(2);
     } //see enabler PayPalMask onShippingChange and onApprove
+    logger.info(`transaction request, ${JSON.stringify(transactionRequest)}`);
+    if (localPaymentId) {
+      if (!transactionRequest.options) transactionRequest.options = {};
+      transactionRequest.options.submitForSettlement = true;
+    }
     try {
       const response = await transactionSale({
         ...transactionRequest, // discountAmount: '18.29', //todo - clarify external tax
       });
-      const saleLocalPaymentId = (response as any).localPayment?.paymentId;
-      if (localPaymentId && saleLocalPaymentId && localPaymentId !== saleLocalPaymentId) {
-        logger.warn(
-          `localPaymentId mismatch for payment ${ctPaymentId}. Enabler sent: ${localPaymentId}, Braintree returned: ${saleLocalPaymentId}`,
-        );
+      if (localPaymentId) {
+        const saleLocalPaymentId = (response as TransactionWithLocalPayment).localPayment?.paymentId;
+        if (saleLocalPaymentId && localPaymentId !== saleLocalPaymentId) {
+          logger.warn(
+            `localPaymentId mismatch for payment ${ctPaymentId}. Enabler sent: ${localPaymentId}, Braintree returned: ${saleLocalPaymentId}`,
+          );
+        }
       }
       const customFields = handleCustomFieldResponse('transactionSale', response);
       handleCustomTransactionFields(customFields, response, ctPayment);
@@ -762,12 +777,54 @@ export class BraintreePaymentService extends AbstractPaymentService {
           },
         },
       });
+    logger.info(`triggering vault, ${braintreeCustomerId}`);
     return await this.braintreeCustomerService.pureVault({
       ctCustomerId,
       ctCustomerVersion,
       braintreeCustomerId,
       paymentMethodNonce,
     });
+  }
+
+  public async getStoredPaymentMethods(): Promise<StoredPaymentMethodsResponse> {
+    const ctCart = await this.ctCartService.getCart({ id: getCartIdFromContext() });
+    if (!ctCart.customerId) {
+      return { storedPaymentMethods: [] };
+    }
+    const ctCustomer = await this.braintreeCustomerService.getCtCustomer(ctCart.customerId);
+    const braintreeCustomerId = ctCustomer?.custom?.fields?.braintreeCustomerId;
+    if (!braintreeCustomerId) {
+      return { storedPaymentMethods: [] };
+    }
+    const gateway = await getBraintreeGateway();
+    try {
+      const btCustomer = await gateway.customer.find(braintreeCustomerId);
+      const creditCards = (btCustomer.creditCards ?? []).map((cc) => ({
+        id: cc.token,
+        type: 'CreditCard',
+        token: cc.token,
+        isDefault: cc.default ?? false,
+        createdAt: cc.createdAt,
+        displayOptions: {
+          endDigits: cc.last4,
+          brand: cc.cardType ? { key: cc.cardType } : undefined,
+          expiryMonth: cc.expirationMonth ? parseInt(cc.expirationMonth, 10) : undefined,
+          expiryYear: cc.expirationYear ? parseInt(cc.expirationYear, 10) : undefined,
+        },
+      }));
+      const paypalAccounts = (btCustomer.paypalAccounts ?? []).map((pp) => ({
+        id: pp.token,
+        type: 'PayPal',
+        token: pp.token,
+        isDefault: pp.default ?? false,
+        createdAt: pp.createdAt,
+        displayOptions: {},
+      }));
+      return { storedPaymentMethods: [...creditCards, ...paypalAccounts] };
+    } catch (e) {
+      logger.warn(`Could not find Braintree customer ${braintreeCustomerId}: ${e instanceof Error ? e.message : e}`);
+      return { storedPaymentMethods: [] };
+    }
   }
 
   private convertPaymentResultCode(resultCode: PaymentOutcome): string {
@@ -788,16 +845,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   private validatePaymentMethod(paymentMethodType: PaymentMethodType, braintreeMerchantAccount?: string): void {
-    const localPaymentTypes = new Set<string>([
-      PaymentMethodType.BANCONTACT,
-      PaymentMethodType.BLIK,
-      PaymentMethodType.EPS,
-      PaymentMethodType.GIROPAY,
-      PaymentMethodType.IDEAL,
-      PaymentMethodType.SOFORT,
-      PaymentMethodType.MYBANK,
-      PaymentMethodType.P24,
-    ]);
+    const localPaymentTypes = new Set<string>(Object.values(LocalPaymentMethodType));
     if (localPaymentTypes.has(paymentMethodType) && !braintreeMerchantAccount)
       throw new ErrorRequiredField('braintreeMerchantAccount');
   }
