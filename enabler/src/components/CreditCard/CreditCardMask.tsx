@@ -5,9 +5,7 @@ import {
   PropsWithChildren,
   useRef,
   RefObject,
-  ChangeEvent,
 } from "react";
-import classNames from "classnames";
 import { hostedFields, dataCollector } from "braintree-web";
 
 import { useBraintreeClient } from "../../app/useBraintreeClient";
@@ -27,26 +25,10 @@ import {
   HOSTED_FIELDS,
   renderMaskButtonClasses,
 } from "../../styles";
-import {
-  HostedFieldsAccountDetails,
-  HostedFieldsHostedFieldsFieldName,
-} from "braintree-web/hosted-fields";
+import { HostedFieldsHostedFieldsFieldName } from "braintree-web/hosted-fields";
 import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
 
 type CreditCardMaskProps = GeneralPayButtonProps & GeneralCreditCardProps;
-
-type LimitedVaultedPayment = {
-  nonce: string;
-  details: HostedFieldsAccountDetails;
-};
-
-type SelectedCardType =
-  | {
-      nonce: string;
-      bin: string;
-    }
-  | "new"
-  | "";
 
 export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   fullWidth = true,
@@ -65,20 +47,13 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     handleTransactionSale,
     handlePureVault,
     paymentInfo,
-    handleGetVaultedPaymentMethods,
     braintreeCustomerId,
   } = usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
-  const [hostedFieldsCreated, setHostedFieldsCreated] = useState(false);
-  const [showNewCreditCardForm, setShowNewCreditCardForm] = useState(false);
   const [emptyInputs, setEmptyInputs] = useState<boolean>(true);
   const [invalidInput, setInvalidInput] = useState<boolean>(false);
   const [deviceData, setDeviceData] = useState("");
-  const [limitedVaultedPayments, setLimitedVaultedPaymentMethods] = useState<
-    LimitedVaultedPayment[]
-  >([]);
-  const [selectedCard, setSelectedCard] = useState<SelectedCardType>("");
 
   const { client, threeDS } = useBraintreeClient();
 
@@ -100,26 +75,6 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     expirationDate: ccExpireRef,
     cardholderName: ccNameRef,
     postalCode: ccPostalRef,
-  };
-  const handleGetVaultedPaymentMethodsByType = (type: string) => {
-    if (isPureVault) {
-      setHostedFieldsCreated(true);
-      return;
-    }
-    const filteredPaymentMethods: Array<LimitedVaultedPayment> = [];
-    handleGetVaultedPaymentMethods()
-      .then((paymentMethods) => {
-        paymentMethods.forEach((paymentMethod) => {
-          if (paymentMethod.type === type) {
-            filteredPaymentMethods.push({
-              nonce: paymentMethod.nonce,
-              details: paymentMethod.details as HostedFieldsAccountDetails,
-            });
-          }
-        });
-        setLimitedVaultedPaymentMethods(filteredPaymentMethods);
-      })
-      .finally(() => setHostedFieldsCreated(true));
   };
 
   const verifyCardAndHandlePurchase = (
@@ -348,213 +303,96 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           );
         };
         form.addEventListener("submit", tokenize, false);
-        handleGetVaultedPaymentMethodsByType("CreditCard");
         isLoading(false);
       },
     );
   }, [client, threeDS]);
 
-  const changeCard = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value);
-    const checkNew = value === -1;
-    if (checkNew) {
-      setSelectedCard("new");
-    } else {
-      const vaultedPayment = limitedVaultedPayments[value];
-      setSelectedCard({
-        nonce: vaultedPayment.nonce,
-        bin: vaultedPayment.details.bin,
-      });
-    }
-    setShowNewCreditCardForm(checkNew);
-  };
-
-  const submitVaultedCard = async () => {
-    if (!threeDS) {
-      notify("Error", "3D Secure could not load");
-      return;
-    }
-    if (selectedCard === "" || selectedCard === "new") {
-      notify("Error", "An error occurred");
-      return;
-    }
-    isLoading(true);
-    let threeDSecureParameters: ThreeDSecureVerifyOptions = {
-      amount: `${paymentInfo.braintreeAmount}`,
-      nonce: selectedCard!.nonce,
-      bin: selectedCard!.bin,
-      email: paymentInfo.email,
-      billingAddress: threeDSBillingAddress,
-      additionalInformation: threeDSAdditionalInformation,
-    };
-    verifyCardAndHandlePurchase(threeDSecureParameters);
-    isLoading(false);
-  };
-
-  useEffect(() => {
-    if (!hostedFieldsCreated || limitedVaultedPayments.length) {
-      setShowNewCreditCardForm(false);
-      setSelectedCard("");
-      return;
-    }
-    setShowNewCreditCardForm(true);
-    setSelectedCard("new");
-  }, [limitedVaultedPayments, hostedFieldsCreated]);
-
   return (
-    <>
-      <>
-        {!!limitedVaultedPayments.length && (
-          <div className="block w-full">
-            <>
-              {limitedVaultedPayments.map((vaultedMethod, index) => {
-                return (
-                  <div
-                    key={index}
-                    className="flex gap-x-5 justify-start content-center border p-2 border-gray-300 rounded mt-4"
-                  >
-                    <input
-                      className="w-3 justify-self-center"
-                      id={`credit-card-${index}`}
-                      type="radio"
-                      name="select-credit-card"
-                      value={index}
-                      onChange={changeCard}
-                    />
-                    <label
-                      htmlFor={`credit-card-${index}`}
-                      className="cursor-pointer w-full"
-                    >
-                      <span className={HOSTED_FIELDS_LABEL}>
-                        {vaultedMethod.details.cardType}
-                      </span>
-                      <span className={HOSTED_FIELDS_LABEL}>
-                        **** **** **** {vaultedMethod.details.lastFour}
-                      </span>
-                      <span className={HOSTED_FIELDS_LABEL}>
-                        {vaultedMethod.details.cardholderName}
-                      </span>
-                      <span className={HOSTED_FIELDS_LABEL}>
-                        {vaultedMethod.details.expirationMonth} /{" "}
-                        {vaultedMethod.details.expirationYear}
-                      </span>
-                    </label>
-                  </div>
-                );
-              })}
-            </>
-
-            <label className={`${HOSTED_FIELDS_LABEL} mt-2 mb-2`}>
-              <input
-                type="radio"
-                name="select-credit-card"
-                value="-1"
-                onChange={changeCard}
-                className="mr-2"
-              />
-              new credit card
-            </label>
-          </div>
-        )}
-      </>
-      <div
-        className={classNames({
-          "demo-frame": true,
-          hidden: !showNewCreditCardForm,
-        })}
+    <div className="demo-frame">
+      <form
+        ref={ccFormRef}
+        action="/"
+        method="post"
+        id="cardForm"
+        className="m-auto p-8 max-w-3xl"
       >
-        <form
-          ref={ccFormRef}
-          action="/"
-          method="post"
-          id="cardForm"
-          className="m-auto p-8 max-w-3xl"
-        >
-          <label className={HOSTED_FIELDS_LABEL} htmlFor="card-number">
-            Card Number
-          </label>
-          <div
-            ref={ccNumberRef}
-            id="card-number"
-            className={`h-12 box-border w-full inline-block shadow-none font-semibold text-sm rounded-md border border-violet-50 leading-5 bg-slate-50 mb-3 px-3`}
-          ></div>
+        <label className={HOSTED_FIELDS_LABEL} htmlFor="card-number">
+          Card Number
+        </label>
+        <div
+          ref={ccNumberRef}
+          id="card-number"
+          className={`h-12 box-border w-full inline-block shadow-none font-semibold text-sm rounded-md border border-violet-50 leading-5 bg-slate-50 mb-3 px-3`}
+        ></div>
 
-          {showCardHoldersName && (
-            <>
-              <label className={HOSTED_FIELDS_LABEL} htmlFor="cc-name">
-                Name
-              </label>
-              <div
-                ref={ccNameRef}
-                id="cc-name"
-                className={`${HOSTED_FIELDS} p-3`}
-              ></div>
-            </>
-          )}
+        {showCardHoldersName && (
+          <>
+            <label className={HOSTED_FIELDS_LABEL} htmlFor="cc-name">
+              Name
+            </label>
+            <div
+              ref={ccNameRef}
+              id="cc-name"
+              className={`${HOSTED_FIELDS} p-3`}
+            ></div>
+          </>
+        )}
 
-          <label className={HOSTED_FIELDS_LABEL} htmlFor="expiration-date">
-            Expiration Date
-          </label>
-          <div
-            ref={ccExpireRef}
-            id="expiration-date"
-            className={`${HOSTED_FIELDS} p-3`}
-          ></div>
+        <label className={HOSTED_FIELDS_LABEL} htmlFor="expiration-date">
+          Expiration Date
+        </label>
+        <div
+          ref={ccExpireRef}
+          id="expiration-date"
+          className={`${HOSTED_FIELDS} p-3`}
+        ></div>
 
-          {showPostalCode && (
-            <>
-              <label className={HOSTED_FIELDS_LABEL} htmlFor="postal-code">
-                Postal code
-              </label>
-              <div
-                ref={ccPostalRef}
-                id="postal-code"
-                className={`${HOSTED_FIELDS} p-3`}
-              ></div>
-            </>
-          )}
+        {showPostalCode && (
+          <>
+            <label className={HOSTED_FIELDS_LABEL} htmlFor="postal-code">
+              Postal code
+            </label>
+            <div
+              ref={ccPostalRef}
+              id="postal-code"
+              className={`${HOSTED_FIELDS} p-3`}
+            ></div>
+          </>
+        )}
 
-          <label className={HOSTED_FIELDS_LABEL} htmlFor="cvv">
-            CVV
-          </label>
-          <div ref={ccCvvRef} id="cvv" className={`${HOSTED_FIELDS} p-3`}></div>
+        <label className={HOSTED_FIELDS_LABEL} htmlFor="cvv">
+          CVV
+        </label>
+        <div
+          ref={ccCvvRef}
+          id="cvv"
+          className={`${HOSTED_FIELDS} p-3`}
+        ></div>
 
-          {enableVaulting && braintreeCustomerId && !isPureVault && (
-            <>
-              <label className={`${HOSTED_FIELDS_LABEL} mb-2`}>
-                <input className="mr-3" ref={ccVaultCheckbox} type="checkbox" />
-                Save my card
-              </label>
-            </>
-          )}
+        {enableVaulting && braintreeCustomerId && !isPureVault && (
+          <>
+            <label className={`${HOSTED_FIELDS_LABEL} mb-2`}>
+              <input className="mr-3" ref={ccVaultCheckbox} type="checkbox" />
+              Save my card
+            </label>
+          </>
+        )}
 
-          <div className="block text-center">
-            {selectedCard === "new" && (
-              <input
-                disabled={emptyInputs && invalidInput}
-                type="submit"
-                className={renderMaskButtonClasses(
-                  fullWidth,
-                  !(emptyInputs && invalidInput),
-                  emptyInputs || invalidInput,
-                )}
-                value={buttonText}
-                id="submit"
-              />
+        <div className="block text-center">
+          <input
+            disabled={emptyInputs && invalidInput}
+            type="submit"
+            className={renderMaskButtonClasses(
+              fullWidth,
+              !(emptyInputs && invalidInput),
+              emptyInputs || invalidInput,
             )}
-          </div>
-        </form>
-      </div>
-      {selectedCard && selectedCard !== "new" && (
-        <div className="m-auto p-8 max-w-3xl">
-          <button
-            onClick={submitVaultedCard}
-            className={renderMaskButtonClasses(fullWidth, true, false)}
-          >
-            {buttonText}
-          </button>
+            value={buttonText}
+            id="submit"
+          />
         </div>
-      )}
-    </>
+      </form>
+    </div>
   );
 };

@@ -7,6 +7,8 @@ export enum PaymentOutcome {
   REJECTED = 'Rejected',
 }
 
+type ValuesOf<T extends object> = T[keyof T];
+
 export const StandardPaymentMethodType = {
   ACH: 'ACH',
   APPLE_PAY: 'ApplePay',
@@ -15,20 +17,19 @@ export const StandardPaymentMethodType = {
   PAYPAL: 'PayPal',
   VENMO: 'Venmo',
 } as const;
-export type StandardPaymentMethodType = (typeof StandardPaymentMethodType)[keyof typeof StandardPaymentMethodType];
+export type StandardPaymentMethodType = ValuesOf<typeof StandardPaymentMethodType>;
 
 export const StoredPaymentMethodType = {
   CREDIT_CARD_STORED: 'CreditCardStored',
   PAYPAL_STORED: 'PayPalStored',
 } as const;
-export type StoredPaymentMethodType = (typeof StoredPaymentMethodType)[keyof typeof StoredPaymentMethodType];
+export type StoredPaymentMethodType = ValuesOf<typeof StoredPaymentMethodType>;
 
 export const VaultPaymentMethodType = {
   CREDIT_CARD_VAULT: 'CreditCardVault',
   PAYPAL_VAULT: 'PayPalVault',
 } as const;
-
-export type VaultPaymentMethodType = (typeof VaultPaymentMethodType)[keyof typeof VaultPaymentMethodType];
+export type VaultPaymentMethodType = ValuesOf<typeof VaultPaymentMethodType>;
 
 export const LocalPaymentMethodType = {
   BANCONTACT: 'bancontact',
@@ -38,8 +39,7 @@ export const LocalPaymentMethodType = {
   MYBANK: 'mybank',
   P24: 'p24',
 } as const;
-
-export type LocalPaymentMethodType = (typeof LocalPaymentMethodType)[keyof typeof LocalPaymentMethodType];
+export type LocalPaymentMethodType = ValuesOf<typeof LocalPaymentMethodType>;
 
 export const PaymentMethodType = {
   ...StandardPaymentMethodType,

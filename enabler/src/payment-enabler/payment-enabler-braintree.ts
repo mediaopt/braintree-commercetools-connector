@@ -12,6 +12,7 @@ import {
 } from "./interfaces/stored";
 import { BaseOptions } from "./interfaces/baseOptions";
 import { BraintreeBuilder } from "../components/Builder/BraintreeBuilder";
+import { BraintreeStoredBuilder } from "../components/Builder/BraintreeStoredBuilder";
 import { sessionHeader } from "../helpers/sessionHeader";
 import {
   // BraintreePaymentMethodDropInType,
@@ -58,6 +59,7 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
         buttonText: configJson.buttonText,
         buttonStyleOverrides: configJson.buttonStyleOverrides,
         braintreeEnvironment: configJson.environment,
+        storedPaymentMethodsEnabled: !!configJson.storedPaymentMethodsConfig?.isEnabled,
         purchaseCallback:
           configJson.purchaseCallback ||
           options.onComplete ||
@@ -90,24 +92,41 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     );
   }
 
-  createStoredPaymentMethodBuilder(
+  async createStoredPaymentMethodBuilder(
     type: string,
-  ): Promise<StoredComponentBuilder> {
-    return Promise.resolve(undefined);
+  ): Promise<StoredComponentBuilder | never> {
+    const { baseOptions } = await this.setupData;
+    if (type === "CreditCard")
+      return new BraintreeStoredBuilder("CreditCardStored", baseOptions);
+    if (type === "PayPal")
+      return new BraintreeStoredBuilder("PayPalStored", baseOptions);
+    throw new Error(`Unsupported stored payment method type: ${type}`);
   }
 
-  getStoredPaymentMethods({
+  async getStoredPaymentMethods({
     allowedMethodTypes,
   }: {
     allowedMethodTypes: string[];
-  }): Promise<{
-    storedPaymentMethods?: StoredPaymentMethod[];
-  }> {
-    return Promise.resolve({});
+  }): Promise<{ storedPaymentMethods?: StoredPaymentMethod[] }> {
+    const { baseOptions } = await this.setupData;
+    const url = `${baseOptions.processorUrl.replace(/\/$/, "")}/stored-payment-methods`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: sessionHeader(baseOptions.sessionId),
+    });
+    if (!response.ok) {
+      return {};
+    }
+    const data = await response.json();
+    const methods: StoredPaymentMethod[] = (data.storedPaymentMethods ?? []).filter(
+      (m: StoredPaymentMethod) => allowedMethodTypes.includes(m.type),
+    );
+    return { storedPaymentMethods: methods };
   }
 
-  isStoredPaymentMethodsEnabled(): Promise<boolean> {
-    return Promise.resolve(false);
+  async isStoredPaymentMethodsEnabled(): Promise<boolean> {
+    const { baseOptions } = await this.setupData;
+    return baseOptions.storedPaymentMethodsEnabled ?? false;
   }
 
   setStorePaymentDetails(enabled: boolean): void {}
