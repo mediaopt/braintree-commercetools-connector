@@ -79,10 +79,6 @@ export type GeneralComponentsProps = PaymentProviderProps &
     shippingMethodId?: string;
   } & LineItemsShipping;
 
-export type LocalPaymentComponentsProp = {
-  processorUrl: string;
-};
-
 export type ClientTokenResponse = {
   clientToken: string;
   paymentVersion: number;

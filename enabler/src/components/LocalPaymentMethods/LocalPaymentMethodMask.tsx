@@ -19,7 +19,6 @@ import { useNotifications } from "../../app/useNotifications";
 import {
   LocalPaymentMethodsType,
   GeneralPayButtonProps,
-  LocalPaymentComponentsProp,
 } from "../../types";
 import { useLoader } from "../../app/useLoader";
 import { renderMaskButtonClasses } from "../../styles";
@@ -27,13 +26,11 @@ import { validateCountryAndCurrency } from "./validateCountryAndCurrency";
 import { invalidDataLog } from "./invalidDataLog";
 
 type LocalPaymentMethodMaskType = LocalPaymentMethodsType &
-  GeneralPayButtonProps &
-  LocalPaymentComponentsProp;
+  GeneralPayButtonProps;
 
 export const LocalPaymentMethodMask: FC<
   PropsWithChildren<LocalPaymentMethodMaskType>
 > = ({
-  processorUrl,
   paymentType,
   fullWidth = true,
   buttonText,
@@ -84,7 +81,7 @@ export const LocalPaymentMethodMask: FC<
       );
       return;
     }
-    let localPaymentId = "";
+    let localPaymentId: string | undefined;
     e.preventDefault();
     if (!localPaymentInstance) {
       notify("Error", "No payment instance");
@@ -151,9 +148,8 @@ export const LocalPaymentMethodMask: FC<
           notify("Error", clientError.message);
           return;
         }
-        const localPaymentAuthOption: any =
-          merchantAccountId
-          ? { merchantAccountId:merchantAccountId }
+        const localPaymentAuthOption: any = merchantAccountId
+          ? { merchantAccountId: merchantAccountId }
           : { authorization: clientToken };
         localPaymentAuthOption.client = clientInstance;
         localPayment.create(
