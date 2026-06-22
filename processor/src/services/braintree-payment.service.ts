@@ -604,28 +604,26 @@ export class BraintreePaymentService extends AbstractPaymentService {
       storeShipping,
       paymentMethodNonce,
       paymentToken,
-      // {
-      //   //shipping: braintreePaymentDetails?.braintreeShipping
-      // },
-    ); //todo - handle other params
+    );
     // braintree has 35 char limit for line item name in transactionSale, see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
     const lineItemsForSale = (braintreePaymentDetails?.braintreeLineItems || []).map((item) => ({
       ...item,
       name: item.name.substring(0, 35),
     })); //braintree has 35 char limit for line item name in transactionSale, so we need to cut it to avoid errors, see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
+    transactionRequest.lineItems = lineItemsForSale.filter(({ productCode }) => productCode !== 'DISCOUNT');
+    transactionRequest.discountAmount = mapCommercetoolsMoneyToBraintreeMoney(
+      updatedCart?.discountOnTotalPrice?.discountedAmount || { ...ctPayment.amountPlanned, centAmount: 0 },
+    );
     if (braintreePaymentDetails?.extraShippingCost) {
-      //will be only submitted in express mode, then shipping was submitted via SDK through update and can be mapped properly
+      //will be only submitted in express mode, then shipping was submitted via SDK through update and can be mapped here, otherwise it is included in line items
       transactionRequest.shippingAmount = Number(braintreePaymentDetails.extraShippingCost).toFixed(2);
     } //see enabler PayPalMask onShippingChange and onApprove
-    logger.info(`transaction request, ${JSON.stringify(transactionRequest)}`);
     if (localPaymentId) {
       if (!transactionRequest.options) transactionRequest.options = {};
-      transactionRequest.options.submitForSettlement = true;
+      transactionRequest.options.submitForSettlement = true; //required for local payment methods
     }
     try {
-      const response = await transactionSale({
-        ...transactionRequest, // discountAmount: '18.29', //todo - clarify external tax
-      });
+      const response = await transactionSale(transactionRequest); //todo - test discount and external tax
       if (localPaymentId) {
         const saleLocalPaymentId = (response as TransactionWithLocalPayment).localPayment?.paymentId;
         if (saleLocalPaymentId && localPaymentId !== saleLocalPaymentId) {
