@@ -1,4 +1,4 @@
-import { useEffect, useState, FC, PropsWithChildren, useMemo } from "react";
+import { useEffect, useState, FC, PropsWithChildren, useCallback } from "react";
 import {
   client as braintreeClient,
   paypalCheckout,
@@ -17,7 +17,6 @@ import {
   LineItemKind,
 } from "../../types";
 
-import { renderMaskButtonClasses } from "../../styles";
 import { PayPalCheckoutLoadPayPalSDKOptions } from "braintree-web/paypal-checkout";
 
 type PayPalMaskProps = GeneralPayButtonProps & PayPalProps;
@@ -44,8 +43,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   billingAgreementDescription,
   shippingAddressEditable,
   shippingAddressOverride,
-  fullWidth,
-  buttonText,
   useKount,
   shipping,
   shape,
@@ -68,37 +65,43 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   const { isLoading } = useLoader();
 
   const [updatedTotal, setUpdatedTotal] = useState<string>();
-  const [updatedDiscount, setUpdatedDiscount] = useState<string>();
 
   // When shipping changes on express flow, the discount amount in braintreeLineItems may also change,
   // or a discount may appear that wasn't present at payment creation
-  const extendedItems = useMemo(() => {
-    const items = paymentInfo.braintreeLineItems;
-    if (!items || !updatedDiscount) return items;
-    const hasDiscount = items.some((item) => item.productCode === "DISCOUNT");
-    if (hasDiscount) {
-      return items.map((item) =>
-        item.productCode === "DISCOUNT"
-          ? {
-              ...item,
-              unitAmount: updatedDiscount,
-              totalAmount: updatedDiscount,
-            }
-          : item,
-      );
-    }
-    return [
-      ...items,
-      {
-        name: "Discount",
-        kind: LineItemKind.Credit,
-        unitAmount: updatedDiscount,
-        totalAmount: updatedDiscount,
-        productCode: "DISCOUNT",
-        ...lineItemPlaceholders,
-      },
-    ];
-  }, [paymentInfo.braintreeLineItems, updatedDiscount]);
+  const extendedItems = useCallback(
+    (updatedDiscount?: string) => {
+      const items = paymentInfo.braintreeLineItems;
+      if (!updatedDiscount || !items) return items;
+      else {
+        const hasDiscount = items.some(
+          (item) => item.productCode === "DISCOUNT",
+        );
+        if (hasDiscount) {
+          return items.map((item) =>
+            item.productCode === "DISCOUNT"
+              ? {
+                  ...item,
+                  unitAmount: updatedDiscount,
+                  totalAmount: updatedDiscount,
+                }
+              : item,
+          );
+        }
+        return [
+          ...items,
+          {
+            name: "Discount",
+            kind: LineItemKind.Credit,
+            unitAmount: updatedDiscount,
+            totalAmount: updatedDiscount,
+            productCode: "DISCOUNT",
+            ...lineItemPlaceholders,
+          },
+        ];
+      }
+    },
+    [paymentInfo.braintreeLineItems],
+  );
 
   useEffect(() => {
     if (!clientToken) return;
@@ -208,7 +211,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               payload.details.shippingAddress.postalCode,
                           },
                           braintreePaymentDetails: {
-                            braintreeLineItems: extendedItems,
+                            braintreeLineItems: extendedItems(), //discount will be retrieved from the cart at the backend and mapped separately
                             braintreeShipping: payload.shippingAddress,
                             extraShippingCost: payload.shippingOptionId
                               ? shippingOptions?.find(
@@ -322,11 +325,12 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               relevantShippingOptions[activateIndex].id,
                             );
                             setUpdatedTotal(shippingResult.braintreeAmount);
-                            setUpdatedDiscount(shippingResult.discountAmount);
                             return paypalCheckoutInstance.updatePayment({
                               amount: shippingResult.braintreeAmount,
                               currency: paymentInfo.currency,
-                              lineItems: extendedItems,
+                              lineItems: extendedItems(
+                                shippingResult.discountAmount,
+                              ),
                               paymentId: data.paymentId,
                               shippingOptions: braintreeShippingOptions,
                             });
@@ -335,9 +339,9 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
 
                         createOrder: () => {
                           return paypalCheckoutInstance.createPayment({
-                            flow: flow,
-                            locale: locale,
-                            lineItems: extendedItems,
+                            flow,
+                            locale,
+                            lineItems: extendedItems(),
                             amount: updatedTotal ?? paymentInfo.braintreeAmount,
                             currency: paymentInfo.currency,
                             intent,
