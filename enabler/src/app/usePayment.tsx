@@ -33,6 +33,7 @@ import { useLoader } from "./useLoader";
 import { processorUrls } from "../components/constants";
 import { sessionHeader } from "../helpers/sessionHeader";
 import { LoadingOverlay } from "../components/LoadingOverlay";
+import { PayPalCheckoutUpdatePaymentOptions } from "braintree-web/paypal-checkout";
 
 type PaymentActionResponseData = {
   message: string;
@@ -54,7 +55,11 @@ type PaymentContextT = {
   paymentInfo: PaymentInfo;
   vaultedPaymentMethods: FetchPaymentMethodsPayload[];
   handleGetVaultedPaymentMethods: () => Promise<FetchPaymentMethodsPayload[]>;
-  updateCartShipping: (newShippingMethodId: string) => Promise<{ braintreeAmount: string; discountAmount?: string }>;
+  // return shape mirrors UpdateCartShippingResponseSchemaDTO in processor/src/dtos/braintree-payment.dto.ts
+  updateCartShipping: (newShippingMethodId: string) => Promise<{
+    braintreeAmount: string;
+    amountBreakdown: PayPalCheckoutUpdatePaymentOptions["amountBreakdown"]; //the actually required fields are handled at the processor side
+  }>;
   braintreeCustomerId: string;
   requestHeader: RequestHeader;
 };
@@ -76,7 +81,19 @@ const PaymentContext = createContext<PaymentContextT>({
     new Promise<FetchPaymentMethodsPayload[]>(
       (resolve) => [] as FetchPaymentMethodsPayload[],
     ),
-  updateCartShipping: () => new Promise<{ braintreeAmount: string; discountAmount?: string }>(() => ({ braintreeAmount: "" })),
+  updateCartShipping: () =>
+    Promise.resolve({
+      braintreeAmount: "",
+      amountBreakdown: {
+        itemTotal: "0.00",
+        taxTotal: "0.00",
+        shipping: "0.00",
+        discount: "0.00",
+        handling: "0.00",
+        insurance: "0.00",
+        shippingDiscount: "0.00",
+      },
+    }),
   braintreeCustomerId: "",
   requestHeader: {},
 });
@@ -190,14 +207,18 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       paymentNonce,
       options?,
     ) => {
-      const { braintreePaymentDetails: incomingDetails, ...rest } = options ?? {};
+      const { braintreePaymentDetails: incomingDetails, ...rest } =
+        options ?? {};
 
       const requestBody = {
         ctPaymentId: paymentInfo.ctPaymentId,
         paymentMethodNonce: paymentNonce,
         braintreePaymentDetails: {
-          braintreeLineItems: incomingDetails?.braintreeLineItems ?? paymentInfo.braintreeLineItems,
-          braintreeShipping: incomingDetails?.braintreeShipping ?? paymentInfo.braintreeShipping,
+          braintreeLineItems:
+            incomingDetails?.braintreeLineItems ??
+            paymentInfo.braintreeLineItems,
+          braintreeShipping:
+            incomingDetails?.braintreeShipping ?? paymentInfo.braintreeShipping,
           extraShippingCost: incomingDetails?.extraShippingCost,
         },
         ...rest,
@@ -264,7 +285,11 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         requestHeader,
         updateCartShippingUrl,
         { newShippingMethodId },
-      )) as { braintreeAmount: string; discountAmount?: string };
+        // response shape mirrors UpdateCartShippingResponseSchemaDTO in processor/src/dtos/braintree-payment.dto.ts
+      )) as {
+        braintreeAmount: string;
+        amountBreakdown: PayPalCheckoutUpdatePaymentOptions["amountBreakdown"];
+      };
     };
 
     return {

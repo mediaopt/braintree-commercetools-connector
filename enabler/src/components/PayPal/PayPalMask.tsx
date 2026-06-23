@@ -1,4 +1,4 @@
-import { useEffect, useState, FC, PropsWithChildren, useCallback } from "react";
+import { useEffect, useState, FC, PropsWithChildren } from "react";
 import {
   client as braintreeClient,
   paypalCheckout,
@@ -14,7 +14,6 @@ import {
   PayPalProps,
   GeneralPayButtonProps,
   PayPalFundingSourcesProp,
-  LineItemKind,
 } from "../../types";
 
 import { PayPalCheckoutLoadPayPalSDKOptions } from "braintree-web/paypal-checkout";
@@ -22,13 +21,6 @@ import { PayPalCheckoutLoadPayPalSDKOptions } from "braintree-web/paypal-checkou
 type PayPalMaskProps = GeneralPayButtonProps & PayPalProps;
 
 const FUNDING_SOURCES = ["paypal"];
-
-const lineItemPlaceholders = {
-  quantity: "1",
-  unitTaxAmount: "0.00",
-  description: "",
-  url: "",
-};
 
 export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   flow,
@@ -65,43 +57,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   const { isLoading } = useLoader();
 
   const [updatedTotal, setUpdatedTotal] = useState<string>();
-
-  // When shipping changes on express flow, the discount amount in braintreeLineItems may also change,
-  // or a discount may appear that wasn't present at payment creation
-  const extendedItems = useCallback(
-    (updatedDiscount?: string) => {
-      const items = paymentInfo.braintreeLineItems;
-      if (!updatedDiscount || !items) return items;
-      else {
-        const hasDiscount = items.some(
-          (item) => item.productCode === "DISCOUNT",
-        );
-        if (hasDiscount) {
-          return items.map((item) =>
-            item.productCode === "DISCOUNT"
-              ? {
-                  ...item,
-                  unitAmount: updatedDiscount,
-                  totalAmount: updatedDiscount,
-                }
-              : item,
-          );
-        }
-        return [
-          ...items,
-          {
-            name: "Discount",
-            kind: LineItemKind.Credit,
-            unitAmount: updatedDiscount,
-            totalAmount: updatedDiscount,
-            productCode: "DISCOUNT",
-            ...lineItemPlaceholders,
-          },
-        ];
-      }
-    },
-    [paymentInfo.braintreeLineItems],
-  );
 
   useEffect(() => {
     if (!clientToken) return;
@@ -211,7 +166,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               payload.details.shippingAddress.postalCode,
                           },
                           braintreePaymentDetails: {
-                            braintreeLineItems: extendedItems(), //discount will be retrieved from the cart at the backend and mapped separately
+                            braintreeLineItems: paymentInfo.braintreeLineItems, //discount will be retrieved from the cart at the backend and mapped separately
                             braintreeShipping: payload.shippingAddress,
                             extraShippingCost: payload.shippingOptionId
                               ? shippingOptions?.find(
@@ -293,10 +248,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           if (!relevantShippingOptions.length)
                             return actions.reject();
 
-                          const initSelectedMethod = shippingOptions.find(
-                            ({ selected }) => selected,
-                          );
-
                           const selectedOptionIndex =
                             relevantShippingOptions.findIndex(
                               ({ id, label }) =>
@@ -316,32 +267,47 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                                 amount,
                               }),
                             );
-
-                          if (
-                            initSelectedMethod?.id !==
-                            relevantShippingOptions[activateIndex].id
-                          ) {
-                            const shippingResult = await updateCartShipping(
-                              relevantShippingOptions[activateIndex].id,
-                            );
-                            setUpdatedTotal(shippingResult.braintreeAmount);
-                            return paypalCheckoutInstance.updatePayment({
-                              amount: shippingResult.braintreeAmount,
-                              currency: paymentInfo.currency,
-                              lineItems: extendedItems(
-                                shippingResult.discountAmount,
-                              ),
-                              paymentId: data.paymentId,
-                              shippingOptions: braintreeShippingOptions,
-                            });
-                          }
+                          const shippingResult = await updateCartShipping(
+                            relevantShippingOptions[activateIndex].id,
+                          );
+                          setUpdatedTotal(shippingResult.braintreeAmount);
+                          return paypalCheckoutInstance.updatePayment({
+                            amount: shippingResult.braintreeAmount,
+                            currency: paymentInfo.currency,
+                            lineItems: paymentInfo.braintreeLineItems?.filter(
+                              ({ productCode }) => productCode !== "DISCOUNT",
+                            ),
+                            paymentId: data.paymentId,
+                            shippingOptions: braintreeShippingOptions,
+                            // amountBreakdown is computed by the processor — see updateCartShipping in
+                            // processor/src/services/braintree-payment.service.ts
+                            amountBreakdown: shippingResult.amountBreakdown,
+                          });
                         },
 
                         createOrder: () => {
+                          // Filter by the cart's country so only one option can be selected:true.
+                          // If a pre-selected option exists, pass shippingOptions to createPayment
+                          // and omit lineItems — onShippingChange fires immediately and sets them
+                          // via updatePayment with amountBreakdown.
+                          // For non-express or no pre-selected shipping, lineItems are sent directly and include discount and shipping.
+                          const countryShippingOptions =
+                            shippingOptions?.filter(
+                              (item) =>
+                                item.countryCode === paymentInfo.countryCode,
+                            );
+                          const preSelectedOptions = countryShippingOptions?.some(
+                            ({ selected }) => selected,
+                          )
+                            ? countryShippingOptions
+                            : undefined;
                           return paypalCheckoutInstance.createPayment({
                             flow,
                             locale,
-                            lineItems: extendedItems(),
+                            lineItems: preSelectedOptions
+                              ? undefined
+                              : paymentInfo.braintreeLineItems,
+                            shippingOptions: preSelectedOptions,
                             amount: updatedTotal ?? paymentInfo.braintreeAmount,
                             currency: paymentInfo.currency,
                             intent,
@@ -379,7 +345,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     intent,
     isLoading,
     locale,
-    paymentInfo.braintreeLineItems,
     billingAgreementDescription,
     shippingAddressEditable,
     shippingAddressOverride,

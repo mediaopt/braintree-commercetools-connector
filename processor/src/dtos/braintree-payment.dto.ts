@@ -177,8 +177,23 @@ export const RefundRequestSchema = Type.Object({
   transactionId: Type.Optional(Type.String()),
 });
 
+// Maps to PayPalCheckoutUpdatePaymentOptions from braintree-web/paypal-checkout.
+// Not a direct 1:1 — that type has no schema equivalent in this project.
+// handling, insurance, shippingDiscount are marked optional in the Braintree SDK
+// but ARE required when discount is present; currently always "0.00" (internal mapping constraints).
+export const AmountBreakdownSchema = Type.Object({
+  itemTotal: Type.String(),
+  taxTotal: Type.String(),
+  shipping: Type.String(),
+  discount: Type.String(),
+  handling: Type.String(),
+  insurance: Type.String(),
+  shippingDiscount: Type.String(),
+});
+export type AmountBreakdown = Static<typeof AmountBreakdownSchema>;
+
 export const UpdateCartShippingResponseSchema = Type.Object({
   braintreeAmount: Type.String(),
-  discountAmount: Type.Optional(Type.String()),
+  amountBreakdown: AmountBreakdownSchema,
 });
 export type UpdateCartShippingResponseSchemaDTO = Static<typeof UpdateCartShippingResponseSchema>;
