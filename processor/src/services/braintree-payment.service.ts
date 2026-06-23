@@ -153,7 +153,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
       storedPaymentMethodsConfig: {
         isEnabled: await this.isStoredPaymentMethodsEnabled(),
       },
+      enableVaulting: config.enableVaulting,
       buttonStyleOverrides: config.buttonStyleOverrides,
+      perMethodConfig: config.perMethodConfig,
     };
   }
 
@@ -522,7 +524,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           : undefined,
         ctCustomerId: customer?.id,
         ctCustomerVersion: customer?.version,
-        countryCode: ctCart.billingAddress?.country,
+        countryCode: ctCart.billingAddress?.country || ctCart.country,
         fallbackUrl: getConfig().localPaymentFallbackUrl || undefined,
       },
     };
@@ -564,15 +566,39 @@ export class BraintreePaymentService extends AbstractPaymentService {
         `Could not set shipping method ${newShippingMethodId} for cart ${ctCart.id}. Cart not found in CoCo.`,
       );
     }
-    const costWithNewShipping = await this.ctCartService.getPaymentAmount({ cart: updatedCard });
+    const costWithNewShipping = await this.ctCartService.getPaymentAmount({ cart: updatedCard }); //as checkout api doesn't support updatePayment amountPlanned - it is postponed to transaction sale in order to speed up the response
+    const totalNum = Number(mapCommercetoolsMoneyToBraintreeMoney(costWithNewShipping as CentPrecisionMoney));
+    const shippingNum = updatedCard.shippingInfo?.price
+      ? Number(mapCommercetoolsMoneyToBraintreeMoney(updatedCard.shippingInfo.price))
+      : 0;
+    const discountNum = updatedCard.discountOnTotalPrice?.discountedAmount
+      ? Number(mapCommercetoolsMoneyToBraintreeMoney(updatedCard.discountOnTotalPrice.discountedAmount))
+      : 0;
+    // taxTotal must be mapped separately only for external tax modes (External / ExternalAmount);
+    // for Platform/Disabled the tax is already embedded in line item prices.
+    const isExternalTax = updatedCard.taxMode === 'External' || updatedCard.taxMode === 'ExternalAmount';
+    const taxNum =
+      isExternalTax && updatedCard.taxedPrice?.totalTax
+        ? Number(mapCommercetoolsMoneyToBraintreeMoney(updatedCard.taxedPrice.totalTax))
+        : 0;
+
+    // amountBreakdown must satisfy PayPal's validation:
+    // itemTotal + taxTotal + shipping + handling + insurance - discount - shippingDiscount = amount
+    // itemTotal is derived from braintreeAmount rather than summed from line items to avoid rounding drift.
+    const itemTotal = (totalNum - shippingNum + discountNum - taxNum).toFixed(2);
+
     return {
-      braintreeAmount: Number(mapCommercetoolsMoneyToBraintreeMoney(costWithNewShipping as CentPrecisionMoney)).toFixed(
-        2,
-      ),
-      discountAmount: updatedCard.discountOnTotalPrice?.discountedAmount
-        ? mapCommercetoolsMoneyToBraintreeMoney(updatedCard.discountOnTotalPrice.discountedAmount)
-        : undefined,
-    }; //as checkout api doesn't support updatePayment amountPlanned - it is postponed to transaction sale in order to speed up the response
+      braintreeAmount: totalNum.toFixed(2),
+      amountBreakdown: {
+        itemTotal,
+        taxTotal: taxNum.toFixed(2),
+        shipping: shippingNum.toFixed(2),
+        discount: discountNum.toFixed(2),
+        handling: '0.00',
+        insurance: '0.00',
+        shippingDiscount: '0.00',
+      },
+    };
   }
 
   public async transactionSale({
