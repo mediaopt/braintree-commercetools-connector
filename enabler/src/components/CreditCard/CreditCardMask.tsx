@@ -36,12 +36,12 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   continueOnLiabilityShiftPossible = false,
   continueOnNoThreeDS = false,
   useKount,
-  isPureVault = false,
+  // PURE_VAULT_DISABLED: isPureVault = false,
   onRegisterSubmit,
 }) => {
   const {
     handleTransactionSale,
-    handlePureVault,
+    // PURE_VAULT_DISABLED: handlePureVault,
     paymentInfo,
     braintreeCustomerId,
   } = usePayment();
@@ -284,10 +284,13 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
                   return reject(err);
                 }
 
+                /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
                 if (isPureVault) {
                   handlePureVault(payload.nonce);
                   resolve();
                 } else {
+                PURE_VAULT_DISABLED end */
+                {
                   const threeDSecureParameters: ThreeDSecureVerifyOptions = {
                     amount: `${paymentInfo.braintreeAmount}`,
                     nonce: payload.nonce,
@@ -296,15 +299,19 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
                     billingAddress: threeDSBillingAddress,
                     additionalInformation: threeDSAdditionalInformation,
                   };
-                  verifyCardAndHandlePurchase(threeDSecureParameters, shouldVault);
+                  verifyCardAndHandlePurchase(
+                    threeDSecureParameters,
+                    shouldVault,
+                  );
                   resolve();
                 }
+                // PURE_VAULT_DISABLED: } (closing else removed)
               },
             );
           });
 
         onRegisterSubmit?.((storePaymentDetails) =>
-          submitPayment(storePaymentDetails ?? false)
+          submitPayment(storePaymentDetails ?? false),
         );
         isLoading(false);
       },
@@ -367,21 +374,17 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
         <label className={HOSTED_FIELDS_LABEL} htmlFor="cvv">
           CVV
         </label>
-        <div
-          ref={ccCvvRef}
-          id="cvv"
-          className={`${HOSTED_FIELDS} p-3`}
-        ></div>
+        <div ref={ccCvvRef} id="cvv" className={`${HOSTED_FIELDS} p-3`}></div>
 
-        {enableVaulting && braintreeCustomerId && !isPureVault && (
-          <>
-            <label className={`${HOSTED_FIELDS_LABEL} mb-2`}>
-              <input className="mr-3" ref={ccVaultCheckbox} type="checkbox" />
-              {vaultLabel ?? "Save my card"}
-            </label>
-          </>
-        )}
-
+        {enableVaulting &&
+          braintreeCustomerId && ( //PURE_VAULT_DISABLED  && !isPureVault
+            <>
+              <label className={`${HOSTED_FIELDS_LABEL} mb-2`}>
+                <input className="mr-3" ref={ccVaultCheckbox} type="checkbox" />
+                {vaultLabel ?? "Save my card"}
+              </label>
+            </>
+          )}
       </form>
     </div>
   );

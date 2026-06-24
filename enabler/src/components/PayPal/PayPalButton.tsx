@@ -12,7 +12,7 @@ import { GeneralPayButtonProps, PayPalProps } from "../../types";
 type PayPalButtonProps = PayPalProps & GeneralPayButtonProps;
 
 export const PayPalButton: FC<PayPalButtonProps> = ({
-  isPureVault,
+  // PURE_VAULT_DISABLED: isPureVault,
   enableVaulting,
   vaultLabel,
   fullWidth = true,
@@ -36,14 +36,10 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
   tagline,
   height,
 }) => {
-  const FALLBACK_TEXT = isPureVault
-    ? VAULT_BUTTON_TEXT_FALLBACK
-    : PAY_BUTTON_TEXT_FALLBACK;
 
   return (
     <PayPalMask
       fullWidth={fullWidth}
-      buttonText={buttonText ?? FALLBACK_TEXT}
       flow={flow}
       buttonLabel={buttonLabel}
       buttonColor={buttonColor}
@@ -62,7 +58,7 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
       size={size}
       tagline={tagline}
       height={height}
-      isPureVault={isPureVault}
+      // PURE_VAULT_DISABLED: isPureVault={isPureVault}
       enableVaulting={enableVaulting}
       vaultLabel={vaultLabel}
     />

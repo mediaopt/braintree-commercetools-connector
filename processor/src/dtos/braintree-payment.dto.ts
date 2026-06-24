@@ -25,11 +25,13 @@ export const StoredPaymentMethodType = {
 } as const;
 export type StoredPaymentMethodType = ValuesOf<typeof StoredPaymentMethodType>;
 
+/* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
 export const VaultPaymentMethodType = {
   CREDIT_CARD_VAULT: 'CreditCardVault',
   PAYPAL_VAULT: 'PayPalVault',
 } as const;
 export type VaultPaymentMethodType = ValuesOf<typeof VaultPaymentMethodType>;
+PURE_VAULT_DISABLED end */
 
 export const LocalPaymentMethodType = {
   BANCONTACT: 'bancontact',
@@ -44,13 +46,13 @@ export type LocalPaymentMethodType = ValuesOf<typeof LocalPaymentMethodType>;
 export const PaymentMethodType = {
   ...StandardPaymentMethodType,
   ...StoredPaymentMethodType,
-  ...VaultPaymentMethodType,
+  // PURE_VAULT_DISABLED: ...VaultPaymentMethodType,
   ...LocalPaymentMethodType,
 } as const;
 export type PaymentMethodType =
   | StandardPaymentMethodType
   | StoredPaymentMethodType
-  | VaultPaymentMethodType
+  // PURE_VAULT_DISABLED: | VaultPaymentMethodType
   | LocalPaymentMethodType;
 
 export enum CustomBuilderType {
@@ -123,6 +125,7 @@ export const InitPaymentRequestSchema = Type.Object({
   // paymentOutcome: PaymentOutcomeSchema,
 });
 
+/* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
 const PureVaultBaseSchema = Type.Object({
   ctCustomerId: Type.String(),
   ctCustomerVersion: Type.Number(),
@@ -140,6 +143,7 @@ export const PureVaultRequestSchema = Type.Object({
 
 export type PureVaultBaseSchemaDTO = Static<typeof PureVaultBaseSchema>;
 export type PureVaultRequestSchemaDTO = Static<typeof PureVaultRequestSchema>;
+PURE_VAULT_DISABLED end */
 
 export type PaymentRequestSchemaDTO = Static<typeof InitPaymentRequestSchema>;
 export type PaymentResponseSchemaDTO = Static<typeof InitPaymentResponseSchema>;

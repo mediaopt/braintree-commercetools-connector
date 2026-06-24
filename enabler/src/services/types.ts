@@ -13,13 +13,15 @@ export type TransactionSaleRequest = {
   [key: string]: any;
 };
 
+/* PURE_VAULT_DISABLED start
 export type VaultRequest = {
-  ctCustomerId?: string;
-  ctCustomerVersion?: string | number;
-  ctPaymentId: string;
-  braintreeCustomerId: string;
-  paymentMethodNonce: string;
+ ctCustomerId?: string;
+ ctCustomerVersion?: string | number;
+ ctPaymentId: string;
+ braintreeCustomerId: string;
+ paymentMethodNonce: string;
 };
+PURE_VAULT_DISABLED end */
 
 export type ChangeShippingRequest = {
   newShippingMethodId: string;

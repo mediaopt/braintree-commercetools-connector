@@ -49,7 +49,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   size,
   tagline,
   height,
-  isPureVault = false,
+  // PURE_VAULT_DISABLED: isPureVault = false,
   enableVaulting = false,
   vaultLabel,
 }) => {
@@ -60,7 +60,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     handleTransactionSale,
     paymentInfo,
     clientToken,
-    handlePureVault,
+    // PURE_VAULT_DISABLED: handlePureVault,
     updateCartShipping,
     braintreeCustomerId,
   } = usePayment();
@@ -157,9 +157,12 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                     data,
                     function (err: any, payload: any) {
                       //type definition for payload https://braintree.github.io/braintree-web/3.9.0/PayPalCheckout.html#~tokenizePayload
+                      /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
                       if (isPureVault) {
                         handlePureVault(payload.nonce);
                       } else {
+                      PURE_VAULT_DISABLED end */
+                      {
                         handleTransactionSale(payload.nonce, {
                           deviceData: deviceData,
                           shipping: shipping,
@@ -190,6 +193,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           },
                         });
                       }
+                      // PURE_VAULT_DISABLED: } (closing else removed)
                     },
                   );
                 };
@@ -373,9 +377,9 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     () =>
       enableVaulting &&
       !!braintreeCustomerId &&
-      !isPureVault &&
+      // PURE_VAULT_DISABLED !isPureVault &&
       flow !== ("vault" as FlowType),
-    [enableVaulting, braintreeCustomerId, isPureVault, flow],
+    [enableVaulting, braintreeCustomerId, flow],
   );
 
   return (

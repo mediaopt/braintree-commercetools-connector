@@ -16,7 +16,7 @@ import {
   PaymentUpdateResponseSchemaDTO,
   PaymentRequestSchemaDTO,
   PaymentResponseSchemaDTO,
-  PureVaultRequestSchemaDTO,
+  // PURE_VAULT_DISABLED: PureVaultRequestSchemaDTO,
   TransactionSaleRequestSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { logger } from 'common-connect';
@@ -218,13 +218,13 @@ export abstract class AbstractPaymentService {
    * @remarks Handlers require valid commercetools customer ID and version. Payment ID is included in error logs to enable tracing and diagnosis when customer data is unavailable or incomplete.
    */
 
-  /** Pure vault
-   * @remarks
-   * Abstract method to save a new payment method for a customer. The actual implementation should be provided by subclasses.
-   *
-   * @param request - commercetools customer ID and version, braintree customer ID (if exists), and payment method nonce
-   * @returns Promise with success response
-   */
-
-  abstract pureVault(request: PureVaultRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO>;
+  // PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
+  // /** Pure vault
+  //  * @remarks
+  //  * Abstract method to save a new payment method for a customer.
+  //  * @param request - CT customer ID and version, braintree customer ID (if exists), and payment method nonce
+  //  * @returns Promise with success response
+  //  */
+  // abstract pureVault(request: PureVaultRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO>;
+  // PURE_VAULT_DISABLED end
 }
