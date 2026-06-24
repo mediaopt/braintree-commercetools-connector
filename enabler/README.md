@@ -232,10 +232,6 @@ For comprehensive information about all PayPal options, see the [PayPal official
   - Use test nonce and username for payment success (even if popup is cancelled)
   - For testing purposes only
 
-- **setVenmoUserName**: `(venmoName: string) => any`
-  - Callback returning Venmo username of the customer
-  - Must be displayed according to Venmo guidelines
-
 - **ignoreBowserSupport**: `boolean`
   - Ignore browser support checks (Venmo skips unsupported browsers by default)
   - For testing purposes only, do not use in production

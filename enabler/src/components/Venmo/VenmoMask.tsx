@@ -38,7 +38,6 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
   fullWidth = true,
   buttonText,
   useTestNonce,
-  setVenmoUserName,
   ignoreBowserSupport,
   useKount,
   shipping,
@@ -67,8 +66,18 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
       deviceData: deviceData,
       lineItems: paymentInfo.braintreeLineItems,
       shipping: shipping,
+      venmoUsername: payload.details.username,
     });
-    setVenmoUserName(payload.details.username);
+  };
+
+  const handleTokenizeResult = (payload?: VenmoTokenizePayload) => {
+    if (useTestNonce) {
+      handleVenmoSuccess(TEST_PAYLOAD);
+    } else if (payload) {
+      handleVenmoSuccess(payload);
+    } else {
+      notify("Error", "Couldn't create payment");
+    }
   };
 
   const clickVenmoButton = (e: FormEvent) => {
@@ -78,16 +87,10 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
 
     currentVenmoInstance.tokenize({}, (tokenizeErr, payload) => {
       setVenmoDisabled(false);
-
-      if (useTestNonce) {
-        handleVenmoSuccess(TEST_PAYLOAD);
-        return;
-      } else if (tokenizeErr) {
+      if (tokenizeErr) {
         handleVenmoError(tokenizeErr);
-      } else if (payload) {
-        handleVenmoSuccess(payload);
       } else {
-        notify("Error", "Couldn't create payment");
+        handleTokenizeResult(payload);
       }
     });
   };
@@ -160,22 +163,10 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
             }
 
             if (venmoInstance?.hasTokenizationResult()) {
-              //TODO update according to current definitions
-              // venmoInstance.tokenize(function (
-              //   tokenizeErr: BraintreeError | undefined,
-              //   payload: VenmoTokenizePayload | undefined
-              // ) {
-              //   if (useTestNonce) {
-              //     handleVenmoSuccess(TEST_PAYLOAD);
-              //     return;
-              //   } else if (tokenizeErr) {
-              //     handleVenmoError(tokenizeErr);
-              //   } else if (payload) {
-              //     handleVenmoSuccess(payload);
-              //   } else {
-              //     notify("Error", "Couldn't create payment");
-              //   }
-              // });
+              venmoInstance
+                .tokenize()
+                .then(handleTokenizeResult)
+                .catch(handleVenmoError);
               return;
             }
           },
@@ -196,7 +187,8 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
         disabled={venmoDisabled}
         type="submit"
         className={classNames({
-          "justify-center align-center rounded-md px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-white bg-blue-500 hover:bg-blue-600  shadow-sm": true,
+          "justify-center align-center rounded-md px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-white bg-blue-500 hover:bg-blue-600  shadow-sm":
+            true,
           "w-full": fullWidth,
           hidden: !displayButton,
         })}

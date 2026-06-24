@@ -15,7 +15,6 @@ export const VenmoButton: FC<VenmoButton> = ({
   allowNewBrowserTab,
   profile_id,
   useTestNonce,
-  setVenmoUserName,
   ignoreBowserSupport,
   useKount,
   shipping,
@@ -30,7 +29,6 @@ export const VenmoButton: FC<VenmoButton> = ({
       allowNewBrowserTab={allowNewBrowserTab}
       profile_id={profile_id}
       useTestNonce={useTestNonce}
-      setVenmoUserName={setVenmoUserName}
       ignoreBowserSupport={ignoreBowserSupport}
       useKount={useKount}
       shipping={shipping}
