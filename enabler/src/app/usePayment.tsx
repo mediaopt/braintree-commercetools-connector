@@ -213,6 +213,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       const requestBody = {
         ctPaymentId: paymentInfo.ctPaymentId,
         paymentMethodNonce: paymentNonce,
+        braintreeCustomerId,
         braintreePaymentDetails: {
           braintreeLineItems:
             incomingDetails?.braintreeLineItems ??

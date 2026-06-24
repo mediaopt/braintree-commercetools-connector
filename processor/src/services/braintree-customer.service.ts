@@ -1,7 +1,7 @@
 /**
  * See also braintree-extension customer service.
  */
-import { Customer, CustomerUpdateAction } from '@commercetools/connect-payments-sdk';
+import { Customer, CustomerSetCustomFieldAction, CustomerUpdateAction } from '@commercetools/connect-payments-sdk';
 
 /* PURE_VAULT_DISABLED start
 import {
@@ -67,6 +67,28 @@ export class BraintreeCustomerService {
         log.warn(`Could not update customer ${ctCustomerId}`, { error: err });
         return;
       });
+  }
+
+  public async linkBraintreeCustomerId(ctCustomerId: string, braintreeCustomerId: string): Promise<void> {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY_MS = 1000; //timing selected based on permitted time for resolve for payment connector operations
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      const ctCustomer = await this.getCtCustomer(ctCustomerId);
+      if (!ctCustomer || ctCustomer.custom?.fields?.braintreeCustomerId) return;
+      const action: CustomerSetCustomFieldAction = {
+        action: 'setCustomField',
+        name: 'braintreeCustomerId',
+        value: braintreeCustomerId,
+      };
+      const result = await this.updateCtCustomer(ctCustomer.id, ctCustomer.version, [action]);
+      if (result) return;
+      log.warn(`linkBraintreeCustomerId: attempt ${attempt}/${MAX_RETRIES} failed for customer ${ctCustomerId}`);
+      if (attempt < MAX_RETRIES) await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    }
+    log.error(
+      `linkBraintreeCustomerId: all ${MAX_RETRIES} attempts failed for customer ${ctCustomerId}. ` +
+        `Braintree customer ID "${braintreeCustomerId}" was not persisted to CT — stored payment methods will not be visible for this customer until resolved manually.`,
+    );
   }
 
   /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable

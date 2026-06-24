@@ -619,6 +619,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
   public async transactionSale({
     ctPaymentId,
+    braintreeCustomerId,
     paymentMethodNonce,
     paymentToken,
     storeInVaultOnSuccess,
@@ -641,12 +642,18 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (!updatedCart && braintreePaymentDetails?.extraShippingCost)
       throw new ErrorInvalidOperation(`could not find updated cart for transactionsSale payment ${ctPaymentId}`);
     const relevantPaymentInfo = updatedCart ? { ...ctPayment, amountPlanned: updatedCart.totalPrice } : ctPayment;
+    // new customer only: tell Braintree to create with id = CT customer id
+    const optionalRequestData =
+      storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId
+        ? { customer: { id: ctPayment.customer.id } }
+        : undefined;
     const transactionRequest = mapRequestToBraintreeTransactionSale(
       relevantPaymentInfo,
       storeInVaultOnSuccess,
       storeShipping,
       paymentMethodNonce,
       paymentToken,
+      optionalRequestData,
     );
     // braintree has 35 char limit for line item name in transactionSale, see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
     const lineItemsForSale = (braintreePaymentDetails?.braintreeLineItems || []).map((item) => ({
@@ -677,6 +684,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
       }
       const customFields = handleCustomFieldResponse('transactionSale', response);
       handleCustomTransactionFields(customFields, response, ctPayment);
+      // Fire-and-forget: customer update has no webhook fallback, so retries are handled
+      // internally in linkBraintreeCustomerId, but it does not block the transaction response.
+      if (storeInVaultOnSuccess && response.customer?.id && ctPayment.customer?.id) {
+        void this.braintreeCustomerService.linkBraintreeCustomerId(ctPayment.customer.id, response.customer.id);
+      }
       await this.updatePaymentWithTransaction({
         messageName: 'transactionSale',
         request: transactionRequest,
