@@ -1,4 +1,11 @@
-import { useEffect, useState, FC, PropsWithChildren } from "react";
+import {
+  useEffect,
+  useState,
+  useRef,
+  FC,
+  PropsWithChildren,
+  useMemo,
+} from "react";
 import {
   client as braintreeClient,
   paypalCheckout,
@@ -15,6 +22,7 @@ import {
   GeneralPayButtonProps,
   PayPalFundingSourcesProp,
 } from "../../types";
+import { HOSTED_FIELDS_LABEL } from "../../styles";
 
 import { PayPalCheckoutLoadPayPalSDKOptions } from "braintree-web/paypal-checkout";
 
@@ -42,8 +50,11 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   tagline,
   height,
   isPureVault = false,
+  enableVaulting = false,
+  vaultLabel,
 }) => {
   const [deviceData, setDeviceData] = useState("");
+  const paypalVaultCheckbox = useRef<HTMLInputElement>(null);
 
   const {
     handleTransactionSale,
@@ -51,6 +62,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     clientToken,
     handlePureVault,
     updateCartShipping,
+    braintreeCustomerId,
   } = usePayment();
   const { shippingOptions } = paymentInfo;
   const { notify } = useNotifications();
@@ -151,6 +163,8 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                         handleTransactionSale(payload.nonce, {
                           deviceData: deviceData,
                           shipping: shipping,
+                          storeInVaultOnSuccess:
+                            paypalVaultCheckbox.current?.checked === true,
                           account: {
                             email: payload.details.email,
                           },
@@ -296,11 +310,12 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               (item) =>
                                 item.countryCode === paymentInfo.countryCode,
                             );
-                          const preSelectedOptions = countryShippingOptions?.some(
-                            ({ selected }) => selected,
-                          )
-                            ? countryShippingOptions
-                            : undefined;
+                          const preSelectedOptions =
+                            countryShippingOptions?.some(
+                              ({ selected }) => selected,
+                            )
+                              ? countryShippingOptions
+                              : undefined;
                           return paypalCheckoutInstance.createPayment({
                             flow,
                             locale,
@@ -354,5 +369,24 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     height,
   ]);
 
-  return <div id="paypal-button"></div>;
+  const showVaultCheckbox = useMemo(
+    () =>
+      enableVaulting &&
+      !!braintreeCustomerId &&
+      !isPureVault &&
+      flow !== ("vault" as FlowType),
+    [enableVaulting, braintreeCustomerId, isPureVault, flow],
+  );
+
+  return (
+    <div>
+      <div id="paypal-button"></div>
+      {showVaultCheckbox && (
+        <label className={`${HOSTED_FIELDS_LABEL} mb-2`}>
+          <input className="mr-3" ref={paypalVaultCheckbox} type="checkbox" />
+          {vaultLabel ?? "Save my PayPal account"}
+        </label>
+      )}
+    </div>
+  );
 };

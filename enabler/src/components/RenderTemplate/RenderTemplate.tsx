@@ -83,6 +83,7 @@ const ComponentWithCustomOptions = ({
             {...PayPalExpressStyleProps}
             {...buttonStyleOverrides?.paypalExpress}
             {...restCustomOptions}
+            enableVaulting={false}
             enableShippingAddress={true}
             payLater={false}
             intent={"capture" as Intent}
@@ -96,6 +97,8 @@ const ComponentWithCustomOptions = ({
           {...PayPalDefaultStyleProps}
           {...buttonStyleOverrides?.paypal}
           {...restCustomOptions}
+          enableVaulting={enableVaulting}
+          vaultLabel={perMethodConfig?.paypal?.vaultLabel}
           enableShippingAddress={false}
           shippingAddressEditable={false}
         />

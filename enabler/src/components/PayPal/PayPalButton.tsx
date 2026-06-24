@@ -13,6 +13,8 @@ type PayPalButtonProps = PayPalProps & GeneralPayButtonProps;
 
 export const PayPalButton: FC<PayPalButtonProps> = ({
   isPureVault,
+  enableVaulting,
+  vaultLabel,
   fullWidth = true,
   buttonText,
   flow,
@@ -61,6 +63,8 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
       tagline={tagline}
       height={height}
       isPureVault={isPureVault}
+      enableVaulting={enableVaulting}
+      vaultLabel={vaultLabel}
     />
   );
 };
