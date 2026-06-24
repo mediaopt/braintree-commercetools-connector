@@ -20,11 +20,7 @@ import {
   BraintreeLineItem,
 } from "../../types";
 
-import {
-  HOSTED_FIELDS_LABEL,
-  HOSTED_FIELDS,
-  renderMaskButtonClasses,
-} from "../../styles";
+import { HOSTED_FIELDS_LABEL, HOSTED_FIELDS } from "../../styles";
 import { HostedFieldsHostedFieldsFieldName } from "braintree-web/hosted-fields";
 import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
 
@@ -38,10 +34,12 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   threeDSBillingAddress,
   showCardHoldersName,
   enableVaulting,
+  vaultLabel,
   continueOnLiabilityShiftPossible = false,
   continueOnNoThreeDS = false,
   useKount,
   isPureVault = false,
+  onRegisterSubmit,
 }) => {
   const {
     handleTransactionSale,
@@ -51,11 +49,12 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   } = usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
-  const [emptyInputs, setEmptyInputs] = useState<boolean>(true);
-  const [invalidInput, setInvalidInput] = useState<boolean>(false);
   const [deviceData, setDeviceData] = useState("");
 
   const { client, threeDS } = useBraintreeClient();
+
+  const emptyInputsRef = useRef(true);
+  const invalidInputRef = useRef(false);
 
   const ccFormRef = useRef<HTMLFormElement>(null);
   const ccNumberRef = useRef<HTMLDivElement>(null);
@@ -150,7 +149,6 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   useEffect(() => {
     if (!client || !threeDS) return;
     isLoading(true);
-    const form = ccFormRef.current;
 
     let hostedFieldsInputs: object = {
       number: {
@@ -218,7 +216,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           return;
         }
 
-        if (!hostedFieldsInstance || !form) {
+        if (!hostedFieldsInstance) {
           isLoading(false);
           notify("Error", "Credit card fields are not available.");
           return;
@@ -229,16 +227,16 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           for (fieldsKey in event.fields) {
             isEmpty = isEmpty || event.fields[fieldsKey].isEmpty;
           }
-          setEmptyInputs(isEmpty);
+          emptyInputsRef.current = isEmpty;
         });
-        hostedFieldsInstance.on("empty", function (event) {
-          setEmptyInputs(true);
+        hostedFieldsInstance.on("empty", function () {
+          emptyInputsRef.current = true;
         });
         hostedFieldsInstance.on("validityChange", function (event) {
           let isValid = true;
           let fieldsKey: HostedFieldsHostedFieldsFieldName;
           for (fieldsKey in event.fields) {
-            let validField =
+            const validField =
               event.fields[fieldsKey].isValid ||
               event.fields[fieldsKey].isPotentiallyValid;
             isValid = isValid && validField;
@@ -249,7 +247,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
               ),
             );
           }
-          setInvalidInput(!isValid);
+          invalidInputRef.current = !isValid;
         });
 
         dataCollector.create(
@@ -265,44 +263,51 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           },
         );
 
-        var tokenize = function (event: any) {
-          event.preventDefault();
+        const submitPayment = (shouldVault: boolean): Promise<void> =>
+          new Promise((resolve, reject) => {
+            if (emptyInputsRef.current) {
+              notify("Error", "Please fill in all card details.");
+              return reject(new Error("empty fields"));
+            }
+            if (invalidInputRef.current) {
+              notify("Error", "Please correct the card details and try again.");
+              return reject(new Error("invalid fields"));
+            }
+            isLoading(true);
+            hostedFieldsInstance.tokenize(
+              { vault: shouldVault },
+              function (err, payload) {
+                if (err || !payload) {
+                  isLoading(false);
+                  notify(
+                    "Error",
+                    "Something went wrong. Check your card details and try again.",
+                  );
+                  return reject(err);
+                }
 
-          isLoading(true);
-          const shouldVault = ccVaultCheckbox.current?.checked || false;
+                if (isPureVault) {
+                  handlePureVault(payload.nonce);
+                  resolve();
+                } else {
+                  const threeDSecureParameters: ThreeDSecureVerifyOptions = {
+                    amount: `${paymentInfo.braintreeAmount}`,
+                    nonce: payload.nonce,
+                    bin: payload.details.bin,
+                    email: paymentInfo.email,
+                    billingAddress: threeDSBillingAddress,
+                    additionalInformation: threeDSAdditionalInformation,
+                  };
+                  verifyCardAndHandlePurchase(threeDSecureParameters, shouldVault);
+                  resolve();
+                }
+              },
+            );
+          });
 
-          hostedFieldsInstance.tokenize(
-            { vault: shouldVault },
-            function (err, payload) {
-              if (err || !payload) {
-                isLoading(false);
-                notify(
-                  "Error",
-                  "Something went wrong. Check your card details and try again.",
-                );
-                return;
-              }
-
-              if (isPureVault) {
-                handlePureVault(payload.nonce);
-              } else {
-                let threeDSecureParameters: ThreeDSecureVerifyOptions = {
-                  amount: `${paymentInfo.braintreeAmount}`,
-                  nonce: payload.nonce,
-                  bin: payload.details.bin,
-                  email: paymentInfo.email,
-                  billingAddress: threeDSBillingAddress,
-                  additionalInformation: threeDSAdditionalInformation,
-                };
-                verifyCardAndHandlePurchase(
-                  threeDSecureParameters,
-                  shouldVault,
-                );
-              }
-            },
-          );
-        };
-        form.addEventListener("submit", tokenize, false);
+        onRegisterSubmit?.((storePaymentDetails) =>
+          submitPayment(storePaymentDetails ?? false)
+        );
         isLoading(false);
       },
     );
@@ -374,24 +379,11 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           <>
             <label className={`${HOSTED_FIELDS_LABEL} mb-2`}>
               <input className="mr-3" ref={ccVaultCheckbox} type="checkbox" />
-              Save my card
+              {vaultLabel ?? "Save my card"}
             </label>
           </>
         )}
 
-        <div className="block text-center">
-          <input
-            disabled={emptyInputs && invalidInput}
-            type="submit"
-            className={renderMaskButtonClasses(
-              fullWidth,
-              !(emptyInputs && invalidInput),
-              emptyInputs || invalidInput,
-            )}
-            value={buttonText}
-            id="submit"
-          />
-        </div>
       </form>
     </div>
   );

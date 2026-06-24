@@ -12,6 +12,7 @@ import { BuilderType } from "../../types";
 
 class BraintreeComponent implements PaymentComponent {
   private root: Root | null = null;
+  private submitHandler: ((storePaymentDetails?: boolean) => Promise<void>) | null = null;
 
   constructor(
     private paymentMethodType: BraintreePaymentMethodType,
@@ -27,7 +28,11 @@ class BraintreeComponent implements PaymentComponent {
     }
     element.innerHTML = "";
     this.root = createRoot(element as HTMLElement);
-    const customOptions: BaseOptions & ComponentOptions = { ...this.baseOptions, ...this.config };
+    const customOptions: BaseOptions & ComponentOptions = {
+      ...this.baseOptions,
+      ...this.config,
+      onRegisterSubmit: (handler) => { this.submitHandler = handler; },
+    };
     const componentRender = createElement(RenderTemplate, {
       paymentMethodType: this.paymentMethodType,
       customOptions,
@@ -41,7 +46,10 @@ class BraintreeComponent implements PaymentComponent {
   }: {
     storePaymentDetails?: boolean;
   }): Promise<void> {
-    // Handle payment submission
+    if (!this.submitHandler) {
+      throw new Error("submit() called before component is ready or payment method does not support it");
+    }
+    await this.submitHandler(storePaymentDetails);
   }
 
   async showValidation(): Promise<void> {

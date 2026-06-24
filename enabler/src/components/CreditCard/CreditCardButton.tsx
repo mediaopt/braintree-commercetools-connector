@@ -17,11 +17,13 @@ export const CreditCardButton: FC<CreditCardButton> = ({
   threeDSAdditionalInformation,
   threeDSBillingAddress,
   enableVaulting,
+  vaultLabel,
   continueOnLiabilityShiftPossible,
   continueOnNoThreeDS,
   useKount,
   shipping,
   isPureVault,
+  onRegisterSubmit,
 }: CreditCardButton) => {
   const FALLBACK_TEXT = isPureVault
     ? VAULT_BUTTON_TEXT_FALLBACK
@@ -36,11 +38,13 @@ export const CreditCardButton: FC<CreditCardButton> = ({
       threeDSAdditionalInformation={threeDSAdditionalInformation}
       threeDSBillingAddress={threeDSBillingAddress}
       enableVaulting={enableVaulting}
+      vaultLabel={vaultLabel}
       continueOnLiabilityShiftPossible={continueOnLiabilityShiftPossible}
       continueOnNoThreeDS={continueOnNoThreeDS}
       useKount={useKount}
       shipping={shipping}
       isPureVault={isPureVault}
+      onRegisterSubmit={onRegisterSubmit}
     />
   );
 };
