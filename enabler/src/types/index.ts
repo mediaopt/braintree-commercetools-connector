@@ -51,6 +51,7 @@ type LineItemsShipping = {
 export type GeneralPayButtonProps = {
   fullWidth?: boolean;
   buttonText?: string;
+  onRegisterSubmit?: (handler: (storePaymentDetails?: boolean) => Promise<void>) => void;
 } & UseKount &
   LineItemsShipping;
 
@@ -110,11 +111,48 @@ type PayPalButtonStyleOverride = {
 
 // Shape must match BRAINTREE_BUTTON_STYLES env var in processor/src/config/config.ts
 export type ButtonStyleOverrides = {
-  paypal?:        PayPalButtonStyleOverride & { payLater?: boolean };
+  paypal?:        PayPalButtonStyleOverride & { payLater?: boolean; billingAgreementDescription?: string };
   paypalExpress?: PayPalButtonStyleOverride;
   paypalVault?:   PayPalButtonStyleOverride;
   ach?:           { mandateText?: string };
   applePay?:      { applePayDisplayName?: string };
+  googlePay?: {
+    buttonTheme?: google.payments.api.ButtonColor;
+    buttonType?: google.payments.api.ButtonType;
+    totalPriceStatus?: "NOT_CURRENTLY_KNOWN" | "ESTIMATED" | "FINAL";
+    billingAddressRequired?: boolean;
+    billingAddressFormat?: "FULL" | "MIN";
+    phoneNumberRequired?: boolean;
+  };
+  venmo?: {
+    desktopFlow?: "desktopWebLogin" | "desktopQRCode";
+    mobileWebFallBack?: boolean;
+    paymentMethodUsage?: "multi_use" | "single_use";
+    allowNewBrowserTab?: boolean;
+  };
+  creditCard?: {
+    showPostalCode?: boolean;
+    showCardHoldersName?: boolean;
+    continueOnLiabilityShiftPossible?: boolean;
+    continueOnNoThreeDS?: boolean;
+  };
+};
+
+// Shape must match BRAINTREE_PER_METHOD_CONFIG env var in processor/src/config/config.ts
+export type PerMethodConfig = {
+  googlePay?: {
+    googleMerchantId?: string;
+    acquirerCountryCode?: string;
+  };
+  venmo?: {
+    profileId?: string;
+  };
+  creditCard?: {
+    vaultLabel?: string;
+  };
+  paypal?: {
+    vaultLabel?: string;
+  };
 };
 
 type OptionalPerMethodPaymentData = {
@@ -180,7 +218,9 @@ export type PayPalProps = {
   size?: ButtonSizeOption;
   tagline?: boolean;
   height?: number;
-  isPureVault?: boolean;
+  // PURE_VAULT_DISABLED: isPureVault?: boolean;
+  enableVaulting?: boolean;
+  vaultLabel?: string;
 };
 
 export type ShippingAddressOverride = {
@@ -203,7 +243,7 @@ export type GooglePayTypes = {
   phoneNumberRequired?: boolean;
   billingAddressFormat?: "FULL" | "MIN";
   billingAddressRequired?: boolean;
-  acquirerCountryCode: string;
+  acquirerCountryCode?: string;
   fullWidth?: boolean; //will be initalized as true if not provided
 } & LineItemsShipping;
 
@@ -214,7 +254,6 @@ export type VenmoTypes = {
   allowNewBrowserTab?: boolean;
   profile_id?: string;
   useTestNonce?: boolean;
-  setVenmoUserName: (venmoName: string) => any;
   ignoreBowserSupport?: boolean;
 };
 
@@ -243,9 +282,10 @@ export type GeneralCreditCardProps = {
   threeDSBillingAddress?: ThreeDSecureBillingAddress;
   threeDSAdditionalInformation?: ThreeDSecureAdditionalInformation;
   enableVaulting?: boolean;
+  vaultLabel?: string;
   continueOnLiabilityShiftPossible?: boolean;
   continueOnNoThreeDS?: boolean;
-  isPureVault?: boolean;
+  // PURE_VAULT_DISABLED: isPureVault?: boolean;
 };
 
 export type AchVaultRequest = { paymentMethodNonce: string };
