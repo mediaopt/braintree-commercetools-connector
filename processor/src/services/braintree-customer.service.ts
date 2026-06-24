@@ -1,24 +1,31 @@
 /**
  * See also braintree-extension customer service.
  */
-import { PaymentUpdateResponseSchemaDTO, PureVaultBaseSchemaDTO } from '../dtos/braintree-payment.dto';
+import { Customer, CustomerUpdateAction } from '@commercetools/connect-payments-sdk';
+
+/* PURE_VAULT_DISABLED start
 import {
-  Customer,
-  CustomerSetCustomFieldAction,
-  CustomerUpdateAction,
-  ErrorInvalidOperation,
+ CustomerSetCustomFieldAction,
+ ErrorInvalidOperation,
 } from '@commercetools/connect-payments-sdk';
+
+import {
+ PaymentUpdateResponseSchemaDTO /*, PureVaultBaseSchemaDTO} from '../dtos/braintree-payment.dto';
 import {
   createCustomer,
   createPaymentMethod,
   CustomerResponse,
   handleCustomerResponse,
+  logger,
   mapCTCustomerToNewBraintreeCustomer,
   VAULT_BRAINTREE_OPTIONS,
 } from 'common-connect';
 import { CustomerCreateRequest, PaymentMethodCreateRequest } from 'braintree';
-import { log } from '../libs/logger';
 import { successGeneralResponse } from './constants';
+PURE_VAULT_DISABLED end */
+
+import { log } from '../libs/logger';
+
 import { DefaultCommercetoolsAPI } from '@commercetools/connect-payments-sdk/dist/commercetools/api/root-api';
 
 export type BraintreeCustomerServiceOptions = {
@@ -61,6 +68,8 @@ export class BraintreeCustomerService {
         return;
       });
   }
+
+  /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
   public async pureVault({
     ctCustomerId,
     ctCustomerVersion,
@@ -98,4 +107,5 @@ export class BraintreeCustomerService {
     await this.updateCtCustomer(ctCustomerId, ctVersion, updateActions);
     return successGeneralResponse;
   }
+  PURE_VAULT_DISABLED end */
 }

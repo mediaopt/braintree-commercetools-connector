@@ -7,9 +7,9 @@ import {
   PaymentResponseSchemaDTO,
   TransactionSaleRequestSchema,
   TransactionSaleRequestSchemaDTO,
-  PureVaultRequestSchema,
+  // PURE_VAULT_DISABLED: PureVaultRequestSchema,
   PaymentUpdateResponseSchema,
-  PureVaultRequestSchemaDTO,
+  // PURE_VAULT_DISABLED: PureVaultRequestSchemaDTO,
   PaymentUpdateResponseSchemaDTO,
   UpdateCartShippingResponseSchema,
   UpdateCartShippingResponseSchemaDTO,
@@ -100,6 +100,7 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
     },
   );
 
+  /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
   fastify.post<{
     Body: PureVaultRequestSchemaDTO;
     Reply: PaymentUpdateResponseSchemaDTO;
@@ -127,4 +128,5 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
       return reply.status(200).send(resp);
     },
   );
+  PURE_VAULT_DISABLED end */
 };

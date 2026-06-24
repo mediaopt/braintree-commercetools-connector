@@ -18,7 +18,7 @@ import {
   CreatePaymentRequest,
   TransactionSaleOptions,
   TransactionSaleRequest,
-  VaultRequest,
+  // PURE_VAULT_DISABLED  VaultRequest,
   ChangeShippingRequest,
 } from "../services/types";
 
@@ -51,7 +51,7 @@ type PaymentContextT = {
   gettingClientToken: boolean;
   clientToken?: string;
   handleTransactionSale: HandleTransactionSaleType;
-  handlePureVault: (paymentNonce: string) => Promise<void>;
+  // PURE_VAULT_DISABLED handlePureVault: (paymentNonce: string) => Promise<void>;
   paymentInfo: PaymentInfo;
   vaultedPaymentMethods: FetchPaymentMethodsPayload[];
   handleGetVaultedPaymentMethods: () => Promise<FetchPaymentMethodsPayload[]>;
@@ -74,7 +74,7 @@ const PaymentContext = createContext<PaymentContextT>({
   gettingClientToken: false,
   clientToken: undefined,
   handleTransactionSale: () => Promise.resolve(),
-  handlePureVault: () => Promise.resolve(),
+  //PURE_VAULT_DISABLED handlePureVault: () => Promise.resolve(),
   paymentInfo: PaymentInfoInitialObject,
   vaultedPaymentMethods: [],
   handleGetVaultedPaymentMethods: () =>
@@ -107,7 +107,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   builderType,
   children,
 }) => {
-  const isPureVault = paymentMethodType.endsWith("Vault");
+  // PURE_VAULT_DISABLED const isPureVault = false;
   const [initializingPayment, setInitializingPayment] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [resultSuccess, setResultSuccess] = useState<boolean>();
@@ -125,7 +125,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   const {
     createPaymentUrl,
     transactionSaleUrl,
-    pureVaultUrl,
+    // PURE_VAULT_DISABLED: pureVaultUrl,
     updateCartShippingUrl,
   } = processorUrls(processorUrl);
   const requestHeader = sessionHeader(sessionId);
@@ -251,34 +251,36 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       }
     };
 
-    const handlePureVault = async (paymentNonce: string) => {
-      const requestBody = {
-        ctCustomerId: paymentInfo.ctCustomerId,
-        ctCustomerVersion: paymentInfo.ctCustomerVersion,
-        ctPaymentId: paymentInfo.ctPaymentId,
-        braintreeCustomerId,
-        paymentMethodNonce: paymentNonce,
-      };
+    /* PURE_VAULT_DISABLED start
+   const handlePureVault = async (paymentNonce: string) => {
+     const requestBody = {
+       ctCustomerId: paymentInfo.ctCustomerId,
+       ctCustomerVersion: paymentInfo.ctCustomerVersion,
+       ctPaymentId: paymentInfo.ctPaymentId,
+       braintreeCustomerId,
+       paymentMethodNonce: paymentNonce,
+     };
 
-      isLoading(true);
-      const response = await processorRequest<VaultRequest>(
-        requestHeader,
-        pureVaultUrl,
-        requestBody,
-      );
-      isLoading(false);
-      if (!response?.success) {
-        notify("Error", response.message ?? "An error occurred");
-        return;
-      }
+     isLoading(true);
+     const response = await processorRequest<VaultRequest>(
+       requestHeader,
+       pureVaultUrl,
+       requestBody,
+     );
+     isLoading(false);
+     if (!response?.success) {
+       notify("Error", response.message ?? "An error occurred");
+       return;
+     }
 
-      setResultMessage("Payment vaulted");
+     setResultMessage("Payment vaulted");
 
-      setShowResult(true);
-      if (purchaseCallback) {
-        purchaseCallback(response);
-      }
-    };
+     setShowResult(true);
+     if (purchaseCallback) {
+       purchaseCallback(response);
+     }
+   };
+  PURE_VAULT_DISABLED end */
 
     const updateCartShipping = async (newShippingMethodId: string) => {
       return (await processorRequest<ChangeShippingRequest>(
@@ -297,7 +299,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       gettingClientToken: initializingPayment,
       clientToken,
       handleTransactionSale,
-      handlePureVault,
+      // PURE_VAULT_DISABLED handlePureVault,
       paymentInfo,
       vaultedPaymentMethods,
       handleGetVaultedPaymentMethods,
@@ -312,11 +314,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       {showResult ? (
         <Result success={resultSuccess} message={resultMessage} />
       ) : clientToken ? (
-        isPureVault && !paymentInfo.ctCustomerId ? (
-          "You need to log in to save payment method for later"
-        ) : (
-          children
-        )
+        children //  PURE_VAULT_DISABLED isPureVault && !paymentInfo.ctCustomerId ? ("You need to log in to save payment method for later") : (children)
       ) : (
         <LoadingOverlay />
       )}

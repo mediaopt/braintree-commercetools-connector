@@ -10,8 +10,6 @@ import { GeneralCreditCardProps, GeneralPayButtonProps } from "../../types";
 type CreditCardButton = GeneralCreditCardProps & GeneralPayButtonProps;
 
 export const CreditCardButton: FC<CreditCardButton> = ({
-  fullWidth = true,
-  buttonText,
   showPostalCode,
   showCardHoldersName,
   threeDSAdditionalInformation,
@@ -22,12 +20,9 @@ export const CreditCardButton: FC<CreditCardButton> = ({
   continueOnNoThreeDS,
   useKount,
   shipping,
-  isPureVault,
+  // PURE_VAULT_DISABLED: isPureVault,
   onRegisterSubmit,
 }: CreditCardButton) => {
-  const FALLBACK_TEXT = isPureVault
-    ? VAULT_BUTTON_TEXT_FALLBACK
-    : PAY_BUTTON_TEXT_FALLBACK;
 
   return (
     <CreditCardMask
@@ -41,7 +36,7 @@ export const CreditCardButton: FC<CreditCardButton> = ({
       continueOnNoThreeDS={continueOnNoThreeDS}
       useKount={useKount}
       shipping={shipping}
-      isPureVault={isPureVault}
+      // PURE_VAULT_DISABLED: isPureVault={isPureVault}
       onRegisterSubmit={onRegisterSubmit}
     />
   );

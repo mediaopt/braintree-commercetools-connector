@@ -40,7 +40,7 @@ import {
   PaymentOutcome,
   PaymentRequestSchemaDTO,
   PaymentResponseSchemaDTO,
-  PureVaultRequestSchemaDTO,
+  // PURE_VAULT_DISABLED: PureVaultRequestSchemaDTO,
   TransactionSaleRequestSchemaDTO,
   UpdateCartShippingResponseSchemaDTO,
 } from '../dtos/braintree-payment.dto';
@@ -300,8 +300,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
       ],
       express: [
         { type: PaymentMethodType.PAYPAL },
-        { type: PaymentMethodType.PAYPAL_VAULT },
-        { type: PaymentMethodType.CREDIT_CARD_VAULT },
+        // PURE_VAULT_DISABLED: { type: PaymentMethodType.PAYPAL_VAULT },
+        // PURE_VAULT_DISABLED: { type: PaymentMethodType.CREDIT_CARD_VAULT },
       ],
     };
   }
@@ -335,14 +335,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }: PaymentRequestSchemaDTO): Promise<PaymentResponseSchemaDTO> {
     const merchantAccountId = getConfig().merchantAccountId;
     this.validatePaymentMethod(paymentMethodType, merchantAccountId);
-    const isPureVault =
-      paymentMethodType === PaymentMethodType.PAYPAL_VAULT || paymentMethodType === PaymentMethodType.CREDIT_CARD_VAULT;
+    // PURE_VAULT_DISABLED: isPureVault detection disabled; feature cancelled
+    const isPureVault = false;
     const isExpress = paymentMethodType === 'PayPal' && builderType === 'express';
 
     const ctCart = await this.ctCartService.getCart({
       id: getCartIdFromContext(),
     });
-    this.validateCartRequiredData(ctCart, isPureVault);
+    this.validateCartRequiredData(ctCart, isPureVault); // PURE_VAULT_DISABLED: unreachable
 
     const customerPaymentInfo: { customer: CustomerResourceIdentifier } | { anonymousId?: string } = ctCart.customerId
       ? {
@@ -355,7 +355,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           anonymousId: ctCart.anonymousId,
         };
 
-    const lastPaymentRef = !isPureVault
+    const lastPaymentRef = !isPureVault // PURE_VAULT_DISABLED: unreachable
       ? ctCart.paymentInfo?.payments?.[ctCart.paymentInfo.payments.length - 1]
       : undefined;
 
@@ -365,11 +365,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const [customer, shippingMethodsResult, amountPlanned, existingPayment] = await Promise.all([
       ctCart.customerId ? this.braintreeCustomerService.getCtCustomer(ctCart.customerId) : Promise.resolve(undefined),
       isExpress ? this.getShippingMethods(ctCart.id) : Promise.resolve([]),
-      isPureVault ? ctCart.totalPrice : this.ctCartService.getPaymentAmount({ cart: ctCart }), //set 0 for vault if possible
+      this.ctCartService.getPaymentAmount({ cart: ctCart }), // PURE_VAULT_DISABLED: isPureVault ? ctCart.totalPrice :
       lastPaymentRef ? this.ctPaymentService.getPayment({ id: lastPaymentRef.id }) : Promise.resolve(undefined),
     ]);
 
+    /* PURE_VAULT_DISABLED start
     this.validateCustomerRequiredData(customer, isPureVault);
+     PURE_VAULT_DISABLED end */
 
     const braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
     const shippingMethods = shippingMethodsResult || [];
@@ -403,7 +405,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       );
 
     await Promise.all([
-      newPayment && !isPureVault
+      newPayment && !isPureVault // PURE_VAULT_DISABLED: unreachable
         ? this.ctCartService.addPayment({
             resource: { id: ctCart.id, version: ctCart.version },
             paymentId: newPayment.id,
@@ -416,7 +418,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
             pspInteractions: [
               handleInterfaceInteraction({
                 messageName: 'getClientToken',
-                message: { merchantAccountId, isPureVault, builderType, paymentMethodType },
+                message: { merchantAccountId, isPureVault, builderType, paymentMethodType }, // PURE_VAULT_DISABLED: unreachable
                 messageType: 'ProcessorRequest',
               }),
               handleInterfaceInteraction({
@@ -786,6 +788,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   //this method corresponds to handleStoredPaymentMethod part for create a new stored method
+  /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
   public async pureVault({
     ctCustomerId,
     ctPaymentId,
@@ -827,6 +830,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       paymentMethodNonce,
     });
   }
+  PURE_VAULT_DISABLED end */
 
   public async getStoredPaymentMethods(): Promise<StoredPaymentMethodsResponse> {
     const ctCart = await this.ctCartService.getCart({ id: getCartIdFromContext() });
@@ -892,8 +896,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
       throw new ErrorRequiredField('braintreeMerchantAccount');
   }
 
+  /* PURE_VAULT_DISABLED start
   private validateCustomerRequiredData(ctCustomer: Customer | void, isPureVault?: boolean): void {
     if (!isPureVault) return;
     if (!ctCustomer) throw new ErrorInvalidOperation('Customer not found for pure vault payment');
   }
+  PURE_VAULT_DISABLED end */
 }

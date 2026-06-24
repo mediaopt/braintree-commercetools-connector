@@ -13,7 +13,7 @@ import {
   ApplePayDefaultStyleProps,
   PayPalDefaultStyleProps,
   PayPalExpressStyleProps,
-  PayPalVaultStyleProps,
+  // PURE_VAULT_DISABLED: PayPalVaultStyleProps,
 } from "../Builder/defaultStyles";
 import { FlowType, Intent } from "paypal-checkout-components";
 import { ACHButton } from "../ACH/ACHButton";
@@ -125,6 +125,7 @@ const ComponentWithCustomOptions = ({
       return <PayPalStoredButton {...restCustomOptions} />;
 
     // --- Express-only vault methods (isPureVault is always true and cannot be overridden by processor settings) ---
+    /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
     case "PayPalVault":
       return (
         <PayPalButton
@@ -140,6 +141,7 @@ const ComponentWithCustomOptions = ({
       );
     case "CreditCardVault":
       return <CreditCardButton {...buttonStyleOverrides?.creditCard} {...restCustomOptions} enableVaulting={enableVaulting} vaultLabel={perMethodConfig?.creditCard?.vaultLabel} isPureVault={true} />;
+    PURE_VAULT_DISABLED end */
 
     default:
       if (

@@ -40,8 +40,10 @@ export const PayPalExpressStyleProps = {
   // payLater, intent, enableShippingAddress are fixed in RenderTemplate
 };
 
+/* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
 export const PayPalVaultStyleProps = {
   ...PayPalCommonDefaultStyles,
   buttonLabel: "pay" as ButtonLabelOption,
   // flow, payLater, commit, intent are fixed in RenderTemplate
 };
+PURE_VAULT_DISABLED end */

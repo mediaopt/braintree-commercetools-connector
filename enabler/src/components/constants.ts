@@ -9,6 +9,6 @@ export const processorUrls = (processorUrl: string) => {
     transactionSaleUrl: `${paymentsPrefix}/transactionSale`,
     getAchVaultTokenURL: `${paymentsPrefix}/getAchVaultToken`,
     updateCartShippingUrl: `${paymentsPrefix}/updateCartShipping`,
-    pureVaultUrl: `${customerPrefix}/pureVault`,
+    // PURE_VAULT_DISABLED: pureVaultUrl: `${customerPrefix}/pureVault`,
   };
 };
