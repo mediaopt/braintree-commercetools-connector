@@ -74,7 +74,6 @@ import {
   mapShippingMethodsToBraintreeShippingOptions,
 } from '../utils/shipping.utils';
 import { BraintreeCustomerService } from './braintree-customer.service';
-import { successGeneralResponse } from './constants';
 
 const TOKEN_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
 
@@ -159,14 +158,24 @@ export class BraintreePaymentService extends AbstractPaymentService {
     };
   }
 
-  private buildRedirectMerchantUrl(paymentReference: string, paymentStatus?: string): string | undefined {
+  // Displaying the Venmo username in the checkout UI is the merchant's responsibility.
+  // After a successful Venmo payment, venmoUsername is appended to the merchantReturnUrl
+  // as a query parameter. The merchant's return page should read this value from the URL.
+  private buildRedirectMerchantUrl(
+    paymentReference: string,
+    paymentStatus?: string,
+    venmoUsername?: string,
+  ): string | undefined {
     const merchantReturnUrl = getMerchantReturnUrlFromContext() || getConfig().returnUrl;
     if (!merchantReturnUrl?.length) return undefined;
     const redirectUrl = new URL(merchantReturnUrl);
 
     redirectUrl.searchParams.append('paymentReference', paymentReference);
     if (paymentStatus) {
-      redirectUrl.searchParams.append('paymentStatus', 'paymentStatus');
+      redirectUrl.searchParams.append('paymentStatus', paymentStatus);
+    }
+    if (venmoUsername) {
+      redirectUrl.searchParams.append('venmoUsername', venmoUsername);
     }
     return redirectUrl.toString();
   }
@@ -174,11 +183,16 @@ export class BraintreePaymentService extends AbstractPaymentService {
   private paymentActionSuccessResponse(
     paymentReference: string,
     paymentStatus?: string,
+    venmoUsername?: string,
   ): PaymentUpdateResponseSchemaDTO {
+    const message = venmoUsername
+      ? `Payment ${paymentReference} successful. Venmo: ${venmoUsername}`
+      : `Payment ${paymentReference} successful`;
     return {
-      ...successGeneralResponse,
+      success: true,
+      message,
       paymentReference,
-      merchantReturnUrl: this.buildRedirectMerchantUrl(paymentReference, paymentStatus),
+      merchantReturnUrl: this.buildRedirectMerchantUrl(paymentReference, paymentStatus, venmoUsername),
     };
   }
 
@@ -609,6 +623,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     storeShipping,
     braintreePaymentDetails,
     localPaymentId,
+    venmoUsername,
   }: TransactionSaleRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO> {
     const [updatedCart, ctPayment] = await Promise.all([
       braintreePaymentDetails?.extraShippingCost
@@ -667,7 +682,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
         response,
         customFields,
       });
-      return this.paymentActionSuccessResponse(ctPayment.id);
+      if (response.paymentInstrumentType === 'venmo_account' && !venmoUsername) {
+        log.warn(`transactionSale: Venmo username missing in request for payment ${ctPayment.id}`);
+      }
+      return this.paymentActionSuccessResponse(ctPayment.id, undefined, venmoUsername);
     } catch (e) {
       throw new ErrorInvalidOperation(
         `transactionSale failed for payment ${ctPaymentId} with error ${e instanceof Error ? e.message : JSON.stringify(e)}`,
@@ -711,7 +729,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * @param request - contains payment id (required), optional refund amount (braintree money) and optional transaction id.
    * If amount is provided - refund will be attempted with this amount.
    * If transaction id is provided - refund will be attempted for this transaction
-   * @returns successGeneralResponse
+   * @returns PaymentUpdateResponseSchemaDTO
    */
   async refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<PaymentUpdateResponseSchemaDTO> {
     const relevantTransactionId =

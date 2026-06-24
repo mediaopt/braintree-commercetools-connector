@@ -152,6 +152,7 @@ export const TransactionSaleRequestSchema = Type.Object({
   storeShipping: Type.Optional(Type.Boolean()),
   deviceData: Type.Optional(Type.String()),
   localPaymentId: Type.Optional(Type.String()),
+  venmoUsername: Type.Optional(Type.String()),
   braintreePaymentDetails: Type.Optional(
     Type.Object({
       braintreeLineItems: Type.Optional(Type.Array(BraintreeLineItemSchema)),
