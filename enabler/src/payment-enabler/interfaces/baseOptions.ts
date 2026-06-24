@@ -1,6 +1,6 @@
 import { Client } from "braintree-web";
 import { PaymentResult } from "./enabler";
-import { ButtonStyleOverrides, GeneralComponentsProps } from "../../types";
+import { ButtonStyleOverrides, GeneralComponentsProps, PerMethodConfig } from "../../types";
 
 export type BaseOptions = Omit<
   GeneralComponentsProps,
@@ -9,6 +9,8 @@ export type BaseOptions = Omit<
   buttonStyleOverrides?: ButtonStyleOverrides;
   braintreeEnvironment?: string;
   storedPaymentMethodsEnabled?: boolean;
+  enableVaulting?: boolean;
+  perMethodConfig?: PerMethodConfig;
   //todo - clarify if implement onError here makes sense
   //optional
   // countryCode?: string;

@@ -41,9 +41,11 @@ const ComponentWithCustomOptions = ({
   builderType,
 }: BraintreeBuilderTemplateProps) => {
   // buttonStyleOverrides: from BRAINTREE_BUTTON_STYLES env var via processor /operations/config
+  // perMethodConfig: from BRAINTREE_PER_METHOD_CONFIG env var via processor /operations/config
   // braintreeEnvironment: "Sandbox" | "Production" from processor config
-  const { buttonStyleOverrides, braintreeEnvironment, ...restCustomOptions } =
+  const { buttonStyleOverrides, braintreeEnvironment, enableVaulting, perMethodConfig, ...restCustomOptions } =
     customOptions;
+  const isSandbox = braintreeEnvironment !== "Production";
 
   switch (paymentMethodType) {
     // --- Standard component/dropin methods ---
@@ -66,12 +68,11 @@ const ComponentWithCustomOptions = ({
     case "GooglePay":
       return (
         <GooglePayButton
-          totalPriceStatus={"FINAL"} //todo - move params to options and config and add to options a possobility to set styles params
-          googleMerchantId={"merchant-id-from-google"}
-          acquirerCountryCode={"DE"}
-          environment={
-            braintreeEnvironment === "Production" ? "PRODUCTION" : "TEST"
-          }
+          totalPriceStatus={"FINAL"}
+          googleMerchantId={perMethodConfig?.googlePay?.googleMerchantId}
+          acquirerCountryCode={perMethodConfig?.googlePay?.acquirerCountryCode}
+          environment={isSandbox ? "TEST" : "PRODUCTION"}
+          {...buttonStyleOverrides?.googlePay}
           {...restCustomOptions}
         />
       );
@@ -109,9 +110,10 @@ const ComponentWithCustomOptions = ({
           desktopFlow="desktopWebLogin"
           mobileWebFallBack={true}
           paymentMethodUsage="multi_use"
-          useTestNonce={true}
-          setVenmoUserName={(venmoName) => console.log(venmoName)}
-          ignoreBowserSupport={true}
+          ignoreBowserSupport={isSandbox}
+          {...buttonStyleOverrides?.venmo}
+          profile_id={perMethodConfig?.venmo?.profileId}
+          useTestNonce={isSandbox}
           {...restCustomOptions}
         />
       );
@@ -137,7 +139,7 @@ const ComponentWithCustomOptions = ({
         />
       );
     case "CreditCardVault":
-      return <CreditCardButton {...restCustomOptions} isPureVault={true} />;
+      return <CreditCardButton {...buttonStyleOverrides?.creditCard} {...restCustomOptions} enableVaulting={enableVaulting} vaultLabel={perMethodConfig?.creditCard?.vaultLabel} isPureVault={true} />;
 
     default:
       if (
@@ -152,7 +154,7 @@ const ComponentWithCustomOptions = ({
           />
         );
       }
-      return <CreditCardButton {...restCustomOptions} />;
+      return <CreditCardButton {...buttonStyleOverrides?.creditCard} {...restCustomOptions} enableVaulting={enableVaulting} vaultLabel={perMethodConfig?.creditCard?.vaultLabel} />;
   }
 };
 

@@ -39,10 +39,19 @@ export const config = {
   storedPaymentMethodsPaymentInterface: process.env.STORED_PAYMENT_METHODS_PAYMENT_INTERFACE || 'psp-template',
   storedPaymentMethodsInterfaceAccount: process.env.STORED_PAYMENT_METHODS_INTERFACE_ACCOUNT || undefined,
 
+  // General feature flags
+  enableVaulting: process.env.STORED_PAYMENT_METHODS_ENABLED === 'true',
+
   // Per-button style overrides forwarded via /operations/config → enabler baseOptions → RenderTemplate buttonStyleOverrides
-  // Format: JSON object with keys: paypal, paypalExpress, paypalVault, ach, applePay — all optional
+  // Format: JSON object with keys: paypal, paypalExpress, paypalVault, ach, applePay, googlePay, venmo, creditCard — all optional
   buttonStyleOverrides: process.env.BRAINTREE_BUTTON_STYLES
     ? JSON.parse(process.env.BRAINTREE_BUTTON_STYLES)
+    : undefined,
+
+  // Per-method required config (non-style, method-specific identifiers)
+  // Format: JSON object, e.g. {"googlePay":{"googleMerchantId":"...","acquirerCountryCode":"DE"},"venmo":{"profileId":"..."}}
+  perMethodConfig: process.env.BRAINTREE_PER_METHOD_CONFIG
+    ? JSON.parse(process.env.BRAINTREE_PER_METHOD_CONFIG)
     : undefined,
 };
 
