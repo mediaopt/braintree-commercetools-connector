@@ -150,6 +150,7 @@ export type PaymentResponseSchemaDTO = Static<typeof InitPaymentResponseSchema>;
 
 export const TransactionSaleRequestSchema = Type.Object({
   ctPaymentId: Type.String(),
+  braintreeCustomerId: Type.Optional(Type.String()),
   paymentMethodNonce: Type.Optional(Type.String()),
   paymentToken: Type.Optional(Type.String()),
   storeInVaultOnSuccess: Type.Optional(Type.Boolean()),
