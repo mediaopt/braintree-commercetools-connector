@@ -22,6 +22,7 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
   shipping,
 }: GooglePayTypes) => {
   const { handleTransactionSale, paymentInfo, clientToken } = usePayment();
+  const effectiveAcquirerCountryCode = acquirerCountryCode ?? paymentInfo.countryCode;
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
   const GoogleApiVersion: number = 2;
@@ -153,7 +154,7 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
     phoneNumberRequired,
     billingAddressRequired,
     billingAddressFormat,
-    acquirerCountryCode,
+    effectiveAcquirerCountryCode,
   ]);
 
   return (

@@ -31,8 +31,6 @@ export const CreditCardButton: FC<CreditCardButton> = ({
 
   return (
     <CreditCardMask
-      fullWidth={fullWidth}
-      buttonText={buttonText ?? FALLBACK_TEXT}
       showPostalCode={showPostalCode}
       showCardHoldersName={showCardHoldersName}
       threeDSAdditionalInformation={threeDSAdditionalInformation}

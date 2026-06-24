@@ -27,8 +27,6 @@ import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
 type CreditCardMaskProps = GeneralPayButtonProps & GeneralCreditCardProps;
 
 export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
-  fullWidth = true,
-  buttonText,
   showPostalCode,
   threeDSAdditionalInformation,
   threeDSBillingAddress,
