@@ -17,7 +17,6 @@ import {
 import { StoredPaymentMethodsResponseSchema, StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
 import { BraintreePaymentService } from '../services/braintree-payment.service';
 import { Type } from '@sinclair/typebox';
-import { log } from '../libs/logger';
 
 type PaymentRoutesOptions = {
   paymentService: BraintreePaymentService;

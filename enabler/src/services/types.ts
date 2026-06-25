@@ -58,3 +58,23 @@ PURE_VAULT_DISABLED end */
 export type ChangeShippingRequest = {
   newShippingMethodId: string;
 };
+
+export type StoredPaymentMethod = {
+  id: string;
+  type: string;
+  token: string;
+  isDefault: boolean;
+  createdAt: string;
+  displayOptions: {
+    endDigits?: string;
+    brand?: { key: string };
+    expiryMonth?: number;
+    expiryYear?: number;
+    logoUrl?: string;
+    email?: string;
+  };
+};
+
+export type StoredPaymentMethodsResponse = {
+  storedPaymentMethods: StoredPaymentMethod[];
+};

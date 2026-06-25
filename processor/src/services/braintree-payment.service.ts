@@ -847,11 +847,15 @@ export class BraintreePaymentService extends AbstractPaymentService {
   public async getStoredPaymentMethods(): Promise<StoredPaymentMethodsResponse> {
     const ctCart = await this.ctCartService.getCart({ id: getCartIdFromContext() });
     if (!ctCart.customerId) {
+      logger.warn('getStoredPaymentMethods: cart has no customerId, returning empty');
       return { storedPaymentMethods: [] };
     }
     const ctCustomer = await this.braintreeCustomerService.getCtCustomer(ctCart.customerId);
     const braintreeCustomerId = ctCustomer?.custom?.fields?.braintreeCustomerId;
     if (!braintreeCustomerId) {
+      logger.warn(
+        `getStoredPaymentMethods: CT customer ${ctCart.customerId} has no braintreeCustomerId, returning empty`,
+      );
       return { storedPaymentMethods: [] };
     }
     const gateway = await getBraintreeGateway();
@@ -876,9 +880,28 @@ export class BraintreePaymentService extends AbstractPaymentService {
         token: pp.token,
         isDefault: pp.default ?? false,
         createdAt: pp.createdAt,
-        displayOptions: {},
+        displayOptions: { email: pp.email },
       }));
-      return { storedPaymentMethods: [...creditCards, ...paypalAccounts] };
+      //reason - ACH is supported by SDK but not documented in typescript
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const usBankAccounts = ((btCustomer as any).usBankAccounts ?? []).map((ba: any) => ({
+        id: ba.token,
+        type: 'UsBankAccount',
+        token: ba.token,
+        isDefault: ba.default ?? false,
+        createdAt: ba.createdAt,
+        displayOptions: {
+          endDigits: ba.last4,
+          brand: ba.accountType ? { key: ba.accountType } : undefined,
+        },
+      }));
+      logger.info(
+        `getStoredPaymentMethods: customer ${braintreeCustomerId} — creditCards: ${creditCards.length}, paypalAccounts: ${paypalAccounts.length}, usBankAccounts: ${usBankAccounts.length}`,
+      );
+      if (!creditCards.length && !paypalAccounts.length && !usBankAccounts.length) {
+        logger.warn(`No stored payment methods returned by Braintree for customer ${braintreeCustomerId}`);
+      }
+      return { storedPaymentMethods: [...creditCards, ...paypalAccounts, ...usBankAccounts] };
     } catch (e) {
       logger.warn(`Could not find Braintree customer ${braintreeCustomerId}: ${e instanceof Error ? e.message : e}`);
       return { storedPaymentMethods: [] };

@@ -102,6 +102,8 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
       return new BraintreeStoredBuilder("CreditCardStored", baseOptions);
     if (type === "PayPal")
       return new BraintreeStoredBuilder("PayPalStored", baseOptions);
+    if (type === "ACH")
+      return new BraintreeStoredBuilder("ACHStored", baseOptions);
     throw new Error(`Unsupported stored payment method type: ${type}`);
   }
 

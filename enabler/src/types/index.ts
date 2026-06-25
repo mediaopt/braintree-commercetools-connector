@@ -114,7 +114,7 @@ export type ButtonStyleOverrides = {
   paypal?:        PayPalButtonStyleOverride & { payLater?: boolean; billingAgreementDescription?: string };
   paypalExpress?: PayPalButtonStyleOverride;
   paypalVault?:   PayPalButtonStyleOverride;
-  ach?:           { mandateText?: string };
+  ach?:           { mandateText?: string; pendingVerificationText?: string };
   applePay?:      { applePayDisplayName?: string };
   googlePay?: {
     buttonTheme?: google.payments.api.ButtonColor;
@@ -274,6 +274,7 @@ export type LoadingOverlayType = {
 export type GeneralACHProps = {
   mandateText: string;
   processorUrl: string;
+  pendingVerificationText?: string;
 };
 
 export type GeneralCreditCardProps = {

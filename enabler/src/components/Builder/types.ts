@@ -2,6 +2,7 @@ import { SupportedLocalPaymentTypes } from '../LocalPaymentMethods/types';
 
 export type BraintreePaymentMethodType = SupportedLocalPaymentTypes
   | "ACH"
+  | "ACHStored"
   | "ApplePay"
   | "CreditCard"
   | "CreditCardStored"

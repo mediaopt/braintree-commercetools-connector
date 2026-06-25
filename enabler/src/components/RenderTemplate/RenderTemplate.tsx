@@ -28,6 +28,7 @@ import { SupportedLocalPaymentTypes } from "../LocalPaymentMethods/types";
 import { SUPPORTED_LOCAL_PAYMENT_TYPES } from "../LocalPaymentMethods/constants";
 import { CreditCardStoredButton } from "../CreditCard/CreditCardStoredButton";
 import { PayPalStoredButton } from "../PayPal/PayPalStoredButton";
+import { ACHStoredButton } from "../ACH/ACHStoredButton";
 
 type BraintreeBuilderTemplateProps = {
   paymentMethodType: BraintreePaymentMethodType;
@@ -123,6 +124,8 @@ const ComponentWithCustomOptions = ({
       return <CreditCardStoredButton {...restCustomOptions} />;
     case "PayPalStored":
       return <PayPalStoredButton {...restCustomOptions} />;
+    case "ACHStored":
+      return <ACHStoredButton {...restCustomOptions} />;
 
     // --- Express-only vault methods (isPureVault is always true and cannot be overridden by processor settings) ---
     /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable

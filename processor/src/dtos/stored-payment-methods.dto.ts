@@ -16,6 +16,7 @@ export const StoredPaymentMethodSchema = Type.Object({
     expiryMonth: Type.Optional(Type.Number()),
     expiryYear: Type.Optional(Type.Number()),
     logoUrl: Type.Optional(Type.String()),
+    email: Type.Optional(Type.String()),
   }),
 });
 

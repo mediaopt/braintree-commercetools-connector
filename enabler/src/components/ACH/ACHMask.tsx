@@ -4,7 +4,7 @@ import {
   FC,
   PropsWithChildren,
   FormEvent,
-  ChangeEvent,
+  useRef,
 } from "react";
 import {
   client as braintreeClient,
@@ -22,7 +22,6 @@ import { GeneralPayButtonProps, GeneralACHProps } from "../../types";
 import {
   HOSTED_FIELDS_LABEL,
   HOSTED_FIELDS,
-  renderMaskButtonClasses,
 } from "../../styles";
 
 import { processorRequest } from "../../services/processorRequest";
@@ -56,44 +55,28 @@ type BankDetails = {
   businessName?: string;
 };
 
+const DEFAULT_PENDING_VERIFICATION_TEXT =
+  "Payment is only possible after bank account verification.";
+
 type ACHMaskProps = GeneralPayButtonProps & GeneralACHProps;
-
-type LimitedVaultedPaymentDetails = {
-  accountType: string;
-  lastFour: string;
-  routingNumber: string;
-};
-
-type LimitedVaultedPayment = {
-  nonce: string;
-  details: LimitedVaultedPaymentDetails;
-};
 
 export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   processorUrl,
-  fullWidth = true,
-  buttonText,
   mandateText,
   useKount,
   shipping,
+  onRegisterSubmit,
+  pendingVerificationText = DEFAULT_PENDING_VERIFICATION_TEXT,
 }: ACHMaskProps) => {
   const {
     handleTransactionSale,
     clientToken,
-    handleGetVaultedPaymentMethods,
     requestHeader,
     paymentInfo,
   } = usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
 
-  const [limitedVaultedPayments, setLimitedVaultedPaymentMethods] = useState<
-    LimitedVaultedPayment[]
-  >([]);
-  const [selectedAccount, setSelectedAccount] = useState("");
-  const [showVaultedAccounts, setShowVaultedAccounts] = useState(true);
-  const [showVaultForm, setShowVaultForm] = useState(false);
-  const [showVaultedMessage, setShowVaultedMessage] = useState(false);
 
   const [accountNumber, setAccountNumber] = useState<string>("");
   const [routingNumber, setRoutingNumber] = useState<string>("");
@@ -137,18 +120,23 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     formButtonDisabled = formButtonDisabled || !firstName || !lastName;
   }
 
+  const formRef = useRef<HTMLFormElement>(null);
+  const formButtonDisabledRef = useRef(false);
+
   useEffect(() => {
-    const filteredPaymentMethods: Array<LimitedVaultedPayment> = [];
-    handleGetVaultedPaymentMethods().then((paymentMethods) => {
-      paymentMethods.forEach((paymentMethod) => {
-        if (paymentMethod.type === "UsBankAccount") {
-          filteredPaymentMethods.push({
-            nonce: paymentMethod.nonce,
-            details: paymentMethod.details as LimitedVaultedPaymentDetails,
-          });
-        }
-      });
-      setLimitedVaultedPaymentMethods(filteredPaymentMethods);
+    formButtonDisabledRef.current = formButtonDisabled;
+  }, [formButtonDisabled]);
+
+  useEffect(() => {
+    if (!clientToken) return;
+    onRegisterSubmit?.(async () => {
+      if (formButtonDisabledRef.current) {
+        notify("Error", "Please fill in all required fields");
+        return;
+      }
+      if (formRef.current) {
+        formRef.current.requestSubmit();
+      }
     });
   }, [clientToken]);
 
@@ -244,19 +232,32 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                   paymentMethodNonce: tokenizedPayload.nonce,
                 });
 
-                const { token: vaultToken } = vaultResponse || {};
+                const { token: vaultToken, verified } = vaultResponse || {};
 
-                if (vaultToken) {
-                  setShowVaultedMessage(true);
-                  setShowVaultForm(false);
-                } else {
+                if (!vaultToken) {
                   notify(
                     "Error",
                     "There is an error in vaulting the bank account.",
                   );
+                  isLoading(false);
+                  return;
                 }
 
-                isLoading(false);
+                if (verified) {
+                  await handleTransactionSale("", {
+                    paymentToken: vaultToken,
+                    deviceData,
+                    lineItems: paymentInfo.braintreeLineItems,
+                    shipping,
+                  });
+                  isLoading(false);
+                } else {
+                  notify(
+                    "Info",
+                    "Bank account saved. Payment will be available once your bank verifies the account.",
+                  );
+                  isLoading(false);
+                }
               },
             );
           },
@@ -265,93 +266,9 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     );
   };
 
-  const changeAccount = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSelectedAccount(value);
-  };
-
-  const handleVaultedPurchase = async () => {
-    isLoading(true);
-    await handleTransactionSale(selectedAccount, {
-      deviceData: deviceData,
-      lineItems: paymentInfo.braintreeLineItems,
-      shipping: shipping,
-    });
-    isLoading(false);
-  };
-
   return (
     <>
-      {showVaultedMessage && (
-        <Result
-          success={true}
-          message="Account vaulted successfully, as soon as the bank verifies it you can use it as a payment method."
-        />
-      )}
-
-      {showVaultedAccounts && (
-        <>
-          {!!limitedVaultedPayments.length && (
-            <div className="block w-full">
-              {limitedVaultedPayments.map((vaultedMethod, index) => {
-                return (
-                  <div
-                    key={index}
-                    className="flex gap-x-5 justify-start content-center border p-2 border-gray-300 rounded my-4"
-                  >
-                    <input
-                      className="w-3 justify-self-center"
-                      id={`credit-card-${index}`}
-                      type="radio"
-                      name="select-credit-card"
-                      value={vaultedMethod.nonce}
-                      onChange={changeAccount}
-                    />
-                    <label
-                      htmlFor={`credit-card-${index}`}
-                      className="cursor-pointer w-full"
-                    >
-                      <span className={HOSTED_FIELDS_LABEL}>
-                        {vaultedMethod.details.accountType}
-                      </span>
-                      <span className={HOSTED_FIELDS_LABEL}>
-                        ******{vaultedMethod.details.lastFour}
-                      </span>
-                      <span className={HOSTED_FIELDS_LABEL}>
-                        {vaultedMethod.details.routingNumber}
-                      </span>
-                    </label>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {selectedAccount !== "" && (
-            <div>
-              <button
-                onClick={handleVaultedPurchase}
-                className={renderMaskButtonClasses(fullWidth, true, false)}
-              >
-                {buttonText}
-              </button>
-            </div>
-          )}
-
-          <button
-            onClick={() => {
-              setShowVaultForm(true);
-              setShowVaultedAccounts(false);
-              setSelectedAccount("");
-            }}
-            className="mt-4"
-          >
-            + Vault new bank account
-          </button>
-        </>
-      )}
-      {showVaultForm && (
-        <form className="m-auto p-8 max-w-3xl" onSubmit={handleSubmit}>
+      <form className="m-auto p-8 max-w-3xl" ref={formRef} onSubmit={handleSubmit}>
           <label className={HOSTED_FIELDS_LABEL} htmlFor="routing-number">
             Routing Number
           </label>
@@ -527,20 +444,8 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
             required
           />
 
-          <div className="block text-center">
-            <input
-              type="submit"
-              className={renderMaskButtonClasses(
-                fullWidth,
-                !formButtonDisabled,
-                formButtonDisabled,
-              )}
-              value="Vault Bank Account"
-              id="submit"
-            />
-          </div>
+          <p className="mt-4 text-sm text-gray-500">{pendingVerificationText}</p>
         </form>
-      )}
     </>
   );
 };
