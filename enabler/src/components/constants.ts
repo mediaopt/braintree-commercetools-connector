@@ -3,12 +3,13 @@ const CUSTOMER_ROUTE = "/customer";
 
 export const processorUrls = (processorUrl: string) => {
   const paymentsPrefix = `${processorUrl}${PAYMENTS_ROUTE}`;
-  const customerPrefix = `${processorUrl}${CUSTOMER_ROUTE}`;
+  // PURE_VAULT_DISABLED const customerPrefix = `${processorUrl}${CUSTOMER_ROUTE}`;
   return {
     createPaymentUrl: `${paymentsPrefix}`,
     transactionSaleUrl: `${paymentsPrefix}/transactionSale`,
     getAchVaultTokenURL: `${paymentsPrefix}/getAchVaultToken`,
     updateCartShippingUrl: `${paymentsPrefix}/updateCartShipping`,
+    getStoredPaymentMethodsURL: `${processorUrl}/stored-payment-methods`,
     // PURE_VAULT_DISABLED: pureVaultUrl: `${customerPrefix}/pureVault`,
   };
 };

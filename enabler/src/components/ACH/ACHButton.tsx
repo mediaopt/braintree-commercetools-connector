@@ -15,6 +15,8 @@ export const ACHButton: FC<ACHButtonProps> = ({
   mandateText,
   useKount,
   shipping,
+  onRegisterSubmit,
+  pendingVerificationText,
 }: ACHButtonProps) => {
   return (
     <ACHMask
@@ -24,6 +26,8 @@ export const ACHButton: FC<ACHButtonProps> = ({
       processorUrl={processorUrl}
       useKount={useKount}
       shipping={shipping}
+      onRegisterSubmit={onRegisterSubmit}
+      pendingVerificationText={pendingVerificationText}
     />
   );
 };

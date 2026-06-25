@@ -7,11 +7,6 @@ import {
   useState,
   useEffect,
 } from "react";
-import {
-  FetchPaymentMethodsPayload,
-  VaultManager,
-  vaultManager,
-} from "braintree-web";
 import { processorRequest } from "../services/processorRequest";
 import { Result } from "../components/Result";
 import {
@@ -20,6 +15,8 @@ import {
   TransactionSaleRequest,
   // PURE_VAULT_DISABLED  VaultRequest,
   ChangeShippingRequest,
+  StoredPaymentMethod,
+  StoredPaymentMethodsResponse,
 } from "../services/types";
 
 import {
@@ -53,8 +50,8 @@ type PaymentContextT = {
   handleTransactionSale: HandleTransactionSaleType;
   // PURE_VAULT_DISABLED handlePureVault: (paymentNonce: string) => Promise<void>;
   paymentInfo: PaymentInfo;
-  vaultedPaymentMethods: FetchPaymentMethodsPayload[];
-  handleGetVaultedPaymentMethods: () => Promise<FetchPaymentMethodsPayload[]>;
+  vaultedPaymentMethods: StoredPaymentMethod[];
+  handleGetVaultedPaymentMethods: () => Promise<StoredPaymentMethod[]>;
   // return shape mirrors UpdateCartShippingResponseSchemaDTO in processor/src/dtos/braintree-payment.dto.ts
   updateCartShipping: (newShippingMethodId: string) => Promise<{
     braintreeAmount: string;
@@ -77,10 +74,7 @@ const PaymentContext = createContext<PaymentContextT>({
   //PURE_VAULT_DISABLED handlePureVault: () => Promise.resolve(),
   paymentInfo: PaymentInfoInitialObject,
   vaultedPaymentMethods: [],
-  handleGetVaultedPaymentMethods: () =>
-    new Promise<FetchPaymentMethodsPayload[]>(
-      (resolve) => [] as FetchPaymentMethodsPayload[],
-    ),
+  handleGetVaultedPaymentMethods: () => Promise.resolve([] as StoredPaymentMethod[]),
   updateCartShipping: () =>
     Promise.resolve({
       braintreeAmount: "",
@@ -119,14 +113,13 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
     PaymentInfoInitialObject,
   );
 
-  const [vaultedPaymentMethods, setVaultedPaymentMethods] = useState<
-    FetchPaymentMethodsPayload[]
-  >([]);
+  const [vaultedPaymentMethods, setVaultedPaymentMethods] = useState<StoredPaymentMethod[]>([]);
   const {
     createPaymentUrl,
     transactionSaleUrl,
     // PURE_VAULT_DISABLED: pureVaultUrl,
     updateCartShippingUrl,
+    getStoredPaymentMethodsURL,
   } = processorUrls(processorUrl);
   const requestHeader = sessionHeader(sessionId);
 
@@ -168,39 +161,23 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   }, []);
 
   const value = useMemo(() => {
-    const handleGetVaultedPaymentMethods = () => {
-      if (!clientToken || vaultedPaymentMethods.length)
-        return new Promise<FetchPaymentMethodsPayload[]>(() => {
-          return vaultedPaymentMethods;
-        });
-      isLoading(true);
-      return vaultManager.create({ authorization: clientToken }).then(
-        (vaultInstance: VaultManager | undefined) => {
-          if (vaultInstance === undefined) {
-            notify("Info", "No vault manager");
-            isLoading(false);
-            return vaultedPaymentMethods;
-          }
-          return vaultInstance.fetchPaymentMethods({ defaultFirst: true }).then(
-            (
-              customerPaymentMethods: FetchPaymentMethodsPayload[] | undefined,
-            ) => {
-              isLoading(false);
-              if (customerPaymentMethods !== undefined) {
-                setVaultedPaymentMethods(customerPaymentMethods);
-                return customerPaymentMethods;
-              }
-              return vaultedPaymentMethods;
-            },
-            () => {
-              return vaultedPaymentMethods;
-            },
-          );
-        },
-        () => {
-          return vaultedPaymentMethods;
-        },
-      );
+    // Uses the processor endpoint (server-side gateway.customer.find) instead of the Braintree JS
+    // vaultManager.fetchPaymentMethods. The client-side vault manager hits a different Braintree
+    // endpoint that does not reliably return all vaulted methods — methods vaulted through certain
+    // flows may be invisible to it even though they exist in the vault. The processor's server-side
+    // call is authoritative.
+    const handleGetVaultedPaymentMethods = (): Promise<StoredPaymentMethod[]> => {
+      if (vaultedPaymentMethods.length) return Promise.resolve(vaultedPaymentMethods);
+      return processorRequest<undefined, StoredPaymentMethodsResponse>(
+        requestHeader,
+        getStoredPaymentMethodsURL,
+        undefined,
+        "GET",
+      ).then((result) => {
+        const methods = result ? result.storedPaymentMethods : [];
+        setVaultedPaymentMethods(methods);
+        return methods;
+      });
     };
 
     const handleTransactionSale: HandleTransactionSaleType = async (

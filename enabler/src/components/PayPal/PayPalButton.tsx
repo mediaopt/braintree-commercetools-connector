@@ -1,10 +1,5 @@
 import { FC } from "react";
 
-import {
-  PAY_BUTTON_TEXT_FALLBACK,
-  VAULT_BUTTON_TEXT_FALLBACK,
-} from "../PayButton";
-
 import { PayPalMask } from "./PayPalMask";
 
 import { GeneralPayButtonProps, PayPalProps } from "../../types";
@@ -16,7 +11,6 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
   enableVaulting,
   vaultLabel,
   fullWidth = true,
-  buttonText,
   flow,
   buttonLabel,
   buttonColor,

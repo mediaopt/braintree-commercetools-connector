@@ -1,10 +1,6 @@
 import { FC } from "react";
 
 import { CreditCardMask } from "./CreditCardMask";
-import {
-  PAY_BUTTON_TEXT_FALLBACK,
-  VAULT_BUTTON_TEXT_FALLBACK,
-} from "../PayButton";
 import { GeneralCreditCardProps, GeneralPayButtonProps } from "../../types";
 
 type CreditCardButton = GeneralCreditCardProps & GeneralPayButtonProps;

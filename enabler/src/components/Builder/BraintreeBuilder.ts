@@ -12,7 +12,9 @@ import { BuilderType } from "../../types";
 
 class BraintreeComponent implements PaymentComponent {
   private root: Root | null = null;
-  private submitHandler: ((storePaymentDetails?: boolean) => Promise<void>) | null = null;
+  private submitHandler:
+    | ((storePaymentDetails?: boolean) => Promise<void>)
+    | null = null;
 
   constructor(
     private paymentMethodType: BraintreePaymentMethodType,
@@ -31,7 +33,9 @@ class BraintreeComponent implements PaymentComponent {
     const customOptions: BaseOptions & ComponentOptions = {
       ...this.baseOptions,
       ...this.config,
-      onRegisterSubmit: (handler) => { this.submitHandler = handler; },
+      onRegisterSubmit: (handler) => {
+        this.submitHandler = handler;
+      },
     };
     const componentRender = createElement(RenderTemplate, {
       paymentMethodType: this.paymentMethodType,
@@ -47,7 +51,9 @@ class BraintreeComponent implements PaymentComponent {
     storePaymentDetails?: boolean;
   }): Promise<void> {
     if (!this.submitHandler) {
-      throw new Error("submit() called before component is ready or payment method does not support it");
+      throw new Error(
+        "submit() called before component is ready or payment method does not support it",
+      );
     }
     await this.submitHandler(storePaymentDetails);
   }
@@ -77,6 +83,13 @@ class BraintreeComponent implements PaymentComponent {
 }
 
 export class BraintreeBuilder implements PaymentComponentBuilder {
+  // Components that use onRegisterSubmit instead of an internal pay button —
+  // the host calls component.submit() to trigger payment for these types.
+  static readonly SUBMIT_HAS_CALLBACK: BraintreePaymentMethodType[] = [
+    "CreditCard",
+    "ACH",
+  ];
+
   public componentHasSubmit: boolean;
 
   constructor(
@@ -84,7 +97,8 @@ export class BraintreeBuilder implements PaymentComponentBuilder {
     private baseOptions: BaseOptions,
     private builderType: BuilderType,
   ) {
-    this.componentHasSubmit = paymentMethodType === "ACH" || paymentMethodType === "CreditCard";
+    this.componentHasSubmit =
+      BraintreeBuilder.SUBMIT_HAS_CALLBACK.includes(paymentMethodType);
   }
 
   build(config: ComponentOptions): PaymentComponent {
