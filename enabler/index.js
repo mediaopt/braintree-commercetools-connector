@@ -14,7 +14,8 @@ async function fetchDevJwt() {
 }
 
 const methodsStore = new Map();
-const allowedStoredPaymentMethods = ["CreditCard", "PayPal"];
+// Maps processor payment method types to stored builder type names
+const STORED_TYPE_MAP = { CreditCard: "CreditCard", PayPal: "PayPal", UsBankAccount: "ACH" };
 
 const btnLoadOthers = document.getElementById("loadComponents");
 const btnLoadDropins = document.getElementById("loadDropins");
@@ -250,15 +251,28 @@ btnLoadStored?.addEventListener("click", async (e) => {
     countryCode: "DE",
   });
 
-  // Mount one component per allowed type; each component shows all stored
-  // methods of its type as a radio list and handles payment internally.
-  for (const type of allowedStoredPaymentMethods) {
+  const { storedPaymentMethods = [] } = await enabler.getStoredPaymentMethods({
+    allowedMethodTypes: Object.keys(STORED_TYPE_MAP),
+  });
+
+  const builderTypes = [
+    ...new Set(
+      storedPaymentMethods
+        .map((m) => STORED_TYPE_MAP[m.type])
+        .filter(Boolean),
+    ),
+  ];
+
+  if (!builderTypes.length) {
+    containerExternal.innerHTML = "<p>No stored payment methods found.</p>";
+    hideSpinner();
+    return;
+  }
+
+  for (const type of builderTypes) {
     const builder = await enabler.createStoredPaymentMethodBuilder(type);
-    const component = builder.build({
-      id: "",
-      brands: [],
-      showPayButton: true,
-    });
+    const component = builder.build({ id: "", brands: [], showPayButton: false });
+
     const wrapper = document.createElement("div");
     wrapper.className = "mb-4";
     const heading = document.createElement("h5");
@@ -269,6 +283,14 @@ btnLoadStored?.addEventListener("click", async (e) => {
     wrapper.appendChild(mountTarget);
     containerExternal.appendChild(wrapper);
     await component.mount(`#stored-${type}-container`);
+
+    const payBtn = document.createElement("button");
+    payBtn.textContent = `Pay with saved ${type}`;
+    payBtn.className = "btn btn-lg btn-primary btn-block mt-3";
+    payBtn.addEventListener("click", async () => {
+      await component.submit({ storePaymentDetails: false });
+    });
+    containerInternal.appendChild(payBtn);
   }
 
   hideSpinner();
