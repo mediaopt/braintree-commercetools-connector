@@ -79,7 +79,10 @@ async function onMethodSelected(methodId) {
     customButton.textContent = "Pay with " + methodId.split("-")[1];
     customButton.className = "btn btn-lg btn-primary btn-block mt-3";
     customButton.addEventListener("click", async () => {
-      if (!document.getElementById("termsCheckbox").checked) {
+      if (
+        document.getElementById("termsCheckbox") &&
+        !document.getElementById("termsCheckbox").checked
+      ) {
         alert("Agree to terms");
         return;
       }
@@ -251,7 +254,11 @@ btnLoadStored?.addEventListener("click", async (e) => {
   // methods of its type as a radio list and handles payment internally.
   for (const type of allowedStoredPaymentMethods) {
     const builder = await enabler.createStoredPaymentMethodBuilder(type);
-    const component = builder.build({ id: "", brands: [], showPayButton: true });
+    const component = builder.build({
+      id: "",
+      brands: [],
+      showPayButton: true,
+    });
     const wrapper = document.createElement("div");
     wrapper.className = "mb-4";
     const heading = document.createElement("h5");
