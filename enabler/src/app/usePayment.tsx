@@ -74,7 +74,8 @@ const PaymentContext = createContext<PaymentContextT>({
   //PURE_VAULT_DISABLED handlePureVault: () => Promise.resolve(),
   paymentInfo: PaymentInfoInitialObject,
   vaultedPaymentMethods: [],
-  handleGetVaultedPaymentMethods: () => Promise.resolve([] as StoredPaymentMethod[]),
+  handleGetVaultedPaymentMethods: () =>
+    Promise.resolve([] as StoredPaymentMethod[]),
   updateCartShipping: () =>
     Promise.resolve({
       braintreeAmount: "",
@@ -113,7 +114,9 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
     PaymentInfoInitialObject,
   );
 
-  const [vaultedPaymentMethods, setVaultedPaymentMethods] = useState<StoredPaymentMethod[]>([]);
+  const [vaultedPaymentMethods, setVaultedPaymentMethods] = useState<
+    StoredPaymentMethod[]
+  >([]);
   const {
     createPaymentUrl,
     transactionSaleUrl,
@@ -166,18 +169,16 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
     // endpoint that does not reliably return all vaulted methods — methods vaulted through certain
     // flows may be invisible to it even though they exist in the vault. The processor's server-side
     // call is authoritative.
-    const handleGetVaultedPaymentMethods = (): Promise<StoredPaymentMethod[]> => {
-      if (vaultedPaymentMethods.length) return Promise.resolve(vaultedPaymentMethods);
-      return processorRequest<undefined, StoredPaymentMethodsResponse>(
-        requestHeader,
-        getStoredPaymentMethodsURL,
+    const handleGetVaultedPaymentMethods = async () => {
+      if (vaultedPaymentMethods.length)
+        return Promise.resolve(vaultedPaymentMethods);
+      const result = await processorRequest<
         undefined,
-        "GET",
-      ).then((result) => {
-        const methods = result ? result.storedPaymentMethods : [];
-        setVaultedPaymentMethods(methods);
-        return methods;
-      });
+        StoredPaymentMethodsResponse
+      >(requestHeader, getStoredPaymentMethodsURL, undefined, "GET");
+      const methods = result ? result.storedPaymentMethods : [];
+      setVaultedPaymentMethods(methods);
+      return methods;
     };
 
     const handleTransactionSale: HandleTransactionSaleType = async (
