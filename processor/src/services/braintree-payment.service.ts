@@ -908,6 +908,22 @@ export class BraintreePaymentService extends AbstractPaymentService {
     }
   }
 
+  public async deleteStoredPaymentMethod(token: string): Promise<void> {
+    const cartId = getCartIdFromContext();
+    try {
+      const [, ctCart] = await Promise.all([
+        braintreeDeletePayment(token),
+        this.ctCartService.getCart({ id: cartId }).catch(() => undefined), // depersonalized log context only — not required for the delete
+      ]);
+      logger.info(`deleteStoredPaymentMethod: success, cartId: ${ctCart?.id ?? 'unavailable'}`);
+    } catch (err) {
+      logger.error(
+        `deleteStoredPaymentMethod: failed, cartId: ${cartId ?? 'unavailable'} — ${err instanceof Error ? err.message : err}`,
+      );
+      throw err;
+    }
+  }
+
   private convertPaymentResultCode(resultCode: PaymentOutcome): string {
     switch (resultCode) {
       case PaymentOutcome.AUTHORIZED:

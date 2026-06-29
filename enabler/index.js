@@ -293,6 +293,45 @@ btnLoadStored?.addEventListener("click", async (e) => {
     containerInternal.appendChild(payBtn);
   }
 
+  // Per-method remove buttons
+  const deleteSection = document.createElement("div");
+  deleteSection.className = "mt-4";
+  const deleteHeading = document.createElement("h6");
+  deleteHeading.textContent = "Remove stored method:";
+  deleteSection.appendChild(deleteHeading);
+  for (const method of storedPaymentMethods) {
+    const endDigits = method.displayOptions?.endDigits;
+    const email = method.displayOptions?.email;
+    const label = `${method.type}${endDigits ? " ****" + endDigits : ""}${email ? " (" + email + ")" : ""}`;
+    const row = document.createElement("div");
+    row.className = "d-flex align-items-center mb-2";
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "mr-3";
+    nameSpan.textContent = label;
+    const deleteBtn = document.createElement("button");
+    deleteBtn.textContent = "Remove";
+    deleteBtn.className = "btn btn-danger btn-sm";
+    deleteBtn.addEventListener("click", async () => {
+      deleteBtn.disabled = true;
+      deleteBtn.textContent = "Removing...";
+      const res = await fetch(`${__VITE_PROCESSOR_URL__}/stored-payment-methods/${method.id}`, {
+        method: "DELETE",
+        headers: { "X-Session-Id": sessionId },
+      });
+      if (res.ok) {
+        row.remove();
+      } else {
+        deleteBtn.disabled = false;
+        deleteBtn.textContent = "Remove";
+        alert("Failed to remove stored method");
+      }
+    });
+    row.appendChild(nameSpan);
+    row.appendChild(deleteBtn);
+    deleteSection.appendChild(row);
+  }
+  containerInternal.appendChild(deleteSection);
+
   hideSpinner();
 });
 
