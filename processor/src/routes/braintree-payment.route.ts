@@ -99,6 +99,21 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
     },
   );
 
+  fastify.delete<{ Params: { id: string } }>(
+    '/stored-payment-methods/:id',
+    {
+      preHandler: [opts.sessionHeaderAuthHook.authenticate()],
+      schema: {
+        params: Type.Object({ id: Type.String() }),
+        response: { 200: Type.Object({}) },
+      },
+    },
+    async (request, reply) => {
+      await opts.paymentService.deleteStoredPaymentMethod(request.params.id);
+      return reply.status(200).send({});
+    },
+  );
+
   /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
   fastify.post<{
     Body: PureVaultRequestSchemaDTO;

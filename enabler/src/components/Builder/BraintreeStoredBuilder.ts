@@ -50,7 +50,13 @@ class BraintreeStoredComponent implements StoredComponent {
   }
 
   async remove(): Promise<void> {
-    // Stub — server-side Braintree vault deletion not yet implemented
+    const token = this.config.id;
+    if (!token) return;
+    const url = `${this.baseOptions.processorUrl.replace(/\/$/, '')}/stored-payment-methods/${token}`;
+    const response = await fetch(url, { method: 'DELETE', headers: { 'X-Session-Id': this.baseOptions.sessionId } });
+    if (!response.ok) {
+      throw new Error(`Failed to delete stored payment method: ${response.status}`);
+    }
   }
 
   async isAvailable(): Promise<boolean> {
