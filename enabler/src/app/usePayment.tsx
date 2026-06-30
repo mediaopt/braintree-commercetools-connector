@@ -192,6 +192,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         ctPaymentId: paymentInfo.ctPaymentId,
         paymentMethodNonce: paymentNonce,
         braintreeCustomerId,
+        paymentMethodType,
         braintreePaymentDetails: {
           braintreeLineItems:
             incomingDetails?.braintreeLineItems ??

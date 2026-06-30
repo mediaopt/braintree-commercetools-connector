@@ -156,6 +156,7 @@ export const TransactionSaleRequestSchema = Type.Object({
   storeInVaultOnSuccess: Type.Optional(Type.Boolean()),
   storeShipping: Type.Optional(Type.Boolean()),
   deviceData: Type.Optional(Type.String()),
+  paymentMethodType: Type.Enum(PaymentMethodType),
   localPaymentId: Type.Optional(Type.String()),
   venmoUsername: Type.Optional(Type.String()),
   braintreePaymentDetails: Type.Optional(

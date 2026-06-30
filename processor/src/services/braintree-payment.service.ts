@@ -654,9 +654,17 @@ export class BraintreePaymentService extends AbstractPaymentService {
     storeInVaultOnSuccess,
     storeShipping,
     braintreePaymentDetails,
+    paymentMethodType,
     localPaymentId,
     venmoUsername,
   }: TransactionSaleRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO> {
+    this.validateTransactionSaleParams(
+      paymentMethodType,
+      paymentMethodNonce,
+      paymentToken,
+      localPaymentId,
+      venmoUsername,
+    );
     const [updatedCart, ctPayment] = await Promise.all([
       braintreePaymentDetails?.extraShippingCost
         ? this.ctCartService.getCart({
@@ -689,7 +697,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
       ...item,
       name: item.name.substring(0, 35),
     })); //braintree has 35 char limit for line item name in transactionSale, so we need to cut it to avoid errors, see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
-    transactionRequest.lineItems = lineItemsForSale.filter(({ productCode }) => productCode !== 'DISCOUNT');
+    // Braintree rejects zero-amount line items for non-PayPal methods; for PayPal, zero amounts are explicitly allowed
+    const isPayPal = paymentMethodType === 'PayPal' || paymentMethodType === 'PayPalStored';
+    transactionRequest.lineItems = lineItemsForSale.filter(
+      ({ productCode, unitAmount }) => productCode !== 'DISCOUNT' && (isPayPal || Number(unitAmount) > 0),
+    );
     transactionRequest.discountAmount = mapCommercetoolsMoneyToBraintreeMoney(
       updatedCart?.discountOnTotalPrice?.discountedAmount || { ...ctPayment.amountPlanned, centAmount: 0 },
     );
@@ -1028,6 +1040,30 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (isPureVault) return;
     if (!ctCart.customerEmail || !ctCart.billingAddress || !ctCart.shippingAddress)
       throw new ErrorInvalidOperation('Required data missing: email or address');
+  }
+
+  private validateTransactionSaleParams(
+    paymentMethodType: PaymentMethodType,
+    paymentMethodNonce: string | undefined,
+    paymentToken: string | undefined,
+    localPaymentId: string | undefined,
+    venmoUsername: string | undefined,
+  ): void {
+    const tokenBasedMethods = new Set<string>([
+      PaymentMethodType.ACH,
+      PaymentMethodType.CREDIT_CARD_STORED,
+      PaymentMethodType.PAYPAL_STORED,
+    ]);
+    const localPaymentTypes = new Set<string>(Object.values(LocalPaymentMethodType));
+
+    if (tokenBasedMethods.has(paymentMethodType)) {
+      if (!paymentToken) throw new ErrorRequiredField('paymentToken');
+    } else {
+      if (!paymentMethodNonce) throw new ErrorRequiredField('paymentMethodNonce');
+      if (localPaymentTypes.has(paymentMethodType) && !localPaymentId) throw new ErrorRequiredField('localPaymentId');
+      if (paymentMethodType === PaymentMethodType.VENMO && !venmoUsername)
+        throw new ErrorRequiredField('venmoUsername');
+    }
   }
 
   private validatePaymentMethod(paymentMethodType: PaymentMethodType, braintreeMerchantAccount?: string): void {
