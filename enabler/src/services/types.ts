@@ -43,6 +43,7 @@ export type TransactionSaleOptions = {
 export type TransactionSaleRequest = TransactionSaleOptions & {
   ctPaymentId: string;
   paymentMethodNonce?: string;
+  paymentMethodType: BraintreePaymentMethodType;
 };
 
 /* PURE_VAULT_DISABLED start
