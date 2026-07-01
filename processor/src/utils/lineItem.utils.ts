@@ -29,9 +29,10 @@ export type BraintreeLineItem = Static<typeof BraintreeLineItemSchema>;
 //tax and discount are not mapped separately to avoid rounding issues
 export const mapCTLineItemToBraintreeLineItem = (ctLineItem: LineItem, cartLocale?: string): BraintreeLineItem => {
   const totalItemPrice = mapCommercetoolsMoneyToBraintreeMoney(ctLineItem.totalPrice);
-  const localizedName = cartLocale && ctLineItem.name[cartLocale] ? ctLineItem.name[cartLocale] : ctLineItem.name[0];
+  const localizedName =
+    (cartLocale && ctLineItem.name[cartLocale]) || Object.values(ctLineItem.name)[0] || ctLineItem.productId;
   const nameWithQuantity =
-    ctLineItem.quantity > 1 ? `${localizedName} (x${ctLineItem.quantity})` : localizedName || ctLineItem.productId;
+    ctLineItem.quantity > 1 ? `${localizedName} (x${ctLineItem.quantity})` : localizedName;
 
   // Get image URL from variant if available
   const imageUrl = ctLineItem.variant?.images?.[0]?.url || '';
