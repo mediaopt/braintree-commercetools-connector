@@ -11,8 +11,8 @@ import {
 } from '@commercetools/connect-payments-sdk';
 
 import { CustomerResourceIdentifier } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/customer';
-import { ShippingMethod, CentPrecisionMoney, PaymentMethodInfoDraft } from '@commercetools/platform-sdk';
-import { Transaction } from 'braintree';
+import { ShippingMethod, CentPrecisionMoney } from '@commercetools/platform-sdk';
+import { Transaction, TransactionRequest } from 'braintree';
 
 // localPayment is an undocumented field Braintree adds to Transaction for local payment methods
 // See: https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side/javascript/v3
@@ -69,58 +69,19 @@ import {
 } from 'common-connect/dist';
 import { handleCustomTransactionFields, handleCustomFieldResponse } from '../utils/customEntities.utils';
 
-import { LineItemKind, mapCTLineItemToBraintreeLineItem } from '../utils/lineItem.utils';
+import { LineItemKind, mapCTLineItemToBraintreeLineItem, lineItemPlaceholders } from '../utils/lineItem.utils';
+import { toNum, toMoneyStr } from '../utils/money.utils';
+import { errorMessage, getCtErrorKind, retryCTSync } from '../utils/error.utils';
 import {
   mapCTShippingToBraintreeShipping,
   mapShippingMethodsToBraintreeShippingOptions,
 } from '../utils/shipping.utils';
+import {
+  mapBraintreeCreditCardToStoredPaymentMethod,
+  mapBraintreePaypalAccountToStoredPaymentMethod,
+  mapBraintreeUsBankAccountToStoredPaymentMethod,
+} from '../utils/storedPaymentMethod.utils';
 import { BraintreeCustomerService } from './braintree-customer.service';
-
-const CT_SYNC_MAX_ATTEMPTS = 3;
-const CT_SYNC_BACKOFF_BASE_MS = 500;
-
-async function retryCTSync(
-  fn: () => Promise<void>,
-  methodName: string,
-  paymentId: string,
-  maxAttempts = CT_SYNC_MAX_ATTEMPTS,
-): Promise<void> {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      await fn();
-      if (attempt > 1) logger.info(`${methodName}: CT sync succeeded on retry ${attempt}, paymentId: ${paymentId}`);
-      return;
-    } catch (err) {
-      logger.error(
-        `${methodName}: CT sync failed (attempt ${attempt}/${maxAttempts}), paymentId: ${paymentId} — ${err instanceof Error ? err.message : err}`,
-      );
-      const status = (err as { httpErrorStatus?: number })?.httpErrorStatus;
-      if (status === 401 || status === 403) {
-        logger.warn(`${methodName}: CT sync skipping retry (status ${status}), paymentId: ${paymentId}`);
-        return;
-      }
-      if (status === 404) {
-        logger.error(
-          `${methodName}: CT payment not found after Braintree operation completed (status 404), paymentId: ${paymentId} — CT state is permanently inconsistent`,
-        );
-        return;
-      }
-      if (attempt < maxAttempts)
-        await new Promise((resolve) => setTimeout(resolve, CT_SYNC_BACKOFF_BASE_MS * 2 ** (attempt - 1)));
-    }
-  }
-}
-
-const lineItemPlaceholders = {
-  quantity: '1',
-  unitTaxAmount: '0.00',
-  description: '',
-  url: '',
-  commodityCode: '',
-  discountAmount: '',
-  taxAmount: '',
-  unitOfMeasure: 'unit' as const,
-};
 
 export class BraintreePaymentService extends AbstractPaymentService {
   private braintreeCustomerService: BraintreeCustomerService;
@@ -140,14 +101,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
     ctPayment,
     response,
     customFields,
-    paymentMethodInfo,
   }: {
     messageName: string;
     request: string | object;
     ctPayment: Payment;
     response: Transaction;
     customFields?: CustomFieldsDraft;
-    paymentMethodInfo?: PaymentMethodInfoDraft;
   }): Promise<void> {
     const requestInteraction = handleInterfaceInteraction({
       messageName,
@@ -165,8 +124,40 @@ export class BraintreePaymentService extends AbstractPaymentService {
       pspInteractions: [requestInteraction, responseInteraction],
       transaction: mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response),
       pspReference: response.id,
-      paymentMethodInfo,
     });
+    // Backward compat with extension's updatePaymentFields (common-connect/src/utils/response.utils.ts):
+    // setStatusInterfaceCode, setStatusInterfaceText, setMethodInfoMethod are not supported by the CT
+    // Checkout SDK and must be applied via a raw CT API call. Own retryCTSync block so a failure here
+    // does not cause the first update above to be re-attempted by the outer retryCTSync.
+    // Each retry re-fetches the payment version to avoid version-conflict failures.
+    const paymentMethodHint = getPaymentMethodHint(response);
+    await retryCTSync(
+      async () => {
+        const version = (await this.ctPaymentService.getPayment({ id: ctPayment.id })).version;
+        await paymentSDK.ctAPI.client
+          .payments()
+          .withId({ ID: ctPayment.id })
+          .post({
+            body: {
+              version,
+              actions: [
+                { action: 'setStatusInterfaceCode', interfaceCode: response.status },
+                { action: 'setStatusInterfaceText', interfaceText: response.status },
+                {
+                  action: 'setMethodInfoMethod',
+                  method: `${response.paymentInstrumentType}${paymentMethodHint ? ` (${paymentMethodHint})` : ''}`,
+                },
+              ],
+            },
+          })
+          .execute();
+      },
+      `${messageName}:statusSync`,
+      ctPayment.id,
+      [response.status, response.orderId && `orderId: ${response.orderId}`, `amount: ${response.amount}`]
+        .filter(Boolean)
+        .join(', '),
+    );
   }
 
   /**
@@ -178,18 +169,24 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * @returns Promise with mocking object containing configuration information
    */
   public async config(): Promise<ConfigResponse> {
-    const config = getConfig();
-
-    return {
-      returnUrl: config.returnUrl,
-      environment: config.braintreeEnvironment,
-      storedPaymentMethodsConfig: {
-        isEnabled: await this.isStoredPaymentMethodsEnabled(),
-      },
-      enableVaulting: config.enableVaulting,
-      buttonStyleOverrides: config.buttonStyleOverrides,
-      perMethodConfig: config.perMethodConfig,
-    };
+    try {
+      const config = getConfig();
+      const result = {
+        returnUrl: config.returnUrl,
+        environment: config.braintreeEnvironment,
+        storedPaymentMethodsConfig: {
+          isEnabled: await this.isStoredPaymentMethodsEnabled(),
+        },
+        enableVaulting: config.enableVaulting,
+        buttonStyleOverrides: config.buttonStyleOverrides,
+        perMethodConfig: config.perMethodConfig,
+      };
+      logger.info('config: success');
+      return result;
+    } catch (e) {
+      logger.error(`config: failed — ${errorMessage(e)}`);
+      throw e;
+    }
   }
 
   // Displaying the Venmo username in the checkout UI is the merchant's responsibility.
@@ -255,59 +252,64 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * @returns Promise with mocking data containing a list of status from different external systems
    */
   public async status(): Promise<StatusResponse> {
-    const requiredPermissions = [
-      'manage_payments',
-      'view_sessions',
-      'view_api_clients',
-      'manage_orders',
-      'introspect_oauth_tokens',
-      'manage_checkout_payment_intents',
-      'manage_types',
-    ];
+    try {
+      const requiredPermissions = [
+        'manage_payments',
+        'view_sessions',
+        'view_api_clients',
+        'manage_orders',
+        'introspect_oauth_tokens',
+        'manage_checkout_payment_intents',
+        'manage_types',
+      ];
 
-    if (getStoredPaymentMethodsConfig().enabled) {
-      requiredPermissions.push('manage_payment_methods');
-    }
+      if (getStoredPaymentMethodsConfig().enabled) {
+        requiredPermissions.push('manage_payment_methods');
+      }
 
-    const handler = await statusHandler({
-      log: appLogger,
-      timeout: getConfig().healthCheckTimeout,
-      checks: [
-        healthCheckCommercetoolsPermissions({
-          requiredPermissions,
-          ctAuthorizationService: paymentSDK.ctAuthorizationService,
-          projectKey: getConfig().projectKey,
+      const handler = await statusHandler({
+        log: appLogger,
+        timeout: getConfig().healthCheckTimeout,
+        checks: [
+          healthCheckCommercetoolsPermissions({
+            requiredPermissions,
+            ctAuthorizationService: paymentSDK.ctAuthorizationService,
+            projectKey: getConfig().projectKey,
+          }),
+          async () => {
+            try {
+              await getBraintreeGateway();
+              return {
+                name: 'Braintree gateway',
+                status: 'UP',
+                message: 'Braintree healthcheck success',
+                details: {},
+              };
+            } catch (e) {
+              return {
+                name: 'Braintree gateway',
+                status: 'DOWN',
+                message:
+                  'Braintree gateway is not responding. Please check the Braintree merchant status and credentials.',
+                details: {
+                  error: e,
+                },
+              };
+            }
+          },
+        ],
+        metadataFn: async () => ({
+          name: packageJSON.name,
+          description: 'Braintree provider integration', //packageJSON.description, todo - fix the description missing on type package json
+          '@commercetools/connect-payments-sdk': packageJSON.dependencies['@commercetools/connect-payments-sdk'],
         }),
-        async () => {
-          try {
-            await getBraintreeGateway();
-            return {
-              name: 'Braintree gateway',
-              status: 'UP',
-              message: 'Braintree healthcheck success',
-              details: {},
-            };
-          } catch (e) {
-            return {
-              name: 'Braintree gateway',
-              status: 'DOWN',
-              message:
-                'Braintree gateway is not responding. Please check the Braintree merchant status and credentials.',
-              details: {
-                error: e,
-              },
-            };
-          }
-        },
-      ],
-      metadataFn: async () => ({
-        name: packageJSON.name,
-        description: 'Braintree provider integration', //packageJSON.description, todo - fix the description missing on type package json
-        '@commercetools/connect-payments-sdk': packageJSON.dependencies['@commercetools/connect-payments-sdk'],
-      }),
-    })();
+      })();
 
-    return handler.body;
+      return handler.body;
+    } catch (e) {
+      logger.error(`status: failed — ${errorMessage(e)}`);
+      throw e;
+    }
   }
 
   /**
@@ -348,7 +350,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
       .execute()
       .then((response) => response.body.results)
       .catch((err) => {
-        log.warn(`No shipping available for ${ctCartId}`, { error: err });
+        if (getCtErrorKind(err) === 'auth') {
+          logger.error(`getShippingMethods: CT auth error for cart ${ctCartId}`);
+        } else {
+          logger.warn(`getShippingMethods: no shipping available for cart ${ctCartId}`, { error: err });
+        }
         return;
       });
   }
@@ -471,9 +477,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         braintreeCustomerId,
       );
     } catch (err) {
-      logger.error(
-        `createPayment: failed, cartId: ${cartId ?? 'unavailable'} — ${err instanceof Error ? err.message : err}`,
-      );
+      logger.error(`createPayment: failed, cartId: ${cartId ?? 'unavailable'} — ${errorMessage(err)}`);
       throw err;
     }
   }
@@ -606,19 +610,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
       }
       const costWithNewShipping = await this.ctCartService.getPaymentAmount({ cart: updatedCard }); //as checkout api doesn't support updatePayment amountPlanned - it is postponed to transaction sale in order to speed up the response
       const totalNum = Number(mapCommercetoolsMoneyToBraintreeMoney(costWithNewShipping as CentPrecisionMoney));
-      const shippingNum = updatedCard.shippingInfo?.price
-        ? Number(mapCommercetoolsMoneyToBraintreeMoney(updatedCard.shippingInfo.price))
-        : 0;
-      const discountNum = updatedCard.discountOnTotalPrice?.discountedAmount
-        ? Number(mapCommercetoolsMoneyToBraintreeMoney(updatedCard.discountOnTotalPrice.discountedAmount))
-        : 0;
+      const shippingNum = toNum(updatedCard.shippingInfo?.price);
+      const discountNum = toNum(updatedCard.discountOnTotalPrice?.discountedAmount);
       // taxTotal must be mapped separately only for external tax modes (External / ExternalAmount);
       // for Platform/Disabled the tax is already embedded in line item prices.
       const isExternalTax = updatedCard.taxMode === 'External' || updatedCard.taxMode === 'ExternalAmount';
-      const taxNum =
-        isExternalTax && updatedCard.taxedPrice?.totalTax
-          ? Number(mapCommercetoolsMoneyToBraintreeMoney(updatedCard.taxedPrice.totalTax))
-          : 0;
+      const taxNum = isExternalTax ? toNum(updatedCard.taxedPrice?.totalTax) : 0;
 
       // amountBreakdown must satisfy PayPal's validation:
       // itemTotal + taxTotal + shipping + handling + insurance - discount - shippingDiscount = amount
@@ -639,9 +636,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         },
       };
     } catch (err) {
-      logger.error(
-        `updateCartShipping: failed, cartId: ${cartId ?? 'unavailable'} — ${err instanceof Error ? err.message : err}`,
-      );
+      logger.error(`updateCartShipping: failed, cartId: ${cartId ?? 'unavailable'} — ${errorMessage(err)}`);
       throw err;
     }
   }
@@ -653,10 +648,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
     paymentToken,
     storeInVaultOnSuccess,
     storeShipping,
+    deviceData,
     braintreePaymentDetails,
     paymentMethodType,
     localPaymentId,
     venmoUsername,
+    paypalOrderId,
   }: TransactionSaleRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO> {
     this.validateTransactionSaleParams(
       paymentMethodType,
@@ -679,11 +676,28 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (!updatedCart && braintreePaymentDetails?.extraShippingCost)
       throw new ErrorInvalidOperation(`could not find updated cart for transactionsSale payment ${ctPaymentId}`);
     const relevantPaymentInfo = updatedCart ? { ...ctPayment, amountPlanned: updatedCart.totalPrice } : ctPayment;
-    // new customer only: tell Braintree to create with id = CT customer id
-    const optionalRequestData =
-      storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId
+    // Braintree has 35-char limit for line item names — see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
+    // Braintree rejects zero-amount line items for non-PayPal methods; for PayPal, zero amounts are explicitly allowed
+    const isPayPal = paymentMethodType === 'PayPal' || paymentMethodType === 'PayPalStored';
+    const lineItems = (braintreePaymentDetails?.braintreeLineItems ?? [])
+      .map((item) => ({ ...item, name: item.name.substring(0, 35) }))
+      .filter(({ productCode, unitAmount }) => productCode !== 'DISCOUNT' && (isPayPal || Number(unitAmount) > 0));
+    const optionalRequestData: Partial<TransactionRequest> = {
+      ...(storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId
         ? { customer: { id: ctPayment.customer.id } }
-        : undefined;
+        : {}),
+      lineItems,
+      discountAmount: toMoneyStr(updatedCart?.discountOnTotalPrice?.discountedAmount, ctPayment.amountPlanned),
+      ...(braintreePaymentDetails?.extraShippingCost
+        ? {
+            shippingAmount: Number(braintreePaymentDetails.extraShippingCost).toFixed(
+              ctPayment.amountPlanned.fractionDigits,
+            ),
+          } //will be only submitted in express mode, then shipping was submitted via SDK through update and can be mapped here, otherwise it is included in line items
+        : {}), //see enabler PayPalMask onShippingChange and onApprove
+      ...(deviceData ? { deviceData } : {}),
+      ...(braintreePaymentDetails?.braintreeShipping ? { shipping: braintreePaymentDetails.braintreeShipping } : {}),
+    };
     const transactionRequest = mapRequestToBraintreeTransactionSale(
       relevantPaymentInfo,
       storeInVaultOnSuccess,
@@ -692,36 +706,18 @@ export class BraintreePaymentService extends AbstractPaymentService {
       paymentToken,
       optionalRequestData,
     );
-    // braintree has 35 char limit for line item name in transactionSale, see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
-    const lineItemsForSale = (braintreePaymentDetails?.braintreeLineItems || []).map((item) => ({
-      ...item,
-      name: item.name.substring(0, 35),
-    })); //braintree has 35 char limit for line item name in transactionSale, so we need to cut it to avoid errors, see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
-    // Braintree rejects zero-amount line items for non-PayPal methods; for PayPal, zero amounts are explicitly allowed
-    const isPayPal = paymentMethodType === 'PayPal' || paymentMethodType === 'PayPalStored';
-    transactionRequest.lineItems = lineItemsForSale.filter(
-      ({ productCode, unitAmount }) => productCode !== 'DISCOUNT' && (isPayPal || Number(unitAmount) > 0),
-    );
-    transactionRequest.discountAmount = mapCommercetoolsMoneyToBraintreeMoney(
-      updatedCart?.discountOnTotalPrice?.discountedAmount || { ...ctPayment.amountPlanned, centAmount: 0 },
-    );
-    if (braintreePaymentDetails?.extraShippingCost) {
-      //will be only submitted in express mode, then shipping was submitted via SDK through update and can be mapped here, otherwise it is included in line items
-      transactionRequest.shippingAmount = Number(braintreePaymentDetails.extraShippingCost).toFixed(2);
-    } //see enabler PayPalMask onShippingChange and onApprove
-    if (localPaymentId) {
-      if (!transactionRequest.options) transactionRequest.options = {};
-      transactionRequest.options.submitForSettlement = true; //required for local payment methods
+    // options.submitForSettlement cannot go into optionalRequestData — the mapper's outer spread would replace
+    // the entire options object with just { submitForSettlement: true }, losing storeInVaultOnSuccess etc.
+    if (localPaymentId || getConfig().autoCapture) {
+      transactionRequest.options!.submitForSettlement = true;
     }
     let response!: Transaction;
     try {
       response = await transactionSale(transactionRequest); //todo - test discount and external tax
     } catch (e) {
-      logger.error(
-        `transactionSale: Braintree call failed, paymentId: ${ctPaymentId} — ${e instanceof Error ? e.message : JSON.stringify(e)}`,
-      );
+      logger.error(`transactionSale: Braintree call failed, paymentId: ${ctPaymentId} — ${errorMessage(e)}`);
       throw new ErrorInvalidOperation(
-        `transactionSale failed for payment ${ctPaymentId} with error ${e instanceof Error ? e.message : JSON.stringify(e)}`,
+        `transactionSale failed for payment ${ctPaymentId} with error ${errorMessage(e)}`,
       );
     }
     if (localPaymentId) {
@@ -750,7 +746,23 @@ export class BraintreePaymentService extends AbstractPaymentService {
         response,
         customFields,
       });
-    void retryCTSync(ctSyncFn, 'transactionSale', ctPaymentId, localPaymentId ? 1 : undefined);
+    void retryCTSync(
+      ctSyncFn,
+      'transactionSale',
+      ctPaymentId,
+      [
+        response.status,
+        response.orderId && `orderId: ${response.orderId}`,
+        paypalOrderId && `paypalOrderId: ${paypalOrderId}`,
+        `amount: ${response.amount}`,
+      ]
+        .filter(Boolean)
+        .join(', '),
+      // Local payments have a webhook fallback (local_payment_completed → handleLocalPaymentCompleted
+      // in braintree-notifications), so 1 attempt is sufficient — the webhook handles recovery if
+      // CT sync fails here. Non-local payments have no fallback, so full retries apply.
+      localPaymentId ? 1 : undefined,
+    );
     if (response.paymentInstrumentType === 'venmo_account' && !venmoUsername) {
       log.warn(`transactionSale: Venmo username missing in request for payment ${ctPayment.id}`);
     }
@@ -776,15 +788,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
     try {
       response = await submitForSettlement(relevantTransaction.interactionId, braintreeAmount);
     } catch (err) {
-      logger.error(
-        `settlement: Braintree call failed, paymentId: ${ctPayment.id} — ${err instanceof Error ? err.message : err}`,
-      );
-      throw new ErrorGeneral(
-        `settlement failed for payment ${ctPayment.id} with error ${err instanceof Error ? err.message : JSON.stringify(err)}`,
-      );
+      logger.error(`settlement: Braintree call failed, paymentId: ${ctPayment.id} — ${errorMessage(err)}`);
+      throw new ErrorGeneral(`settlement failed for payment ${ctPayment.id} with error ${errorMessage(err)}`);
     }
     // CT sync — Braintree already settled; retry async, no notifications fallback for this operation type
-    const paymentMethodHint = getPaymentMethodHint(response);
     void retryCTSync(
       () =>
         this.updatePaymentWithTransaction({
@@ -792,11 +799,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
           request: request,
           ctPayment,
           response,
-          paymentMethodInfo: { method: `${response.paymentInstrumentType} ${paymentMethodHint || ''}`.trim() },
-          //todo - find out what are the alternatives for status interface code and text
         }),
       'settlement',
       ctPayment.id,
+      [response.status, response.orderId && `orderId: ${response.orderId}`, `amount: ${response.amount}`]
+        .filter(Boolean)
+        .join(', '),
     );
     logger.info(`settlement: success, paymentId: ${ctPayment.id}`);
     return this.paymentActionSuccessResponse(ctPayment.id);
@@ -827,12 +835,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     try {
       response = await braintreeRefund(relevantTransactionId, braintreeAmount);
     } catch (err) {
-      logger.error(
-        `refundPayment: Braintree call failed, paymentId: ${ctPayment.id} — ${err instanceof Error ? err.message : err}`,
-      );
-      throw new ErrorGeneral(
-        `refundPayment failed for payment ${ctPayment.id} with error ${err instanceof Error ? err.message : JSON.stringify(err)}`,
-      );
+      logger.error(`refundPayment: Braintree call failed, paymentId: ${ctPayment.id} — ${errorMessage(err)}`);
+      throw new ErrorGeneral(`refundPayment failed for payment ${ctPayment.id} with error ${errorMessage(err)}`);
     }
     // CT sync — Braintree already refunded; retry async, no notifications fallback for this operation type
     const customFields = handleCustomFieldResponse('refund', response);
@@ -847,6 +851,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
         }),
       'refundPayment',
       ctPayment.id,
+      [response.status, response.orderId && `orderId: ${response.orderId}`, `amount: ${response.amount}`]
+        .filter(Boolean)
+        .join(', '),
     );
     logger.info(`refundPayment: success, paymentId: ${ctPayment.id}`);
     return this.paymentActionSuccessResponse(ctPayment.id);
@@ -875,12 +882,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
         } as Transaction; //other required by type definition fields are not used in communication with commercetools
       } else response = await braintreeVoidTransaction(transactionId);
     } catch (err) {
-      logger.error(
-        `void: Braintree call failed, paymentId: ${ctPayment.id} — ${err instanceof Error ? err.message : err}`,
-      );
-      throw new ErrorGeneral(
-        `void failed for payment ${ctPayment.id} with error ${err instanceof Error ? err.message : JSON.stringify(err)}`,
-      );
+      logger.error(`void: Braintree call failed, paymentId: ${ctPayment.id} — ${errorMessage(err)}`);
+      throw new ErrorGeneral(`void failed for payment ${ctPayment.id} with error ${errorMessage(err)}`);
     }
     // CT sync — Braintree already voided; retry async, no notifications fallback for this operation type
     const customFields = handleCustomFieldResponse('void', response);
@@ -895,6 +898,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
         }),
       'void',
       ctPayment.id,
+      [response.status, response.orderId && `orderId: ${response.orderId}`, `amount: ${response.amount}`]
+        .filter(Boolean)
+        .join(', '),
     );
     logger.info(`void: success, paymentId: ${ctPayment.id}`);
     return this.paymentActionSuccessResponse(ctPayment.id);
@@ -962,40 +968,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const gateway = await getBraintreeGateway();
     try {
       const btCustomer = await gateway.customer.find(braintreeCustomerId);
-      const creditCards = (btCustomer.creditCards ?? []).map((cc) => ({
-        id: cc.token,
-        type: 'CreditCard',
-        token: cc.token,
-        isDefault: cc.default ?? false,
-        createdAt: cc.createdAt,
-        displayOptions: {
-          endDigits: cc.last4,
-          brand: cc.cardType ? { key: cc.cardType } : undefined,
-          expiryMonth: cc.expirationMonth ? parseInt(cc.expirationMonth, 10) : undefined,
-          expiryYear: cc.expirationYear ? parseInt(cc.expirationYear, 10) : undefined,
-        },
-      }));
-      const paypalAccounts = (btCustomer.paypalAccounts ?? []).map((pp) => ({
-        id: pp.token,
-        type: 'PayPal',
-        token: pp.token,
-        isDefault: pp.default ?? false,
-        createdAt: pp.createdAt,
-        displayOptions: { email: pp.email },
-      }));
-      //reason - ACH is supported by SDK but not documented in typescript
+      const creditCards = (btCustomer.creditCards ?? []).map(mapBraintreeCreditCardToStoredPaymentMethod);
+      const paypalAccounts = (btCustomer.paypalAccounts ?? []).map(mapBraintreePaypalAccountToStoredPaymentMethod);
+      // `btCustomer` is cast to `any` because @types/braintree does not declare `usBankAccounts`
+      // on the Customer type, even though the SDK populates it at runtime.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const usBankAccounts = ((btCustomer as any).usBankAccounts ?? []).map((ba: any) => ({
-        id: ba.token,
-        type: 'UsBankAccount',
-        token: ba.token,
-        isDefault: ba.default ?? false,
-        createdAt: ba.createdAt,
-        displayOptions: {
-          endDigits: ba.last4,
-          brand: ba.accountType ? { key: ba.accountType } : undefined,
-        },
-      }));
+      const usBankAccounts = ((btCustomer as any).usBankAccounts ?? []).map(mapBraintreeUsBankAccountToStoredPaymentMethod);
       logger.info(
         `getStoredPaymentMethods: customer ${braintreeCustomerId} — creditCards: ${creditCards.length}, paypalAccounts: ${paypalAccounts.length}, usBankAccounts: ${usBankAccounts.length}`,
       );
@@ -1004,7 +982,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       }
       return { storedPaymentMethods: [...creditCards, ...paypalAccounts, ...usBankAccounts] };
     } catch (e) {
-      logger.warn(`Could not find Braintree customer ${braintreeCustomerId}: ${e instanceof Error ? e.message : e}`);
+      logger.warn(`Could not find Braintree customer ${braintreeCustomerId}: ${errorMessage(e)}`);
       return { storedPaymentMethods: [] };
     }
   }
@@ -1018,9 +996,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       ]);
       logger.info(`deleteStoredPaymentMethod: success, cartId: ${ctCart?.id ?? 'unavailable'}`);
     } catch (err) {
-      logger.error(
-        `deleteStoredPaymentMethod: failed, cartId: ${cartId ?? 'unavailable'} — ${err instanceof Error ? err.message : err}`,
-      );
+      logger.error(`deleteStoredPaymentMethod: failed, cartId: ${cartId ?? 'unavailable'} — ${errorMessage(err)}`);
       throw err;
     }
   }
