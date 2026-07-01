@@ -11,7 +11,7 @@ import {
 } from '@commercetools/connect-payments-sdk';
 
 import { CustomerResourceIdentifier } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/customer';
-import { ShippingMethod, CentPrecisionMoney } from '@commercetools/platform-sdk';
+import { ShippingMethod, CentPrecisionMoney, TransactionType, PaymentUpdateAction } from '@commercetools/platform-sdk';
 import { Transaction, TransactionRequest } from 'braintree';
 
 // localPayment is an undocumented field Braintree adds to Transaction for local payment methods
@@ -48,7 +48,11 @@ import {
   AchVaultTokenResponseSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
-import { getCartIdFromContext, getMerchantReturnUrlFromContext } from '../libs/fastify/context/context';
+import {
+  getCartIdFromContext,
+  getCheckoutTransactionItemIdFromContext,
+  getMerchantReturnUrlFromContext,
+} from '../libs/fastify/context/context';
 import { getStoredPaymentMethodsConfig } from '../config/stored-payment-methods.config';
 
 import { log } from '../libs/logger';
@@ -103,12 +107,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
     ctPayment,
     response,
     customFields,
+    transactionTypeOverride,
   }: {
     messageName: string;
     request: string | object;
     ctPayment: Payment;
     response: Transaction;
     customFields?: CustomFieldsDraft;
+    transactionTypeOverride?: TransactionType;
   }): Promise<void> {
     const requestInteraction = handleInterfaceInteraction({
       messageName,
@@ -120,46 +126,73 @@ export class BraintreePaymentService extends AbstractPaymentService {
       message: response,
       messageType: 'Response',
     });
+    const mappedTransaction = mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response);
     await this.ctPaymentService.updatePayment({
       id: ctPayment.id,
       customFields,
       pspInteractions: [requestInteraction, responseInteraction],
-      transaction: mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response),
+      transaction: transactionTypeOverride
+        ? { ...mappedTransaction, type: transactionTypeOverride }
+        : mappedTransaction,
       pspReference: response.id,
     });
     // Backward compat with extension's updatePaymentFields (common-connect/src/utils/response.utils.ts):
     // setStatusInterfaceCode, setStatusInterfaceText, setMethodInfoMethod are not supported by the CT
     // Checkout SDK and must be applied via a raw CT API call. Own retryCTSync block so a failure here
     // does not cause the first update above to be re-attempted by the outer retryCTSync.
-    // Each retry re-fetches the payment version to avoid version-conflict failures.
     const paymentMethodHint = getPaymentMethodHint(response);
     await retryCTSync(
-      async () => {
-        const version = (await this.ctPaymentService.getPayment({ id: ctPayment.id })).version;
-        await paymentSDK.ctAPI.client
-          .payments()
-          .withId({ ID: ctPayment.id })
-          .post({
-            body: {
-              version,
-              actions: [
-                { action: 'setStatusInterfaceCode', interfaceCode: response.status },
-                { action: 'setStatusInterfaceText', interfaceText: response.status },
-                {
-                  action: 'setMethodInfoMethod',
-                  method: `${response.paymentInstrumentType}${paymentMethodHint ? ` (${paymentMethodHint})` : ''}`,
-                },
-              ],
-            },
-          })
-          .execute();
-      },
+      () =>
+        this.syncCtPaymentStatus({
+          ctPaymentId: ctPayment.id,
+          interfaceCode: response.status,
+          interfaceText: response.status,
+          method: `${response.paymentInstrumentType}${paymentMethodHint ? ` (${paymentMethodHint})` : ''}`,
+        }),
       `${messageName}:statusSync`,
       ctPayment.id,
       [response.status, response.orderId && `orderId: ${response.orderId}`, `amount: ${response.amount}`]
         .filter(Boolean)
         .join(', '),
     );
+  }
+
+  /**
+   * Applies setStatusInterfaceCode/setStatusInterfaceText/setMethodInfoMethod via a raw CT API call
+   * (not supported by the CT Checkout SDK), optionally with extra actions derived from the freshly
+   * fetched payment. Re-fetches the payment version on every call so retries avoid version-conflict
+   * failures; callers are expected to wrap this in retryCTSync themselves.
+   */
+  private async syncCtPaymentStatus({
+    ctPaymentId,
+    interfaceCode,
+    interfaceText,
+    method,
+    buildExtraActions,
+  }: {
+    ctPaymentId: string;
+    interfaceCode: string;
+    interfaceText: string;
+    method: string;
+    buildExtraActions?: (payment: Payment) => PaymentUpdateAction[];
+  }): Promise<void> {
+    const payment = await this.ctPaymentService.getPayment({ id: ctPaymentId });
+    const extraActions = buildExtraActions ? buildExtraActions(payment) : [];
+    await paymentSDK.ctAPI.client
+      .payments()
+      .withId({ ID: ctPaymentId })
+      .post({
+        body: {
+          version: payment.version,
+          actions: [
+            { action: 'setStatusInterfaceCode', interfaceCode },
+            { action: 'setStatusInterfaceText', interfaceText },
+            { action: 'setMethodInfoMethod', method },
+            ...extraActions,
+          ],
+        },
+      })
+      .execute();
   }
 
   /**
@@ -436,6 +469,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
               paymentMethodInfo: { paymentInterface: getConfig().paymentInterface }, //todo - check if a more relevant interface exists
               ...customerPaymentInfo,
               paymentStatus: { interfaceCode: 'Initial', interfaceText: 'Initial' },
+              checkoutTransactionItemId: getCheckoutTransactionItemIdFromContext(),
             }),
         getClientToken({ merchantAccountId, customerId: braintreeCustomerId }),
       ]);
@@ -457,6 +491,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           ? this.ctPaymentService.updatePayment({
               id: ctPayment.id,
               customFields: handleCustomFieldResponse('getClientToken', clientToken),
+
               pspInteractions: [
                 handleInterfaceInteraction({
                   messageName: 'getClientToken',
@@ -753,6 +788,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
         ctPayment,
         response,
         customFields,
+        // CT Checkout creates the order when it sees an Authorization type transaction on the payment.
+        // The Adyen reference connector hardcodes this for the same reason.
+        // settlement/refundPayment/void call updatePaymentWithTransaction without this override
+        // and correctly produce Charge/Refund/CancelAuthorization types respectively.
+        transactionTypeOverride: 'Authorization',
       });
     void retryCTSync(
       ctSyncFn,
@@ -990,26 +1030,43 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
     if (!verified) {
       void retryCTSync(
-        async () => {
-          const version = (await this.ctPaymentService.getPayment({ id: ctPaymentId })).version;
-          await paymentSDK.ctAPI.client
-            .payments()
-            .withId({ ID: ctPaymentId })
-            .post({
-              body: {
-                version,
-                actions: [
-                  { action: 'setStatusInterfaceCode', interfaceCode: 'settlement_pending' },
-                  // interfaceText follows the project convention: short Braintree status string
-                  // (same as response.status used in updatePaymentWithTransaction and
-                  // common-connect/src/utils/response.utils.ts)
-                  { action: 'setStatusInterfaceText', interfaceText: 'settlement_pending' },
-                  { action: 'setMethodInfoMethod', method: 'us_bank_account' },
-                ],
-              },
-            })
-            .execute();
-        },
+        () =>
+          this.syncCtPaymentStatus({
+            ctPaymentId,
+            // interfaceText follows the project convention: short Braintree status string
+            // (same as response.status used in updatePaymentWithTransaction and
+            // common-connect/src/utils/response.utils.ts)
+            interfaceCode: 'settlement_pending',
+            interfaceText: 'settlement_pending',
+            method: 'us_bank_account',
+            // Optimistic Authorization transaction — CT Checkout creates the order when it
+            // sees an Authorization type transaction. State is Pending because the bank
+            // account is awaiting micro-deposit verification;
+            // it is merchant responsibility to listen to Braintree webhook or handle in alternative way.
+            // addTransaction has no dedup key, so guard against retryCTSync re-adding it if a prior
+            // attempt succeeded server-side but the client observed a transient failure.
+            buildExtraActions: (payment) => {
+              const hasPendingAuthorization = payment.transactions.some(
+                (transaction) =>
+                  transaction.type === 'Authorization' && transaction.state === 'Pending' && !transaction.interactionId,
+              );
+              return hasPendingAuthorization
+                ? []
+                : [
+                    {
+                      action: 'addTransaction',
+                      transaction: {
+                        type: 'Authorization',
+                        state: 'Pending',
+                        amount: {
+                          centAmount: payment.amountPlanned.centAmount,
+                          currencyCode: payment.amountPlanned.currencyCode,
+                        },
+                      },
+                    },
+                  ];
+            },
+          }),
         'getAchVaultToken:pendingSync',
         ctPaymentId,
         'settlement_pending',
