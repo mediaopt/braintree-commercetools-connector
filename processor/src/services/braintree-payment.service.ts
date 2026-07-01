@@ -44,6 +44,8 @@ import {
   // PURE_VAULT_DISABLED: PureVaultRequestSchemaDTO,
   TransactionSaleRequestSchemaDTO,
   UpdateCartShippingResponseSchemaDTO,
+  AchVaultTokenRequestSchemaDTO,
+  AchVaultTokenResponseSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
 import { getCartIdFromContext, getMerchantReturnUrlFromContext } from '../libs/fastify/context/context';
@@ -323,10 +325,16 @@ export class BraintreePaymentService extends AbstractPaymentService {
   public async getSupportedPaymentComponents(): Promise<SupportedPaymentComponentsSchemaDTO> {
     const hasMerchantAccount = !!getConfig().merchantAccountId;
     const localComponents = hasMerchantAccount ? Object.values(LocalPaymentMethodType).map((type) => ({ type })) : [];
+    // ACH requires vaulting to a customer account — only available for logged-in sessions.
+    // This route is JWT-authenticated; getCartIdFromContext() returns undefined for JWT auth
+    // (it only extracts cartId from SessionAuthentication). Guard before fetching.
+    const cartId = getCartIdFromContext();
+    const achComponents =
+      cartId && (await this.ctCartService.getCart({ id: cartId })).customerId ? [{ type: PaymentMethodType.ACH }] : [];
     return {
       dropins: [],
       components: [
-        { type: PaymentMethodType.ACH },
+        ...achComponents,
         { type: PaymentMethodType.APPLE_PAY },
         { type: PaymentMethodType.CREDIT_CARD },
         { type: PaymentMethodType.GOOGLE_PAY },
@@ -951,6 +959,70 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
   PURE_VAULT_DISABLED end */
 
+  /**
+   * Vaults an ACH (US Bank Account) nonce and returns the vault token with its verification status.
+   *
+   * ACH has two verification paths:
+   *
+   * A. Instant (bank login / Plaid): verified=true on return. The enabler calls transactionSale
+   *    immediately with the vault token. Braintree returns settlement_pending; CT is synced to
+   *    Pending via retryCTSync in transactionSale.
+   *
+   * B. Micro-deposit: verified=false. The bank account is vaulted but verification takes 1–5
+   *    business days. CT payment is synced to Pending here so the merchant's order management
+   *    reflects the intent. The enabler redirects to the result page immediately using the
+   *    returned merchantReturnUrl.
+   *    MERCHANT RESPONSIBILITY: when the customer completes micro-deposit verification, Braintree
+   *    sends a webhook. The merchant must listen for it and call transactionSale with the stored
+   *    vault token to complete the payment. This connector does not handle that step automatically.
+   */
+  public async getAchVaultToken({
+    paymentMethodNonce,
+    ctPaymentId,
+    braintreeCustomerId,
+    ctCustomerId,
+  }: AchVaultTokenRequestSchemaDTO): Promise<AchVaultTokenResponseSchemaDTO> {
+    const { token, verified } = await this.braintreeCustomerService.vaultPaymentMethodForCustomer({
+      paymentMethodNonce,
+      braintreeCustomerId,
+      ctCustomerId,
+    });
+
+    if (!verified) {
+      void retryCTSync(
+        async () => {
+          const version = (await this.ctPaymentService.getPayment({ id: ctPaymentId })).version;
+          await paymentSDK.ctAPI.client
+            .payments()
+            .withId({ ID: ctPaymentId })
+            .post({
+              body: {
+                version,
+                actions: [
+                  { action: 'setStatusInterfaceCode', interfaceCode: 'settlement_pending' },
+                  // interfaceText follows the project convention: short Braintree status string
+                  // (same as response.status used in updatePaymentWithTransaction and
+                  // common-connect/src/utils/response.utils.ts)
+                  { action: 'setStatusInterfaceText', interfaceText: 'settlement_pending' },
+                  { action: 'setMethodInfoMethod', method: 'us_bank_account' },
+                ],
+              },
+            })
+            .execute();
+        },
+        'getAchVaultToken:pendingSync',
+        ctPaymentId,
+        'settlement_pending',
+      );
+    }
+
+    return {
+      token,
+      verified,
+      merchantReturnUrl: verified ? undefined : this.buildRedirectMerchantUrl(ctPaymentId, 'settlement_pending'),
+    };
+  }
+
   public async getStoredPaymentMethods(): Promise<StoredPaymentMethodsResponse> {
     const ctCart = await this.ctCartService.getCart({ id: getCartIdFromContext() });
     if (!ctCart.customerId) {
@@ -973,7 +1045,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
       // `btCustomer` is cast to `any` because @types/braintree does not declare `usBankAccounts`
       // on the Customer type, even though the SDK populates it at runtime.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const usBankAccounts = ((btCustomer as any).usBankAccounts ?? []).map(mapBraintreeUsBankAccountToStoredPaymentMethod);
+      const usBankAccounts = ((btCustomer as any).usBankAccounts ?? []).map(
+        mapBraintreeUsBankAccountToStoredPaymentMethod,
+      );
       logger.info(
         `getStoredPaymentMethods: customer ${braintreeCustomerId} — creditCards: ${creditCards.length}, paypalAccounts: ${paypalAccounts.length}, usBankAccounts: ${usBankAccounts.length}`,
       );
