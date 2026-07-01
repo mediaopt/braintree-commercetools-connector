@@ -40,6 +40,7 @@ export const config = {
   storedPaymentMethodsInterfaceAccount: process.env.STORED_PAYMENT_METHODS_INTERFACE_ACCOUNT || undefined,
 
   // General feature flags
+  autoCapture: process.env.BRAINTREE_AUTOCAPTURE === 'true',
   enableVaulting: process.env.STORED_PAYMENT_METHODS_ENABLED === 'true',
 
   // Per-button style overrides forwarded via /operations/config → enabler baseOptions → RenderTemplate buttonStyleOverrides
