@@ -26,6 +26,17 @@ export const BraintreeLineItemSchema = Type.Object({
 
 export type BraintreeLineItem = Static<typeof BraintreeLineItemSchema>;
 
+export const lineItemPlaceholders = {
+  quantity: '1',
+  unitTaxAmount: '0.00',
+  description: '',
+  url: '',
+  commodityCode: '',
+  discountAmount: '',
+  taxAmount: '',
+  unitOfMeasure: 'unit' as const,
+};
+
 //tax and discount are not mapped separately to avoid rounding issues
 export const mapCTLineItemToBraintreeLineItem = (ctLineItem: LineItem, cartLocale?: string): BraintreeLineItem => {
   const totalItemPrice = mapCommercetoolsMoneyToBraintreeMoney(ctLineItem.totalPrice);
