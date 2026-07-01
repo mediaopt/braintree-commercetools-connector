@@ -159,6 +159,7 @@ export const TransactionSaleRequestSchema = Type.Object({
   paymentMethodType: Type.Enum(PaymentMethodType),
   localPaymentId: Type.Optional(Type.String()),
   venmoUsername: Type.Optional(Type.String()),
+  paypalOrderId: Type.Optional(Type.String()),
   braintreePaymentDetails: Type.Optional(
     Type.Object({
       braintreeLineItems: Type.Optional(Type.Array(BraintreeLineItemSchema)),

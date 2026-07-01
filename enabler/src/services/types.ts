@@ -20,6 +20,7 @@ export type TransactionSaleOptions = {
   deviceData?: string;
   localPaymentId?: string;
   venmoUsername?: string;
+  paypalOrderId?: string;
   braintreePaymentDetails?: {
     braintreeLineItems?: BraintreeLineItem[];
     extraShippingCost?: string;

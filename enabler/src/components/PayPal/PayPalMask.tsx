@@ -165,6 +165,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                       {
                         handleTransactionSale(payload.nonce, {
                           deviceData: deviceData,
+                          paypalOrderId: data.paymentId,
                           shipping: shipping,
                           storeInVaultOnSuccess:
                             paypalVaultCheckbox.current?.checked === true,
