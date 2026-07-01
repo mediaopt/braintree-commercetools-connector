@@ -1,6 +1,17 @@
 import { describe, test, expect, afterEach, jest, beforeEach } from '@jest/globals';
 import { ConfigResponse } from '../src/services/types/operation.type';
 import { paymentSDK } from '../src/payment-sdk';
+import { PaymentMethodType, LocalPaymentMethodType } from '../src/dtos/braintree-payment.dto';
+import { mockGetPaymentResult } from './utils/mock-payment-results';
+import { mockBraintreeTransaction } from './utils/mock-payment-data';
+
+// transactionSale is exported as a non-configurable ES module binding; jest.spyOn cannot
+// replace it. We must use jest.mock with a factory so Jest swaps the module before imports run.
+jest.mock('common-connect/dist', () => ({
+  ...(jest.requireActual('common-connect/dist') as object),
+  transactionSale: jest.fn(),
+}));
+import * as CommonConnect from 'common-connect/dist';
 // import { DefaultPaymentService } from '@commercetools/connect-payments-sdk/dist/commercetools/services/ct-payment.service';
 // import { DefaultCartService } from '@commercetools/connect-payments-sdk/dist/commercetools/services/ct-cart.service';
 // import {
@@ -10,11 +21,14 @@ import { paymentSDK } from '../src/payment-sdk';
 //   mockUpdatePaymentResultWithRefundTransaction,
 // } from './utils/mock-payment-results';
 // import { mockGetCartResult } from './utils/mock-cart-data';
+import { Cart } from '@commercetools/connect-payments-sdk';
+import { CentPrecisionMoney } from '@commercetools/platform-sdk';
+import { mockCartForShippingUpdate, mockCartWithExternalTax } from './utils/mock-cart-data';
 import * as Config from '../src/config/config';
 import { BraintreePaymentServiceOptions } from '../src/services/types/braintree-payment.type';
 import { AbstractPaymentService } from '../src/services/abstract-payment.service';
 import { BraintreePaymentService } from '../src/services/braintree-payment.service';
-// import * as FastifyContext from '../src/libs/fastify/context/context';
+import * as FastifyContext from '../src/libs/fastify/context/context';
 // import * as StatusHandler from '@commercetools/connect-payments-sdk/dist/api/handlers/status.handler';
 //
 // import { HealthCheckResult } from '@commercetools/connect-payments-sdk';
@@ -61,29 +75,298 @@ describe('braintree-payment.service', () => {
   //   expect(result?.environment).toStrictEqual('test');
   // });
 
-  test('getSupportedPaymentComponents', async () => {
-    const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
-    const components = result?.components;
-    expect(components).toHaveLength(12);
-    const expectedTypes = [
-      'ACH',
-      'ApplePay',
-      'CreditCard',
-      'GooglePay',
-      'PayPal',
-      'Venmo',
-      'bancontact',
-      'blik',
-      'eps',
-      'ideal',
-      'mybank',
-      'p24',
-    ];
-    expect((components as { type: string }[])?.map(({ type }) => type)).toEqual(expectedTypes);
-    expect(result?.dropins).toHaveLength(0);
-    const expectedExpressTypes = ['PayPal', 'PayPalVault', 'CreditCardVault'];
-    expect(result?.express).toHaveLength(3);
-    expect((result?.express as { type: string }[]).map(({ type }) => type)).toEqual(expectedExpressTypes);
+  // Helper: mock the chained CT direct-API call used in updateCartShipping
+  const mockCtClientCarts = (updatedCart: Cart) => {
+    const execute = jest.fn().mockResolvedValue({ body: updatedCart } as never);
+    const post = jest.fn().mockReturnValue({ execute });
+    const withId = jest.fn().mockReturnValue({ post });
+    return jest.fn().mockReturnValue({ withId });
+  };
+
+  describe('updateCartShipping', () => {
+    const braintreePaymentService = new BraintreePaymentService(opts);
+
+    // paymentSDK.ctAPI.client is a non-configurable getter in the SDK; save/restore manually
+    // so repeated tests can each install a fresh mock without jest.spyOn getter conflicts.
+    let savedClient: unknown;
+    beforeEach(() => {
+      savedClient = paymentSDK.ctAPI.client;
+    });
+    afterEach(() => {
+      (paymentSDK.ctAPI as any).client = savedClient;
+    });
+
+    const mockClient = (cart: Cart) => {
+      (paymentSDK.ctAPI as any).client = { carts: mockCtClientCarts(cart) };
+    };
+
+    test('standard cart (platform tax): taxTotal is 0.00, itemTotal derived correctly', async () => {
+      const cart = mockCartForShippingUpdate();
+      const paymentAmount: CentPrecisionMoney = {
+        type: 'centPrecision',
+        currencyCode: 'USD',
+        centAmount: 20000,
+        fractionDigits: 2,
+      };
+
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cart.id);
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart);
+      jest.spyOn(paymentSDK.ctCartService, 'getPaymentAmount').mockResolvedValue(paymentAmount);
+      mockClient(cart);
+
+      const result = await braintreePaymentService.updateCartShipping({ newShippingMethodId: 'method-1' });
+
+      expect(result.braintreeAmount).toBe('200.00');
+      expect(result.amountBreakdown.shipping).toBe('20.00');
+      expect(result.amountBreakdown.discount).toBe('0.00');
+      expect(result.amountBreakdown.taxTotal).toBe('0.00');
+      // itemTotal = 200.00 - 20.00 + 0.00 - 0.00
+      expect(result.amountBreakdown.itemTotal).toBe('180.00');
+      expect(result.amountBreakdown.handling).toBe('0.00');
+      expect(result.amountBreakdown.insurance).toBe('0.00');
+      expect(result.amountBreakdown.shippingDiscount).toBe('0.00');
+    });
+
+    test('external tax cart: taxTotal reflects taxedPrice.totalTax, itemTotal derived correctly', async () => {
+      const cart = mockCartWithExternalTax();
+      const paymentAmount: CentPrecisionMoney = {
+        type: 'centPrecision',
+        currencyCode: 'USD',
+        centAmount: 20000,
+        fractionDigits: 2,
+      };
+
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cart.id);
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart);
+      jest.spyOn(paymentSDK.ctCartService, 'getPaymentAmount').mockResolvedValue(paymentAmount);
+      mockClient(cart);
+
+      const result = await braintreePaymentService.updateCartShipping({ newShippingMethodId: 'method-2' });
+
+      expect(result.braintreeAmount).toBe('200.00');
+      expect(result.amountBreakdown.shipping).toBe('10.00'); // $10.00 shippingInfo
+      expect(result.amountBreakdown.discount).toBe('5.00'); // $5.00 discount
+      expect(result.amountBreakdown.taxTotal).toBe('20.00'); // $20.00 from taxedPrice.totalTax
+      // itemTotal = 200.00 - 10.00 + 5.00 - 20.00
+      expect(result.amountBreakdown.itemTotal).toBe('175.00');
+    });
+
+    test('cart without shippingInfo: shipping is 0.00', async () => {
+      const cart: Cart = { ...mockCartForShippingUpdate(), shippingInfo: undefined };
+      const paymentAmount: CentPrecisionMoney = {
+        type: 'centPrecision',
+        currencyCode: 'USD',
+        centAmount: 20000,
+        fractionDigits: 2,
+      };
+
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cart.id);
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart);
+      jest.spyOn(paymentSDK.ctCartService, 'getPaymentAmount').mockResolvedValue(paymentAmount);
+      mockClient(cart);
+
+      const result = await braintreePaymentService.updateCartShipping({ newShippingMethodId: 'method-3' });
+
+      expect(result.amountBreakdown.shipping).toBe('0.00');
+      expect(result.amountBreakdown.itemTotal).toBe('200.00'); // itemTotal = 200 - 0 + 0 - 0
+    });
+
+    test('ExternalAmount taxMode without taxedPrice: taxTotal is 0.00', async () => {
+      const cart: Cart = { ...mockCartForShippingUpdate(), taxMode: 'ExternalAmount', taxedPrice: undefined };
+      const paymentAmount: CentPrecisionMoney = {
+        type: 'centPrecision',
+        currencyCode: 'USD',
+        centAmount: 20000,
+        fractionDigits: 2,
+      };
+
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cart.id);
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart);
+      jest.spyOn(paymentSDK.ctCartService, 'getPaymentAmount').mockResolvedValue(paymentAmount);
+      mockClient(cart);
+
+      const result = await braintreePaymentService.updateCartShipping({ newShippingMethodId: 'method-4' });
+
+      expect(result.amountBreakdown.taxTotal).toBe('0.00');
+    });
+  });
+
+  describe('getSupportedPaymentComponents', () => {
+    const expectedLocalTypes = ['bancontact', 'blik', 'eps', 'ideal', 'mybank', 'p24'];
+    const expectedBaseTypes = ['ACH', 'ApplePay', 'CreditCard', 'GooglePay', 'PayPal', 'Venmo'];
+    const expectedExpressTypes = ['PayPal']; // PayPalVault and CreditCardVault are PURE_VAULT_DISABLED
+
+    test('without merchant account — returns base components only', async () => {
+      const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
+      const components = result?.components;
+      expect((components as { type: string }[])?.map(({ type }) => type)).toEqual(expectedBaseTypes);
+      expect(result?.dropins).toHaveLength(0);
+      expect((result?.express as { type: string }[]).map(({ type }) => type)).toEqual(expectedExpressTypes);
+    });
+
+    test('with merchant account — returns base + local payment components', async () => {
+      jest.spyOn(Config, 'getConfig').mockReturnValueOnce({ ...Config.getConfig(), merchantAccountId: 'test-merchant-account' });
+      const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
+      const components = result?.components;
+      expect((components as { type: string }[])?.map(({ type }) => type)).toEqual([
+        ...expectedBaseTypes,
+        ...expectedLocalTypes,
+      ]);
+      expect(result?.dropins).toHaveLength(0);
+      expect((result?.express as { type: string }[]).map(({ type }) => type)).toEqual(expectedExpressTypes);
+    });
+  });
+
+  describe('transactionSale', () => {
+    const braintreePaymentService = new BraintreePaymentService(opts);
+
+    beforeEach(() => {
+      (CommonConnect.transactionSale as jest.Mock).mockResolvedValue(mockBraintreeTransaction as never);
+      jest.spyOn(paymentSDK.ctPaymentService, 'getPayment').mockResolvedValue(mockGetPaymentResult as never);
+      jest.spyOn(paymentSDK.ctPaymentService, 'updatePayment').mockResolvedValue({} as never);
+    });
+
+    const baseRequest = { ctPaymentId: mockGetPaymentResult.id };
+
+    test('CreditCard: forwards nonce and deviceData', async () => {
+      const result = await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.CREDIT_CARD,
+        paymentMethodNonce: 'fake-valid-nonce',
+        deviceData: 'device-fingerprint-data',
+      });
+      expect(result.success).toBe(true);
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({ paymentMethodNonce: 'fake-valid-nonce', deviceData: 'device-fingerprint-data' }),
+      );
+    });
+
+    test('CreditCard: forwards braintreeShipping', async () => {
+      const shipping = { firstName: 'Jane', lastName: 'Doe', streetAddress: '1 Main St', locality: 'Berlin', region: 'BE', postalCode: '10115', countryCodeAlpha2: 'DE' };
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.CREDIT_CARD,
+        paymentMethodNonce: 'fake-valid-nonce',
+        braintreePaymentDetails: { braintreeShipping: shipping },
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({ shipping }),
+      );
+    });
+
+    test('CreditCardStored: forwards paymentToken, no nonce', async () => {
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.CREDIT_CARD_STORED,
+        paymentToken: 'stored-card-token',
+        braintreeCustomerId: 'bt-customer-123',
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({ paymentMethodToken: 'stored-card-token', paymentMethodNonce: undefined }),
+      );
+    });
+
+    test('PayPal: forwards nonce', async () => {
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.PAYPAL,
+        paymentMethodNonce: 'fake-paypal-billing-agreement-nonce',
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({ paymentMethodNonce: 'fake-paypal-billing-agreement-nonce' }),
+      );
+    });
+
+    test('PayPalStored: forwards paymentToken', async () => {
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.PAYPAL_STORED,
+        paymentToken: 'stored-paypal-token',
+        braintreeCustomerId: 'bt-customer-123',
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({ paymentMethodToken: 'stored-paypal-token' }),
+      );
+    });
+
+    test('GooglePay: forwards nonce', async () => {
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.GOOGLE_PAY,
+        paymentMethodNonce: 'fake-android-pay-nonce',
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({ paymentMethodNonce: 'fake-android-pay-nonce' }),
+      );
+    });
+
+    test('ApplePay: forwards nonce', async () => {
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.APPLE_PAY,
+        paymentMethodNonce: 'fake-apple-pay-visa-nonce',
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({ paymentMethodNonce: 'fake-apple-pay-visa-nonce' }),
+      );
+    });
+
+    test('Venmo: forwards nonce', async () => {
+      const result = await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.VENMO,
+        paymentMethodNonce: 'fake-venmo-account-nonce',
+        venmoUsername: 'venmo-user',
+      });
+      expect(result.success).toBe(true);
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({ paymentMethodNonce: 'fake-venmo-account-nonce' }),
+      );
+    });
+
+    test('ACH: forwards paymentToken', async () => {
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.ACH,
+        paymentToken: 'ach-bank-token',
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({ paymentMethodToken: 'ach-bank-token' }),
+      );
+    });
+
+    test('Local payment (ideal): sets submitForSettlement', async () => {
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: LocalPaymentMethodType.IDEAL as unknown as PaymentMethodType,
+        paymentMethodNonce: 'fake-local-payment-nonce',
+        localPaymentId: 'local-payment-id-123',
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentMethodNonce: 'fake-local-payment-nonce',
+          options: expect.objectContaining({ submitForSettlement: true }),
+        }),
+      );
+    });
+
+    test('storeInVaultOnSuccess: sets vault options', async () => {
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.CREDIT_CARD,
+        paymentMethodNonce: 'fake-valid-nonce',
+        storeInVaultOnSuccess: true,
+        storeShipping: true,
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            storeInVaultOnSuccess: true,
+            storeShippingAddressInVault: true,
+          }),
+        }),
+      );
+    });
   });
 
   // test('getStatus', async () => {
