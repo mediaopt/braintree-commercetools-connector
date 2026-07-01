@@ -1,25 +1,25 @@
 /**
  * See also braintree-extension customer service.
  */
-import { Customer, CustomerSetCustomFieldAction, CustomerUpdateAction } from '@commercetools/connect-payments-sdk';
-
-/* PURE_VAULT_DISABLED start
 import {
- CustomerSetCustomFieldAction,
- ErrorInvalidOperation,
+  Customer,
+  CustomerSetCustomFieldAction,
+  CustomerUpdateAction,
+  ErrorInvalidOperation,
 } from '@commercetools/connect-payments-sdk';
 
 import {
- PaymentUpdateResponseSchemaDTO /*, PureVaultBaseSchemaDTO} from '../dtos/braintree-payment.dto';
-import {
   createCustomer,
   createPaymentMethod,
-  CustomerResponse,
-  handleCustomerResponse,
-  logger,
   mapCTCustomerToNewBraintreeCustomer,
   VAULT_BRAINTREE_OPTIONS,
 } from 'common-connect';
+import { Customer as BraintreeCustomer, PaymentMethod } from 'braintree';
+
+/* PURE_VAULT_DISABLED start
+import {
+ PaymentUpdateResponseSchemaDTO /*, PureVaultBaseSchemaDTO} from '../dtos/braintree-payment.dto';
+import { handleCustomerResponse, logger, CustomerResponse } from 'common-connect';
 import { CustomerCreateRequest, PaymentMethodCreateRequest } from 'braintree';
 import { successGeneralResponse } from './constants';
 PURE_VAULT_DISABLED end */
@@ -89,6 +89,55 @@ export class BraintreeCustomerService {
       `linkBraintreeCustomerId: all ${MAX_RETRIES} attempts failed for customer ${ctCustomerId}. ` +
         `Braintree customer ID "${braintreeCustomerId}" was not persisted to CT — stored payment methods will not be visible for this customer until resolved manually.`,
     );
+  }
+
+  /**
+   * Vaults a payment method nonce under the given Braintree customer, creating the customer first
+   * if needed. Adapted from the disabled pureVault() feature to return token and verified status
+   * instead of a generic success response.
+   *
+   * Used by ACH vault: the bank account token is returned to the enabler so transactionSale can
+   * reference it by token once the account is verified (Flow A — instant verification via Plaid),
+   * or so CT payment can be set to Pending while the customer completes micro-deposit verification
+   * (Flow B — delayed). See getAchVaultToken in braintree-payment.service.ts for details.
+   */
+  public async vaultPaymentMethodForCustomer({
+    paymentMethodNonce,
+    braintreeCustomerId,
+    ctCustomerId,
+  }: {
+    paymentMethodNonce: string;
+    braintreeCustomerId?: string;
+    ctCustomerId?: string;
+  }): Promise<{ token: string; verified: boolean }> {
+    let paymentMethod: PaymentMethod;
+
+    if (!braintreeCustomerId) {
+      if (!ctCustomerId) throw new ErrorInvalidOperation('ctCustomerId is required when no Braintree customer exists');
+      const ctCustomer = await this.getCtCustomer(ctCustomerId);
+      if (!ctCustomer) throw new ErrorInvalidOperation(`Customer ${ctCustomerId} not found`);
+      // Creates a new Braintree customer and vaults the payment method in one call.
+      // createCustomer already unwraps response.customer — returns BraintreeCustomer directly.
+      const btCustomer = (await createCustomer({
+        ...mapCTCustomerToNewBraintreeCustomer(ctCustomer),
+        paymentMethodNonce,
+      })) as BraintreeCustomer;
+      // Link the new Braintree customer ID back to CT so stored payment methods work in future sessions
+      void this.linkBraintreeCustomerId(ctCustomerId, btCustomer.id);
+      paymentMethod = btCustomer.paymentMethods?.[0] as PaymentMethod;
+    } else {
+      paymentMethod = (await createPaymentMethod({
+        customerId: braintreeCustomerId,
+        paymentMethodNonce,
+        options: VAULT_BRAINTREE_OPTIONS,
+      })) as PaymentMethod;
+    }
+
+    if (!paymentMethod) throw new ErrorInvalidOperation('Braintree did not return a payment method after vaulting');
+
+    // `verified` is a runtime field on UsBankAccount; @types/braintree does not declare it on PaymentMethod.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return { token: paymentMethod.token, verified: (paymentMethod as any).verified === true };
   }
 
   /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable

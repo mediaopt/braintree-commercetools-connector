@@ -205,3 +205,18 @@ export const UpdateCartShippingResponseSchema = Type.Object({
   amountBreakdown: AmountBreakdownSchema,
 });
 export type UpdateCartShippingResponseSchemaDTO = Static<typeof UpdateCartShippingResponseSchema>;
+
+export const AchVaultTokenRequestSchema = Type.Object({
+  paymentMethodNonce: Type.String(),
+  ctPaymentId: Type.String(),
+  braintreeCustomerId: Type.Optional(Type.String()),
+  ctCustomerId: Type.Optional(Type.String()),
+});
+export type AchVaultTokenRequestSchemaDTO = Static<typeof AchVaultTokenRequestSchema>;
+
+export const AchVaultTokenResponseSchema = Type.Object({
+  token: Type.Optional(Type.String()),
+  verified: Type.Boolean(),
+  merchantReturnUrl: Type.Optional(Type.String()),
+});
+export type AchVaultTokenResponseSchemaDTO = Static<typeof AchVaultTokenResponseSchema>;

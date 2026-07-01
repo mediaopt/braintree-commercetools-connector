@@ -193,23 +193,48 @@ describe('braintree-payment.service', () => {
 
   describe('getSupportedPaymentComponents', () => {
     const expectedLocalTypes = ['bancontact', 'blik', 'eps', 'ideal', 'mybank', 'p24'];
-    const expectedBaseTypes = ['ACH', 'ApplePay', 'CreditCard', 'GooglePay', 'PayPal', 'Venmo'];
+    const expectedBaseTypesLoggedIn = ['ACH', 'ApplePay', 'CreditCard', 'GooglePay', 'PayPal', 'Venmo'];
+    const expectedBaseTypesAnonymous = ['ApplePay', 'CreditCard', 'GooglePay', 'PayPal', 'Venmo'];
     const expectedExpressTypes = ['PayPal']; // PayPalVault and CreditCardVault are PURE_VAULT_DISABLED
 
-    test('without merchant account — returns base components only', async () => {
+    const cartWithCustomer = { ...mockCartForShippingUpdate(), customerId: 'ct-customer-123' };
+    const cartAnonymous = { ...mockCartForShippingUpdate(), customerId: undefined };
+
+    test('logged-in customer — ACH included in base components', async () => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cartWithCustomer.id);
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cartWithCustomer);
       const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
       const components = result?.components;
-      expect((components as { type: string }[])?.map(({ type }) => type)).toEqual(expectedBaseTypes);
+      expect((components as { type: string }[])?.map(({ type }) => type)).toEqual(expectedBaseTypesLoggedIn);
+      expect(result?.dropins).toHaveLength(0);
+      expect((result?.express as { type: string }[]).map(({ type }) => type)).toEqual(expectedExpressTypes);
+    });
+
+    test('anonymous session — ACH excluded from base components', async () => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cartAnonymous.id);
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cartAnonymous as Cart);
+      const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
+      expect((result?.components as { type: string }[])?.map(({ type }) => type)).toEqual(expectedBaseTypesAnonymous);
+    });
+
+    test('without merchant account — returns base components only', async () => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cartWithCustomer.id);
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cartWithCustomer);
+      const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
+      const components = result?.components;
+      expect((components as { type: string }[])?.map(({ type }) => type)).toEqual(expectedBaseTypesLoggedIn);
       expect(result?.dropins).toHaveLength(0);
       expect((result?.express as { type: string }[]).map(({ type }) => type)).toEqual(expectedExpressTypes);
     });
 
     test('with merchant account — returns base + local payment components', async () => {
       jest.spyOn(Config, 'getConfig').mockReturnValueOnce({ ...Config.getConfig(), merchantAccountId: 'test-merchant-account' });
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cartWithCustomer.id);
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cartWithCustomer);
       const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
       const components = result?.components;
       expect((components as { type: string }[])?.map(({ type }) => type)).toEqual([
-        ...expectedBaseTypes,
+        ...expectedBaseTypesLoggedIn,
         ...expectedLocalTypes,
       ]);
       expect(result?.dropins).toHaveLength(0);

@@ -1,4 +1,4 @@
-import { SessionHeaderAuthenticationHook } from '@commercetools/connect-payments-sdk';
+import { SessionHeaderAuthenticationHook, ErrorInvalidOperation } from '@commercetools/connect-payments-sdk';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import {
   InitPaymentRequestSchema,
@@ -13,6 +13,10 @@ import {
   PaymentUpdateResponseSchemaDTO,
   UpdateCartShippingResponseSchema,
   UpdateCartShippingResponseSchemaDTO,
+  AchVaultTokenRequestSchema,
+  AchVaultTokenRequestSchemaDTO,
+  AchVaultTokenResponseSchema,
+  AchVaultTokenResponseSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { StoredPaymentMethodsResponseSchema, StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
 import { BraintreePaymentService } from '../services/braintree-payment.service';
@@ -111,6 +115,22 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
     async (request, reply) => {
       await opts.paymentService.deleteStoredPaymentMethod(request.params.id);
       return reply.status(200).send({});
+    },
+  );
+
+  fastify.post<{ Body: AchVaultTokenRequestSchemaDTO; Reply: AchVaultTokenResponseSchemaDTO }>(
+    '/payments/getAchVaultToken',
+    {
+      preHandler: [opts.sessionHeaderAuthHook.authenticate()],
+      schema: { body: AchVaultTokenRequestSchema, response: { 200: AchVaultTokenResponseSchema } },
+    },
+    async (request, reply) => {
+      const { braintreeCustomerId, ctCustomerId } = request.body;
+      if (!braintreeCustomerId && !ctCustomerId) {
+        throw new ErrorInvalidOperation('braintreeCustomerId or ctCustomerId is required');
+      }
+      const result = await opts.paymentService.getAchVaultToken(request.body);
+      return reply.status(200).send(result);
     },
   );
 
