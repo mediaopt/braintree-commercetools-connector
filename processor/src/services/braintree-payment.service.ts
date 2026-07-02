@@ -11,7 +11,13 @@ import {
 } from '@commercetools/connect-payments-sdk';
 
 import { CustomerResourceIdentifier } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/customer';
-import { ShippingMethod, CentPrecisionMoney, TransactionType, PaymentUpdateAction } from '@commercetools/platform-sdk';
+import {
+  ShippingMethod,
+  CentPrecisionMoney,
+  TransactionType,
+  TransactionState,
+  PaymentUpdateAction,
+} from '@commercetools/platform-sdk';
 import { Transaction, TransactionRequest } from 'braintree';
 
 // localPayment is an undocumented field Braintree adds to Transaction for local payment methods
@@ -77,7 +83,7 @@ import { handleCustomTransactionFields, handleCustomFieldResponse } from '../uti
 
 import { LineItemKind, mapCTLineItemToBraintreeLineItem, lineItemPlaceholders } from '../utils/lineItem.utils';
 import { toNum, toMoneyStr } from '../utils/money.utils';
-import { errorMessage, getCtErrorKind, retryCTSync } from '../utils/error.utils';
+import { errorMessage, getCtErrorKind, retryCTSync, formatBraintreeSyncContext } from '../utils/error.utils';
 import {
   mapCTShippingToBraintreeShipping,
   mapShippingMethodsToBraintreeShippingOptions,
@@ -151,33 +157,60 @@ export class BraintreePaymentService extends AbstractPaymentService {
         }),
       `${messageName}:statusSync`,
       ctPayment.id,
-      [response.status, response.orderId && `orderId: ${response.orderId}`, `amount: ${response.amount}`]
-        .filter(Boolean)
-        .join(', '),
+      formatBraintreeSyncContext(response),
     );
   }
 
   /**
    * Applies setStatusInterfaceCode/setStatusInterfaceText/setMethodInfoMethod via a raw CT API call
-   * (not supported by the CT Checkout SDK), optionally with extra actions derived from the freshly
-   * fetched payment. Re-fetches the payment version on every call so retries avoid version-conflict
-   * failures; callers are expected to wrap this in retryCTSync themselves.
+   * (not supported by the CT Checkout SDK), optionally ensuring a placeholder transaction exists.
+   * Re-fetches the payment version on every call so retries avoid version-conflict failures;
+   * callers are expected to wrap this in retryCTSync themselves.
+   *
+   * `ensureTransaction` is idempotent across retries: it only adds the transaction if the payment
+   * doesn't already have one of the same type/state with no interactionId (i.e. a prior attempt of
+   * this same placeholder). This guards against retryCTSync re-adding it if a prior attempt
+   * succeeded server-side but the client observed a transient failure — addTransaction itself has
+   * no dedup key.
    */
   private async syncCtPaymentStatus({
     ctPaymentId,
     interfaceCode,
     interfaceText,
     method,
-    buildExtraActions,
+    ensureTransaction,
   }: {
     ctPaymentId: string;
     interfaceCode: string;
     interfaceText: string;
     method: string;
-    buildExtraActions?: (payment: Payment) => PaymentUpdateAction[];
+    ensureTransaction?: { type: TransactionType; state: TransactionState };
   }): Promise<void> {
     const payment = await this.ctPaymentService.getPayment({ id: ctPaymentId });
-    const extraActions = buildExtraActions ? buildExtraActions(payment) : [];
+    const hasPlaceholder =
+      ensureTransaction &&
+      payment.transactions.some(
+        (transaction) =>
+          transaction.type === ensureTransaction.type &&
+          transaction.state === ensureTransaction.state &&
+          !transaction.interactionId,
+      );
+    const extraActions: PaymentUpdateAction[] =
+      ensureTransaction && !hasPlaceholder
+        ? [
+            {
+              action: 'addTransaction',
+              transaction: {
+                type: ensureTransaction.type,
+                state: ensureTransaction.state,
+                amount: {
+                  centAmount: payment.amountPlanned.centAmount,
+                  currencyCode: payment.amountPlanned.currencyCode,
+                },
+              },
+            },
+          ]
+        : [];
     await paymentSDK.ctAPI.client
       .payments()
       .withId({ ID: ctPaymentId })
@@ -592,7 +625,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         lastName: ctCart.billingAddress?.lastName,
         ctPaymentId: ctPayment.id,
         currency: ctPayment.amountPlanned.currencyCode,
-        braintreeAmount: Number(mapCommercetoolsMoneyToBraintreeMoney(ctPayment.amountPlanned)),
+        braintreeAmount: toNum(ctPayment.amountPlanned),
         email: ctCart.customerEmail,
         shippingOptions: isExpress
           ? mapShippingMethodsToBraintreeShippingOptions(
@@ -652,7 +685,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         );
       }
       const costWithNewShipping = await this.ctCartService.getPaymentAmount({ cart: updatedCard }); //as checkout api doesn't support updatePayment amountPlanned - it is postponed to transaction sale in order to speed up the response
-      const totalNum = Number(mapCommercetoolsMoneyToBraintreeMoney(costWithNewShipping as CentPrecisionMoney));
+      const totalNum = toNum(costWithNewShipping as CentPrecisionMoney);
       const shippingNum = toNum(updatedCard.shippingInfo?.price);
       const discountNum = toNum(updatedCard.discountOnTotalPrice?.discountedAmount);
       // taxTotal must be mapped separately only for external tax modes (External / ExternalAmount);
@@ -798,14 +831,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       ctSyncFn,
       'transactionSale',
       ctPaymentId,
-      [
-        response.status,
-        response.orderId && `orderId: ${response.orderId}`,
-        paypalOrderId && `paypalOrderId: ${paypalOrderId}`,
-        `amount: ${response.amount}`,
-      ]
-        .filter(Boolean)
-        .join(', '),
+      formatBraintreeSyncContext(response, [paypalOrderId && `paypalOrderId: ${paypalOrderId}`]),
       // Local payments have a webhook fallback (local_payment_completed → handleLocalPaymentCompleted
       // in braintree-notifications), so 1 attempt is sufficient — the webhook handles recovery if
       // CT sync fails here. Non-local payments have no fallback, so full retries apply.
@@ -850,9 +876,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         }),
       'settlement',
       ctPayment.id,
-      [response.status, response.orderId && `orderId: ${response.orderId}`, `amount: ${response.amount}`]
-        .filter(Boolean)
-        .join(', '),
+      formatBraintreeSyncContext(response),
     );
     logger.info(`settlement: success, paymentId: ${ctPayment.id}`);
     return this.paymentActionSuccessResponse(ctPayment.id);
@@ -899,9 +923,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         }),
       'refundPayment',
       ctPayment.id,
-      [response.status, response.orderId && `orderId: ${response.orderId}`, `amount: ${response.amount}`]
-        .filter(Boolean)
-        .join(', '),
+      formatBraintreeSyncContext(response),
     );
     logger.info(`refundPayment: success, paymentId: ${ctPayment.id}`);
     return this.paymentActionSuccessResponse(ctPayment.id);
@@ -946,9 +968,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         }),
       'void',
       ctPayment.id,
-      [response.status, response.orderId && `orderId: ${response.orderId}`, `amount: ${response.amount}`]
-        .filter(Boolean)
-        .join(', '),
+      formatBraintreeSyncContext(response),
     );
     logger.info(`void: success, paymentId: ${ctPayment.id}`);
     return this.paymentActionSuccessResponse(ctPayment.id);
@@ -1043,29 +1063,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
             // sees an Authorization type transaction. State is Pending because the bank
             // account is awaiting micro-deposit verification;
             // it is merchant responsibility to listen to Braintree webhook or handle in alternative way.
-            // addTransaction has no dedup key, so guard against retryCTSync re-adding it if a prior
-            // attempt succeeded server-side but the client observed a transient failure.
-            buildExtraActions: (payment) => {
-              const hasPendingAuthorization = payment.transactions.some(
-                (transaction) =>
-                  transaction.type === 'Authorization' && transaction.state === 'Pending' && !transaction.interactionId,
-              );
-              return hasPendingAuthorization
-                ? []
-                : [
-                    {
-                      action: 'addTransaction',
-                      transaction: {
-                        type: 'Authorization',
-                        state: 'Pending',
-                        amount: {
-                          centAmount: payment.amountPlanned.centAmount,
-                          currencyCode: payment.amountPlanned.currencyCode,
-                        },
-                      },
-                    },
-                  ];
-            },
+            ensureTransaction: { type: 'Authorization', state: 'Pending' },
           }),
         'getAchVaultToken:pendingSync',
         ctPaymentId,

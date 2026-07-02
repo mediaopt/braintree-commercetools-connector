@@ -1,9 +1,19 @@
 import { logger } from 'common-connect/dist';
+import { Transaction } from 'braintree';
 
 const CT_SYNC_MAX_ATTEMPTS = 6;
 const CT_SYNC_BACKOFF_BASE_MS = 500; //timing was selected based on default expectation for commercetools payment connectors - up to 3s for response
 
 export const errorMessage = (err: unknown): string => (err instanceof Error ? err.message : JSON.stringify(err));
+
+// Builds the `logOnError` context string passed to retryCTSync from a Braintree transaction response.
+export const formatBraintreeSyncContext = (
+  response: Pick<Transaction, 'status' | 'orderId' | 'amount'>,
+  extra: Array<string | false | undefined> = [],
+): string =>
+  [response.status, response.orderId && `orderId: ${response.orderId}`, ...extra, `amount: ${response.amount}`]
+    .filter(Boolean)
+    .join(', ');
 
 // CT SDK (connect-payments-sdk) uses `httpErrorStatus`; raw CT API client uses `statusCode`.
 export const getCtErrorKind = (err: unknown): 'auth' | 'not-found' | 'other' => {
