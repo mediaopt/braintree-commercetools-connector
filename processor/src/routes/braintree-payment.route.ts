@@ -1,4 +1,4 @@
-import { SessionHeaderAuthenticationHook, ErrorInvalidOperation } from '@commercetools/connect-payments-sdk';
+import { SessionHeaderAuthenticationHook } from '@commercetools/connect-payments-sdk';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import {
   InitPaymentRequestSchema,
@@ -125,10 +125,7 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
       schema: { body: AchVaultTokenRequestSchema, response: { 200: AchVaultTokenResponseSchema } },
     },
     async (request, reply) => {
-      const { braintreeCustomerId, ctCustomerId } = request.body;
-      if (!braintreeCustomerId && !ctCustomerId) {
-        throw new ErrorInvalidOperation('braintreeCustomerId or ctCustomerId is required');
-      }
+      // braintreeCustomerId/ctCustomerId presence is validated in vaultPaymentMethodForCustomer
       const result = await opts.paymentService.getAchVaultToken(request.body);
       return reply.status(200).send(result);
     },
