@@ -1,12 +1,15 @@
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
 import { createApiRoot } from '../client/create.client';
+import { mapBraintreeStatusToCommercetoolsTransactionState } from '../utils/map.utils';
 import {
   PaymentUpdateAction,
   OrderFromCartDraft,
   Payment,
+  Transaction as CommercetoolsTransaction,
   ClientResponse,
 } from '@commercetools/platform-sdk';
+import { Transaction as BraintreeTransaction } from 'braintree';
 
 const getPaymentByLocalPaymentMethodsPaymentId = async (
   paymentId: string
@@ -16,6 +19,31 @@ const getPaymentByLocalPaymentMethodsPaymentId = async (
     .get({
       queryArgs: {
         where: `custom(fields(LocalPaymentMethodsPaymentId="${paymentId}"))`,
+      },
+    })
+    .execute();
+
+  const results = payments.body.results;
+  if (results.length !== 1) {
+    logger.error('There is not any assigned payment');
+    throw new CustomError(
+      400,
+      'Bad request: There is not any assigned payment'
+    );
+  }
+
+  logger.info(`payment ${JSON.stringify(results[0])}`);
+  return results[0];
+};
+
+const getPaymentByBraintreeTransactionId = async (
+  transactionId: string
+): Promise<Payment> => {
+  const payments = await createApiRoot()
+    .payments()
+    .get({
+      queryArgs: {
+        where: `interfaceId="${transactionId}"`,
       },
     })
     .execute();
@@ -165,5 +193,61 @@ export const handleLocalPaymentCompleted = async (
   const BraintreeOrderId = payment.custom?.fields.BraintreeOrderId;
   if (runCheckout && BraintreeOrderId) {
     await handleCheckout(paymentActualId, BraintreeOrderId);
+  }
+};
+
+const findChargeTransaction = (
+  payment: Payment,
+  transactionId: string
+): CommercetoolsTransaction | undefined =>
+  payment.transactions.find(
+    (transaction) =>
+      transaction.interactionId === transactionId &&
+      transaction.type === 'Charge'
+  );
+
+export const handleTransactionWebhook = async (
+  transaction: BraintreeTransaction
+): Promise<void> => {
+  const payment = await getPaymentByBraintreeTransactionId(transaction.id);
+
+  const ctTransaction = findChargeTransaction(payment, transaction.id);
+  if (!ctTransaction) {
+    logger.error(
+      `There is not any assigned transaction for Braintree transaction ${transaction.id}`
+    );
+    throw new CustomError(
+      400,
+      'Bad request: There is not any assigned transaction'
+    );
+  }
+
+  const wasPending = ctTransaction.state === 'Pending';
+  const newState = mapBraintreeStatusToCommercetoolsTransactionState(
+    transaction.status
+  );
+
+  const updateActions: PaymentUpdateAction[] = [];
+  if (ctTransaction.state !== newState) {
+    updateActions.push({
+      action: 'changeTransactionState',
+      transactionId: ctTransaction.id,
+      state: newState,
+    });
+  }
+  updateActions.push({
+    action: 'setStatusInterfaceCode',
+    interfaceCode: transaction.status,
+  });
+  updateActions.push({
+    action: 'setStatusInterfaceText',
+    interfaceText: transaction.status,
+  });
+
+  await handleUpdatePayment(payment.id, payment.version, updateActions);
+
+  const BraintreeOrderId = payment.custom?.fields.BraintreeOrderId;
+  if (wasPending && newState === 'Success' && BraintreeOrderId) {
+    await handleCheckout(payment.id, BraintreeOrderId);
   }
 };
