@@ -57,7 +57,7 @@ const getPaymentByBraintreeTransactionId = async (
     );
   }
 
-  logger.info(`payment ${JSON.stringify(results[0])}`);
+  logger.info(`Found payment with id ${results[0].id} for transaction ${transactionId}`);
   return results[0];
 };
 
