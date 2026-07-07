@@ -29,12 +29,10 @@ The payments demo and integration to the commercetools frontend can be seen at h
 
 ### Using the [braintree npm client](https://www.npmjs.com/package/braintree-commercetools-client)
 
-The client is discontinued due to low interest. The core functionality is transferred to the checkout compatible connector edition enabler and processor modules. Due to checkout SDK limitations at the moment the following functionality is excluded:
+The client is discontinued due to low interest. The core functionality is transferred to the checkout compatible connector edition enabler and processor modules. The following functionality is not included in this build:
 
-- Vaulting PayPal and ACH payment methods
-- Vault without purchase (Pure Vault)
-
-If you are interested in some of these methods please open the issue.
+- Storing a new PayPal account or ACH bank account, and reusing a previously saved one — please open an issue if you need this.
+- Vault without purchase (Pure Vault) — please open an issue if you need this.
 
 #### Migrating to the checkout compatible connector
 
@@ -48,15 +46,56 @@ The connector includes a checkout mode for faster, streamlined payment processin
 - **Performance Optimized**: The processor module uses the Commercetools Checkout API for faster cart and payment API interactions.
 - **Limited API Scope**: Some operations available in connector mode (extension module) are not implemented in checkout mode because they are handled directly or not supported by Braintree frontend components.
 
-**Note**: The main purpose of processor and enabler modules is to provide full compatibility with commercetools checkout. Previously existing fine-grained API control and customization is still available via extension module. To provide the full compatibility with the checkout SDK the PayPal express button now has a build in property for recreating a cart on first click.
+**Note**: The main purpose of processor and enabler modules is to provide full compatibility with commercetools checkout. Previously existing fine-grained API control and customization is still available via extension module. 
 
-### Installation and configuration
+To be fully compatible with the checkout SDK, the PayPal Express button supports deferred cart creation: when no cart exists yet (e.g. a product page or mini-cart button), it creates the commercetools cart on first click, immediately before the payment sheet opens.
+
+### Checkout mode installation and configuration
 
 To use the checkout compatible connector please create a checkout application in the [merchant center](https://docs.commercetools.com/checkout/overview#merchant-center-configuration). In the application payment integrations you can select this connector and configure payment methods available. Please note that the connector only supports standard payments and express payments. It is your responsibility to configure the relevant restriction for your payment methods. This includes, but doesn't limit to, local payment methods (Example: for Przelewy24 country PL is required, set it as billingAddress.country = "PL".
 
-#### Standard payment methods with restrictions
+#### Payment methods and their restrictions
 
-Express methods only include PayPal Buy Now.
+| Category | Method | `paymentMethodType` value | Country requirement | Currency requirement |
+|---|---|---|---|---|
+| Standard | Credit Card | `CreditCard` | None enforced by the connector | None enforced by the connector |
+| Standard | PayPal | `PayPal` | None enforced by the connector | None enforced by the connector |
+| Standard | Google Pay | `GooglePay` | None enforced by the connector | None enforced by the connector |
+| Standard | Apple Pay | `ApplePay` | None enforced by the connector | None enforced by the connector |
+| Standard | Venmo | `Venmo` | None enforced by the connector | None enforced by the connector |
+| Standard | ACH | `ACH` | US bank account by design; no country code is checked in code | None enforced by the connector |
+| Stored | Credit Card (saved) | `CreditCardStored` | None enforced by the connector | None enforced by the connector |
+| Stored | PayPal (saved)* | `PayPalStored` | None enforced by the connector | None enforced by the connector |
+| Express | PayPal Buy Now | `PayPal` (via the express builder) | None enforced by the connector | None enforced by the connector |
+| Local | Bancontact | `bancontact` | BE | EUR |
+| Local | Blik | `blik` | PL | PLN |
+| Local | EPS | `eps` | AT | EUR |
+| Local | iDEAL | `ideal` | NL | EUR |
+| Local | MyBank | `mybank` | IT | EUR |
+| Local | Przelewy24 | `p24` | PL | EUR or PLN |
+
+This is your responsibility to configure in the merchant center->checkout application->payment integration the relevant payment methods based on your Braintree account settings and Payment integration conditions via predicates for each method based on your shop requirements. 
+
+Express methods only include PayPal Buy Now today.
+
+##### Local payment methods not offered
+
+A few Braintree local payment method types exist in the underlying SDK but are intentionally excluded from this connector:
+
+- **Sofort**, **Giropay** — obsolete: Braintree no longer supports them.
+- **Trustly** — was never part of this integration — please open an issue if you need this..
+- **GrabPay** — not not currently requested or confirmed as needed — please open an issue if you need this..
+
+#### Button customization
+
+Per-method button styling and functional identifiers (colors, labels, `googleMerchantId`, `venmo.profileId`, vault-checkbox label text, etc.) are configured on the processor via two environment variables and served to the enabler through `GET /operations/config` — see `processor/.env.template` for the full reference. Example values:
+
+```
+BRAINTREE_BUTTON_STYLES={"paypal":{"buttonColor":"gold","buttonLabel":"pay","shape":"pill","size":"responsive"},"paypalExpress":{"buttonColor":"gold","buttonLabel":"buynow","shape":"pill","size":"responsive"},"ach":{"mandateText":"set your own ACH mandate text"},"applePay":{"applePayDisplayName":"set your own store name"},"googlePay":{"buttonTheme":"black","buttonType":"buy"},"venmo":{"desktopFlow":"desktopWebLogin"},"creditCard":{"showPostalCode":false}}
+
+BRAINTREE_PER_METHOD_CONFIG={"googlePay":{"googleMerchantId":"[your-google-merchant-id]","acquirerCountryCode":"[merchant-country-code]"},"venmo":{"profileId":"[optional-venmo-profile-id]"},"creditCard":{"vaultLabel":"Save my card"},"paypal":{"vaultLabel":"Save my PayPal account"}}
+```
+
 
 ## Prerequisites
 
