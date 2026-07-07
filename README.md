@@ -7,15 +7,38 @@
   </a><br>
 </p>
 
-This is a checkout compatible [connect application](https://marketplace.commercetools.com/) to integrate Braintree into Commercetools. The primary intgration mode is connector mode, which follows the folder structure to ensure certification & deployment from commercetools connect team as stated [here](https://github.com/commercetools/connect-application-kit#readme).
+This is a checkout compatible [connect application](https://marketplace.commercetools.com/) to integrate Braintree into Commercetools.
 
 [PayPal Braintree commercetools connector](https://marketplace.commercetools.com/integration/paypal-braintree) is available in the commercetools marketplace.
 
-The payments demo and integration to the commercetools frontend can be seen at https://poc-mediaopt.frontend.site/ and [github](https://github.com/mediaopt/braintree-commercetools-cofe-integration).
+The payments demo and integration to the commercetools frontend can be seen at https://mediaopt.github.io/braintree-demo and [github](https://github.com/mediaopt/braintree-demo).
 
 ## For Existing Users
 
-If you are already using the Braintree connector in **connector mode**, no changes are required. Your existing setup will continue to work without any modifications. All functionality remains unchanged and backward compatible.
+**ALL EXISTING FUNCTIONALITY OF EXTENSION, NOTIFICATIONS AND EVENTS MODULES IS PRESERVED UPON UPGRADE TO COMMERCETOOLS CHECKOUT COMPATIBLE EDITION.**
+
+### Using the connector without the checkout mode
+
+- The configuration values that are same for different modules are now submitted once as [inheritAs.configuration](https://docs.commercetools.com/connect/development#configure-connectyaml).
+- During installation the warning "Missing env variables for processor and enabler, skipping deployment of these modules" will be shown, but you can safely ignore it.
+- If you deploy the connector yourself (both via commercetools connect API and using other services)
+  - you **can**:
+    - remove the processor and enabler parts from connect.yaml to speed up the installation.
+    - if processor and enabler are removed you can also remove the processor and enabler modules from your repository. common-connect is now required for the extension module.
+  - if you don't use npm (i.e. use **yarn**) as package manager - you **must** replace the imports for common-connect module in the braintree-extension and processor (if it is not removed already) with the package manager standard, (i.e. for yarn: "common-connect": "link:../common-connect").
+
+### Using the [braintree npm client](https://www.npmjs.com/package/braintree-commercetools-client)
+
+The client is discontinued due to low interest. The core functionality is transferred to the checkout compatible connector edition enabler and processor modules. Due to checkout SDK limitations at the moment the following functionality is excluded:
+
+- Vaulting PayPal and ACH payment methods
+- Vault without purchase (Pure Vault)
+
+If you are interested in some of these methods please open the issue.
+
+#### Migrating to the checkout compatible connector
+
+The processor module now provides the synchronization that was previously the merchant responsibility and had to be built on the bff side, therefore previous link-based properties related to interactions with the Braintree API are now replaced with one link to the installed processor application. All customization of the payment buttons is now done at the processor side as well. Please see the section Checkout mode and [github](https://github.com/mediaopt/braintree-demo) for implementation details.
 
 ## Checkout Mode
 
@@ -25,7 +48,15 @@ The connector includes a checkout mode for faster, streamlined payment processin
 - **Performance Optimized**: The processor module uses the Commercetools Checkout API for faster cart and payment API interactions.
 - **Limited API Scope**: Some operations available in connector mode (extension module) are not implemented in checkout mode because they are handled directly or not supported by Braintree frontend components.
 
-**Note**: Connector mode is fully compatible with checkout. Fine-grained API control and customization is still available via extension.
+**Note**: The main purpose of processor and enabler modules is to provide full compatibility with commercetools checkout. Previously existing fine-grained API control and customization is still available via extension module. To provide the full compatibility with the checkout SDK the PayPal express button now has a build in property for recreating a cart on first click.
+
+### Installation and configuration
+
+To use the checkout compatible connector please create a checkout application in the [merchant center](https://docs.commercetools.com/checkout/overview#merchant-center-configuration). In the application payment integrations you can select this connector and configure payment methods available. Please note that the connector only supports standard payments and express payments. It is your responsibility to configure the relevant restriction for your payment methods. This includes, but doesn't limit to, local payment methods (Example: for Przelewy24 country PL is required, set it as billingAddress.country = "PL".
+
+#### Standard payment methods with restrictions
+
+Express methods only include PayPal Buy Now.
 
 ## Prerequisites
 
@@ -69,14 +100,14 @@ The checkout mode requires all modules to be installed.
 ## Connector mode
 
 - `cd common-connect`
-- run `yarn` to install the dependencies
-- run `build` to install the dependencies
+- run `npm install` to install the dependencies
+- run `npm run build` to build the package
 - `cd ../braintree-extension`
-- run `yarn` to install the dependencies
+- run `npm install` to install the dependencies
 - insert commercetools credentials to `.env` file
 - run `./bin/ngrok.sh` to start ngrok and insert the dynamic url in the `.env` file
-- run `yarn connector:post-deploy` to register the extension with the public ngrok url
-- run `ỳarn start:dev` to build the application
+- run `npm run connector:post-deploy` to register the extension with the public ngrok url
+- run `npm run start:dev` to build the application
 
 ## Checkout mode
 
@@ -87,13 +118,13 @@ VITE_PROCESSOR_URL=http://localhost:8080
 correspondingly.
 
 - `cd common-connect`
-- run `yarn` to install the dependencies
+- run `npm install` to install the dependencies
 - run `build` to install the dependencies
 - run `docker compose up` to start the local JWT mock server, enabler and processor.
 
 ## Technology Stack
 
-The connector is written in TypeScript and yarn is used as the package manager.
+The connector is written in TypeScript and npm is used as the package manager.
 
 ## Contributing
 
