@@ -1,6 +1,11 @@
-import { CommercetoolsCartService, CommercetoolsPaymentService } from '@commercetools/connect-payments-sdk';
+import {
+  CommercetoolsCartService,
+  CommercetoolsPaymentMethodService,
+  CommercetoolsPaymentService,
+} from '@commercetools/connect-payments-sdk';
 
 export type BraintreePaymentServiceOptions = {
   ctCartService: CommercetoolsCartService;
   ctPaymentService: CommercetoolsPaymentService;
+  ctPaymentMethodService: CommercetoolsPaymentMethodService;
 };

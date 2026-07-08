@@ -69,6 +69,13 @@ export class BraintreeCustomerService {
       });
   }
 
+  /**
+   * Sets the `braintreeCustomerId` custom field on the CT Customer. Kept for backward compatibility
+   * reasons with other modules (braintree-extension, braintree-commercetools-events) that read/write
+   * this same field — see DOCS.md. ctPaymentMethodService (in braintree-payment.service.ts) is the
+   * parallel, commercetools-native mechanism going forward; see the class-level note in
+   * abstract-payment.service.ts.
+   */
   public async linkBraintreeCustomerId(ctCustomerId: string, braintreeCustomerId: string): Promise<void> {
     const MAX_RETRIES = 3;
     const RETRY_DELAY_MS = 1000; //timing selected based on permitted time for resolve for payment connector operations

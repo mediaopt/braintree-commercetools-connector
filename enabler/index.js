@@ -15,7 +15,11 @@ async function fetchDevJwt() {
 
 const methodsStore = new Map();
 // Maps processor payment method types to stored builder type names
-const STORED_TYPE_MAP = { CreditCard: "CreditCard", PayPal: "PayPal", UsBankAccount: "ACH" };
+const STORED_TYPE_MAP = {
+  CreditCard: "CreditCard",
+  // PayPal: "PayPal",
+  // UsBankAccount: "ACH", //if you need one of this methods please request support by opening an issue
+};
 
 const btnLoadOthers = document.getElementById("loadComponents");
 const btnLoadDropins = document.getElementById("loadDropins");
@@ -255,37 +259,42 @@ btnLoadStored?.addEventListener("click", async (e) => {
     allowedMethodTypes: Object.keys(STORED_TYPE_MAP),
   });
 
-  const builderTypes = [
-    ...new Set(
-      storedPaymentMethods
-        .map((m) => STORED_TYPE_MAP[m.type])
-        .filter(Boolean),
-    ),
-  ];
+  const eligibleMethods = storedPaymentMethods.filter(
+    (m) => STORED_TYPE_MAP[m.type],
+  );
 
-  if (!builderTypes.length) {
+  if (!eligibleMethods.length) {
     containerExternal.innerHTML = "<p>No stored payment methods found.</p>";
     hideSpinner();
     return;
   }
 
-  for (const type of builderTypes) {
-    const builder = await enabler.createStoredPaymentMethodBuilder(type);
-    const component = builder.build({ id: "", brands: [], showPayButton: false });
+  for (const method of eligibleMethods) {
+    const builderType = STORED_TYPE_MAP[method.type];
+    const builder = await enabler.createStoredPaymentMethodBuilder(builderType);
+
+    const brand = method.displayOptions?.brand?.key;
+    const label = `${builderType}${method.displayOptions?.endDigits ? " ****" + method.displayOptions.endDigits : ""}`;
+
+    const component = builder.build({
+      id: method.id,
+      brands: brand ? [brand] : [],
+      showPayButton: !builder.componentHasSubmit,
+    });
 
     const wrapper = document.createElement("div");
     wrapper.className = "mb-4";
     const heading = document.createElement("h5");
-    heading.textContent = `Stored ${type}`;
+    heading.textContent = `Stored ${label}`;
     wrapper.appendChild(heading);
     const mountTarget = document.createElement("div");
-    mountTarget.id = `stored-${type}-container`;
+    mountTarget.id = `stored-${method.id}-container`;
     wrapper.appendChild(mountTarget);
     containerExternal.appendChild(wrapper);
-    await component.mount(`#stored-${type}-container`);
+    await component.mount(`#stored-${method.id}-container`);
 
     const payBtn = document.createElement("button");
-    payBtn.textContent = `Pay with saved ${type}`;
+    payBtn.textContent = `Pay with saved ${label}`;
     payBtn.className = "btn btn-lg btn-primary btn-block mt-3";
     payBtn.addEventListener("click", async () => {
       await component.submit({ storePaymentDetails: false });
@@ -314,10 +323,13 @@ btnLoadStored?.addEventListener("click", async (e) => {
     deleteBtn.addEventListener("click", async () => {
       deleteBtn.disabled = true;
       deleteBtn.textContent = "Removing...";
-      const res = await fetch(`${__VITE_PROCESSOR_URL__}/stored-payment-methods/${method.id}`, {
-        method: "DELETE",
-        headers: { "X-Session-Id": sessionId },
-      });
+      const res = await fetch(
+        `${__VITE_PROCESSOR_URL__}/stored-payment-methods/${method.id}`,
+        {
+          method: "DELETE",
+          headers: { "X-Session-Id": sessionId },
+        },
+      );
       if (res.ok) {
         row.remove();
       } else {

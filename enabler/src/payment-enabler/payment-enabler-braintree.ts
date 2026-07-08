@@ -1,4 +1,5 @@
 import {
+  ComponentOptions,
   EnablerOptions,
   PaymentComponentBuilder,
   PaymentEnabler,
@@ -59,7 +60,8 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
         buttonText: configJson.buttonText,
         buttonStyleOverrides: configJson.buttonStyleOverrides,
         braintreeEnvironment: configJson.environment,
-        storedPaymentMethodsEnabled: !!configJson.storedPaymentMethodsConfig?.isEnabled,
+        storedPaymentMethodsEnabled:
+          !!configJson.storedPaymentMethodsConfig?.isEnabled,
         enableVaulting: !!configJson.enableVaulting,
         perMethodConfig: configJson.perMethodConfig,
         purchaseCallback:
@@ -97,13 +99,20 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
   async createStoredPaymentMethodBuilder(
     type: string,
   ): Promise<StoredComponentBuilder | never> {
+    const normalizedType = toBraintreePaymentMethodType(type);
     const { baseOptions } = await this.setupData;
-    if (type === "CreditCard")
+    if (normalizedType === "CreditCard")
       return new BraintreeStoredBuilder("CreditCardStored", baseOptions);
+    /* ACH_STORED_DISABLED start —  reusing a saved PayPal account or ACH bank account is out of scope for this
+    commercetools Checkout SDK build (it only supports storing/reusing credit cards at the moment); charging
+    a stored ACH account would also fail today since "ACHStored" isn't in the processor's
+    StoredPaymentMethodType enum.
+
     if (type === "PayPal")
       return new BraintreeStoredBuilder("PayPalStored", baseOptions);
     if (type === "ACH")
       return new BraintreeStoredBuilder("ACHStored", baseOptions);
+    ACH_STORED_DISABLED end */
     throw new Error(`Unsupported stored payment method type: ${type}`);
   }
 
@@ -122,9 +131,9 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
       return {};
     }
     const data = await response.json();
-    const methods: StoredPaymentMethod[] = (data.storedPaymentMethods ?? []).filter(
-      (m: StoredPaymentMethod) => allowedMethodTypes.includes(m.type),
-    );
+    const methods: StoredPaymentMethod[] = (
+      data.storedPaymentMethods ?? []
+    ).filter((m: StoredPaymentMethod) => allowedMethodTypes.includes(m.type));
     return { storedPaymentMethods: methods };
   }
 

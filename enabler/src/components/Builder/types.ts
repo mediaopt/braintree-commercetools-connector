@@ -1,19 +1,20 @@
-import { SupportedLocalPaymentTypes } from '../LocalPaymentMethods/types';
+import { SupportedLocalPaymentTypes } from "../LocalPaymentMethods/types";
 
-export type BraintreePaymentMethodType = SupportedLocalPaymentTypes
-  | "ACH"
-  | "ACHStored"
+export type BraintreePaymentMethodType =
+  | SupportedLocalPaymentTypes
+  | "ACH" // no commercetools icon-key equivalent — see Builder/paymentMethodTypeMapping.ts
+  // | "ACHStored" // ACH_STORED_DISABLED: reusing a saved ACH account is out of scope for this build; uncomment to re-enable
   | "ApplePay"
   | "CreditCard"
   | "CreditCardStored"
   // | "CreditCardVault" // PURE_VAULT_DISABLED: pure vault cancelled; uncomment to re-enable
   | "GooglePay"
   | "PayPal"
-  | "PayPalStored"
+  // | "PayPalStored" // PAYPAL_STORED_DISABLED: PayPal stored cancelled; uncomment to re-enable
   // | "PayPalVault" // PURE_VAULT_DISABLED: pure vault cancelled; uncomment to re-enable
-  | "Venmo";
+  | "Venmo"; // no commercetools icon-key equivalent — see Builder/paymentMethodTypeMapping.ts
 
-export type BraintreePaymentMethodDropInType = BraintreePaymentMethodType; //todo - check if should be restricted
+//export type BraintreePaymentMethodDropInType = BraintreePaymentMethodType; //drop in is not supported by this connector
 
 export type BraintreePaymentMethodExpressType = Extract<
   BraintreePaymentMethodType,

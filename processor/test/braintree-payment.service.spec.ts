@@ -52,6 +52,7 @@ describe('braintree-payment.service', () => {
   const opts: BraintreePaymentServiceOptions = {
     ctCartService: paymentSDK.ctCartService,
     ctPaymentService: paymentSDK.ctPaymentService,
+    ctPaymentMethodService: paymentSDK.ctPaymentMethodService,
   };
   const paymentService: AbstractPaymentService = new BraintreePaymentService(opts);
   //const braintreePaymentService: BraintreePaymentService = new BraintreePaymentService(opts);
@@ -302,17 +303,7 @@ describe('braintree-payment.service', () => {
       );
     });
 
-    test('PayPalStored: forwards paymentToken', async () => {
-      await braintreePaymentService.transactionSale({
-        ...baseRequest,
-        paymentMethodType: PaymentMethodType.PAYPAL_STORED,
-        paymentToken: 'stored-paypal-token',
-        braintreeCustomerId: 'bt-customer-123',
-      });
-      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
-        expect.objectContaining({ paymentMethodToken: 'stored-paypal-token' }),
-      );
-    });
+    // PAYPAL_STORED_DISABLED: no test for PayPalStored — see StoredPaymentMethodType in dtos/braintree-payment.dto.ts
 
     test('GooglePay: forwards nonce', async () => {
       await braintreePaymentService.transactionSale({

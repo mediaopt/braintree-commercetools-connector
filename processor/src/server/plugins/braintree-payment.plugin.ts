@@ -7,6 +7,7 @@ export default async function (server: FastifyInstance) {
   const braintreePaymentService = new BraintreePaymentService({
     ctCartService: paymentSDK.ctCartService,
     ctPaymentService: paymentSDK.ctPaymentService,
+    ctPaymentMethodService: paymentSDK.ctPaymentMethodService,
   });
 
   await server.register(paymentRoutes, {
