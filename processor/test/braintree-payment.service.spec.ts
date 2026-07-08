@@ -193,10 +193,13 @@ describe('braintree-payment.service', () => {
   });
 
   describe('getSupportedPaymentComponents', () => {
-    const expectedLocalTypes = ['bancontact', 'blik', 'eps', 'ideal', 'mybank', 'p24'];
-    const expectedBaseTypesLoggedIn = ['ACH', 'ApplePay', 'CreditCard', 'GooglePay', 'PayPal', 'Venmo'];
-    const expectedBaseTypesAnonymous = ['ApplePay', 'CreditCard', 'GooglePay', 'PayPal', 'Venmo'];
-    const expectedExpressTypes = ['PayPal']; // PayPalVault and CreditCardVault are PURE_VAULT_DISABLED
+    // Values are commercetools icon keys (see utils/paymentMethodIcon.utils.ts), not our own
+    // PaymentMethodType values — ACH/Venmo/mybank have no commercetools equivalent so they're
+    // unchanged; bancontact/p24 differ from our own naming (bancontactcard/przelewy24).
+    const expectedLocalTypes = ['bancontactcard', 'blik', 'eps', 'ideal', 'mybank', 'przelewy24'];
+    const expectedBaseTypesLoggedIn = ['ACH', 'applepay', 'card', 'googlepay', 'paypal', 'Venmo'];
+    const expectedBaseTypesAnonymous = ['applepay', 'card', 'googlepay', 'paypal', 'Venmo'];
+    const expectedExpressTypes = ['paypal']; // PayPalVault and CreditCardVault are PURE_VAULT_DISABLED
 
     const cartWithCustomer = { ...mockCartForShippingUpdate(), customerId: 'ct-customer-123' };
     const cartAnonymous = { ...mockCartForShippingUpdate(), customerId: undefined };

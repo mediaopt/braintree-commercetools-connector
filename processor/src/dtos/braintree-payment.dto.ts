@@ -10,18 +10,19 @@ export enum PaymentOutcome {
 type ValuesOf<T extends object> = T[keyof T];
 
 export const StandardPaymentMethodType = {
-  ACH: 'ACH',
+  ACH: 'ACH', // no commercetools icon-key equivalent — see utils/paymentMethodIcon.utils.ts
   APPLE_PAY: 'ApplePay',
   CREDIT_CARD: 'CreditCard',
   GOOGLE_PAY: 'GooglePay',
   PAYPAL: 'PayPal',
-  VENMO: 'Venmo',
+  VENMO: 'Venmo', // no commercetools icon-key equivalent — see utils/paymentMethodIcon.utils.ts
 } as const;
 export type StandardPaymentMethodType = ValuesOf<typeof StandardPaymentMethodType>;
 
 export const StoredPaymentMethodType = {
   CREDIT_CARD_STORED: 'CreditCardStored',
-  PAYPAL_STORED: 'PayPalStored',
+  // PAYPAL_STORED_DISABLED: PayPal stored cancelled; uncomment to re-enable
+  // PAYPAL_STORED: 'PayPalStored',
 } as const;
 export type StoredPaymentMethodType = ValuesOf<typeof StoredPaymentMethodType>;
 
@@ -38,7 +39,7 @@ export const LocalPaymentMethodType = {
   BLIK: 'blik',
   EPS: 'eps',
   IDEAL: 'ideal',
-  MYBANK: 'mybank',
+  MYBANK: 'mybank', // no commercetools icon-key equivalent — see utils/paymentMethodIcon.utils.ts
   P24: 'p24',
 } as const;
 export type LocalPaymentMethodType = ValuesOf<typeof LocalPaymentMethodType>;
@@ -102,6 +103,15 @@ export const InitPaymentResponseSchema = Type.Object({
     PaymentVaultSchema,
   ]),
 });
+
+// Returned by GET /payments/expressClientToken — a Braintree client token only, no CT Payment is created.
+export const ExpressClientTokenResponseSchema = Type.Object({
+  braintreeData: Type.Object({
+    clientToken: Type.String(),
+    braintreeCustomerId: Type.Optional(Type.String()),
+  }),
+});
+export type ExpressClientTokenResponseSchemaDTO = Static<typeof ExpressClientTokenResponseSchema>;
 
 export const PaymentOutcomeSchema = Type.Enum(PaymentOutcome);
 
