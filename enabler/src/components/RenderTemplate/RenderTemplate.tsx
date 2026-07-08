@@ -122,14 +122,14 @@ const ComponentWithCustomOptions = ({
     // --- Stored payment methods (display + charge vaulted methods) ---
     case "CreditCardStored":
       return <CreditCardStoredButton {...restCustomOptions} />;
-    /* ACH_STORED_DISABLED start — reusing a saved PayPal account or ACH bank account is out of
-    scope for this commercetools Checkout SDK build; see the matching disabled branch in
-    payment-enabler-braintree.ts's createStoredPaymentMethodBuilder for why.
+    /* PAYPAL_STORED_DISABLED / ACH_STORED_DISABLED start — reusing a saved PayPal account or ACH
+    bank account is out of scope for this commercetools Checkout SDK build; see the matching
+    disabled branch in payment-enabler-braintree.ts's createStoredPaymentMethodBuilder for why.
     case "PayPalStored":
       return <PayPalStoredButton {...restCustomOptions} />;
     case "ACHStored":
       return <ACHStoredButton {...restCustomOptions} />;
-    ACH_STORED_DISABLED end */
+    PAYPAL_STORED_DISABLED / ACH_STORED_DISABLED end */
 
     // --- Express-only vault methods (isPureVault is always true and cannot be overridden by processor settings) ---
     /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
