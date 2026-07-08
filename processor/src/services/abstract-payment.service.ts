@@ -1,5 +1,6 @@
 import {
   CommercetoolsCartService,
+  CommercetoolsPaymentMethodService,
   CommercetoolsPaymentService,
   ErrorInvalidOperation,
 } from '@commercetools/connect-payments-sdk';
@@ -31,10 +32,15 @@ import { logger } from 'common-connect';
  * Where applicable, original method names from the commercetools template are noted in individual method comments.
  * Exception: modifyPayment method uses commercetools naming scheme to keep compatibility with https://docs.commercetools.com/checkout/payment-intents-api
  *
- * Note on CoCo stored payment methods - only Braintree customer Id is stored on commercetools side.
- * Frontend gets the stored methods on braintree side by token.
- * Therefore, neither get payment methods nor delete payment methods from commercetools are implemented on the processor.
- * todo - implement delete braintree customer id
+ * Note on CoCo stored payment methods - this connector vaulted payment methods directly against Braintree
+ * before commercetools introduced its own PaymentMethod resource, so two mechanisms now coexist:
+ * - The `braintreeCustomerId` custom field on the CT Customer (see BraintreeCustomerService.linkBraintreeCustomerId)
+ *   is kept for backward compatibility with other modules (braintree-extension, braintree-commercetools-events)
+ *   that read/write this same field — see DOCS.md.
+ * - `ctPaymentMethodService` (commercetools-native PaymentMethod resource) is the parallel, going-forward
+ *   mechanism, kept in sync with Braintree on a best-effort basis. Braintree remains the priority/authoritative
+ *   source for listing and deleting stored methods, since it has complete historical coverage and the actual
+ *   display data; commercetools is cross-checked and any drift is logged as a warning rather than failing.
  *
  * Note on class structure - there are 3 groups of methods
  * - operation - genearal routes required to intitialize the client, do not involve payment or customer yet
@@ -45,10 +51,16 @@ import { logger } from 'common-connect';
 export abstract class AbstractPaymentService {
   protected ctCartService: CommercetoolsCartService;
   protected ctPaymentService: CommercetoolsPaymentService;
+  protected ctPaymentMethodService: CommercetoolsPaymentMethodService;
 
-  protected constructor(ctCartService: CommercetoolsCartService, ctPaymentService: CommercetoolsPaymentService) {
+  protected constructor(
+    ctCartService: CommercetoolsCartService,
+    ctPaymentService: CommercetoolsPaymentService,
+    ctPaymentMethodService: CommercetoolsPaymentMethodService,
+  ) {
     this.ctCartService = ctCartService;
     this.ctPaymentService = ctPaymentService;
+    this.ctPaymentMethodService = ctPaymentMethodService;
   }
 
   /**

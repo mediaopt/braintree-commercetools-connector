@@ -374,6 +374,11 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     height,
   ]);
 
+  /* PAYPAL_VAULT_DISABLED start — vaulting a new PayPal account is out of scope for this
+  commercetools Checkout SDK build (it only supports storing/reusing credit cards). The logic
+  below works correctly and can be re-enabled for a custom (non-Checkout-SDK) frontend; forcing
+  showVaultCheckbox to false also suppresses storeInVaultOnSuccess further down, since the
+  checkbox ref never attaches when the checkbox isn't rendered.
   const showVaultCheckbox = useMemo(
     () =>
       enableVaulting &&
@@ -382,6 +387,8 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
       flow !== ("vault" as FlowType),
     [enableVaulting, braintreeCustomerId, flow],
   );
+  PAYPAL_VAULT_DISABLED end */
+  const showVaultCheckbox = false;
 
   return (
     <div>

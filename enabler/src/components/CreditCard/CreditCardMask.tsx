@@ -80,14 +80,14 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   ) => {
     const options: {
       deviceData: string;
-      shouldVault?: boolean;
+      storeInVaultOnSuccess?: boolean;
       lineItems?: BraintreeLineItem[];
       shipping?: BraintreeShipping;
     } = {
       deviceData: deviceData,
     };
     if (shouldVault) {
-      options.shouldVault = true;
+      options.storeInVaultOnSuccess = true;
     }
     if (paymentInfo.braintreeLineItems) {
       options.lineItems = paymentInfo.braintreeLineItems;
@@ -311,7 +311,10 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           });
 
         onRegisterSubmit?.((storePaymentDetails) =>
-          submitPayment(storePaymentDetails ?? false),
+          submitPayment(
+            (storePaymentDetails ?? false) ||
+              ccVaultCheckbox.current?.checked === true,
+          ),
         );
         isLoading(false);
       },

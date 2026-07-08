@@ -14,7 +14,8 @@ class BraintreeStoredComponent implements StoredComponent {
   private submitHandler: ((storePaymentDetails?: boolean) => Promise<void>) | null = null;
 
   constructor(
-    private paymentMethodType: "CreditCardStored" | "PayPalStored" | "ACHStored",
+    // "ACHStored", "PayPalStored" removed: ACH_STORED_DISABLED — see payment-enabler-braintree.ts
+    private paymentMethodType: "CreditCardStored",
     private baseOptions: BaseOptions,
     private config: StoredComponentOptions,
   ) {}
@@ -69,7 +70,8 @@ export class BraintreeStoredBuilder implements StoredComponentBuilder {
   public componentHasSubmit = true;
 
   constructor(
-    private paymentMethodType: "CreditCardStored" | "PayPalStored" | "ACHStored",
+    // "ACHStored",  "PayPalStored" removed: ACH_STORED_DISABLED — see payment-enabler-braintree.ts
+    private paymentMethodType: "CreditCardStored",
     private baseOptions: BaseOptions,
   ) {}
 
