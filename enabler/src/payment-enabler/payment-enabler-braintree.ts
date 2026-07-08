@@ -6,7 +6,11 @@ import {
 } from "./interfaces/enabler";
 
 import { DropinType, PaymentDropinBuilder } from "./interfaces/dropin";
-import { PaymentExpressBuilder } from "./interfaces/express";
+import {
+  ExpressComponent,
+  ExpressOptions,
+  PaymentExpressBuilder,
+} from "./interfaces/express";
 import {
   StoredComponentBuilder,
   StoredPaymentMethod,
@@ -20,6 +24,7 @@ import {
   BraintreePaymentMethodExpressType,
   BraintreePaymentMethodType,
 } from "../components/Builder/types";
+import { toBraintreePaymentMethodType } from "../components/Builder/paymentMethodTypeMapping";
 
 export class BraintreePaymentEnabler implements PaymentEnabler {
   setupData: Promise<{ baseOptions: BaseOptions }>;
@@ -33,8 +38,6 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     // getStorePaymentDetails: () => boolean,
     // setStorePaymentDetails: (enabled: boolean) => void,
   ): Promise<{ baseOptions: BaseOptions }> => {
-    console.log("[braintree-enabler] processorUrl:", options.processorUrl, "| sessionId:", options.sessionId);//todo - remove after testing
-    // Fetch SDK config from processor
     const configResponse = await fetch(
       options.processorUrl + "/operations/config",
       {
@@ -42,7 +45,6 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
         headers: sessionHeader(options.sessionId),
       },
     );
-    console.log("[braintree-enabler] configResponse:", configResponse);//todo - remove after testing
 
     if (!configResponse.ok) {
       throw new Error("Could not fetch config");
@@ -56,7 +58,8 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
         sessionId: options.sessionId,
         merchantAccountId: configJson.merchantAccountId,
         useKount: !!configJson.useKount,
-        fullWidth: configJson.fullWidth !== undefined ? configJson.fullWidth : true, //todo - check if add config full width is relevant
+        fullWidth:
+          configJson.fullWidth !== undefined ? configJson.fullWidth : true, //todo - check if add config full width is relevant
         buttonText: configJson.buttonText,
         buttonStyleOverrides: configJson.buttonStyleOverrides,
         braintreeEnvironment: configJson.environment,
@@ -68,7 +71,11 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
           configJson.purchaseCallback ||
           options.onComplete ||
           ((result: any, options: any) => {
-            console.log("Do something", result, options);
+            console.log(
+              "It is your responsibility to configure the action on success. The recommended way is to use the return URL in merchant center. Use this log for debug purpose only",
+              result,
+              options,
+            );
           }),
       },
     });
@@ -76,24 +83,41 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
   async createComponentBuilder(
     type: BraintreePaymentMethodType,
   ): Promise<PaymentComponentBuilder | never> {
+    const normalizedType = toBraintreePaymentMethodType(type);
     const { baseOptions } = await this.setupData;
     return Promise.resolve(
-      new BraintreeBuilder(type, baseOptions, undefined),
+      new BraintreeBuilder(normalizedType, baseOptions, undefined),
     );
   }
 
-  async createDropinBuilder(type: DropinType): Promise<PaymentDropinBuilder | never> {
+  async createDropinBuilder(
+    type: DropinType,
+  ): Promise<PaymentDropinBuilder | never> {
     throw new Error(`Drop-in builder is not supported for Braintree`);
   }
 
   async createExpressBuilder(
     type: BraintreePaymentMethodExpressType,
-  ): Promise<PaymentComponentBuilder|never> {
-    //todo - check if different type for PaymentExpressBuilder makes sence
+  ): Promise<PaymentExpressBuilder | never> {
+    const normalizedType = toBraintreePaymentMethodType(
+      type,
+    ) as BraintreePaymentMethodExpressType;
     const { baseOptions } = await this.setupData;
-    return Promise.resolve(
-      new BraintreeBuilder(type, baseOptions, "express"),
-    );
+    const inner = new BraintreeBuilder(normalizedType, baseOptions, "express");
+    return {
+      build(config: ExpressOptions): ExpressComponent {
+        // The runtime presence of onPayButtonClick (not which factory method was called) is what
+        // distinguishes deferred payment creation from the existing "ready payment" Express usage
+        // (e.g. mini-cart), which still calls createExpressBuilder but supplies no onPayButtonClick.
+        const { onPayButtonClick, ...rest } = config;
+        const deferredPaymentCreation = typeof onPayButtonClick === "function";
+        return inner.build({
+          ...rest,
+          onExpressPayButtonClick: onPayButtonClick,
+          deferredPaymentCreation,
+        } as ComponentOptions);
+      },
+    };
   }
 
   async createStoredPaymentMethodBuilder(

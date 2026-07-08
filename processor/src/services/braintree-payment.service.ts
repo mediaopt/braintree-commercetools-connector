@@ -93,6 +93,7 @@ import {
   mapBraintreePaypalAccountToStoredPaymentMethod,
   mapBraintreeUsBankAccountToStoredPaymentMethod,
 } from '../utils/storedPaymentMethod.utils';
+import { toPaymentMethodIconKey } from '../utils/paymentMethodIcon.utils';
 import { BraintreeCustomerService } from './braintree-customer.service';
 
 export class BraintreePaymentService extends AbstractPaymentService {
@@ -390,28 +391,32 @@ export class BraintreePaymentService extends AbstractPaymentService {
    */
   public async getSupportedPaymentComponents(): Promise<SupportedPaymentComponentsSchemaDTO> {
     const hasMerchantAccount = !!getConfig().merchantAccountId;
-    const localComponents = hasMerchantAccount ? Object.values(LocalPaymentMethodType).map((type) => ({ type })) : [];
+    const localComponents = hasMerchantAccount
+      ? Object.values(LocalPaymentMethodType).map((type) => ({ type: toPaymentMethodIconKey(type) }))
+      : [];
     // ACH requires vaulting to a customer account — only available for logged-in sessions.
     // This route is JWT-authenticated; getCartIdFromContext() returns undefined for JWT auth
     // (it only extracts cartId from SessionAuthentication). Guard before fetching.
     const cartId = getCartIdFromContext();
     const achComponents =
-      cartId && (await this.ctCartService.getCart({ id: cartId })).customerId ? [{ type: PaymentMethodType.ACH }] : [];
+      cartId && (await this.ctCartService.getCart({ id: cartId })).customerId
+        ? [{ type: toPaymentMethodIconKey(PaymentMethodType.ACH) }]
+        : [];
     return {
       dropins: [],
       components: [
         ...achComponents,
-        { type: PaymentMethodType.APPLE_PAY },
-        { type: PaymentMethodType.CREDIT_CARD },
-        { type: PaymentMethodType.GOOGLE_PAY },
-        { type: PaymentMethodType.PAYPAL },
-        { type: PaymentMethodType.VENMO },
+        { type: toPaymentMethodIconKey(PaymentMethodType.APPLE_PAY) },
+        { type: toPaymentMethodIconKey(PaymentMethodType.CREDIT_CARD) },
+        { type: toPaymentMethodIconKey(PaymentMethodType.GOOGLE_PAY) },
+        { type: toPaymentMethodIconKey(PaymentMethodType.PAYPAL) },
+        { type: toPaymentMethodIconKey(PaymentMethodType.VENMO) },
         ...localComponents,
       ],
       express: [
-        { type: PaymentMethodType.PAYPAL },
-        // PURE_VAULT_DISABLED: { type: PaymentMethodType.PAYPAL_VAULT },
-        // PURE_VAULT_DISABLED: { type: PaymentMethodType.CREDIT_CARD_VAULT },
+        { type: toPaymentMethodIconKey(PaymentMethodType.PAYPAL) },
+        // PURE_VAULT_DISABLED: { type: toPaymentMethodIconKey(PaymentMethodType.PAYPAL_VAULT) },
+        // PURE_VAULT_DISABLED: { type: toPaymentMethodIconKey(PaymentMethodType.CREDIT_CARD_VAULT) },
       ],
     };
   }
@@ -1173,7 +1178,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
             `getStoredPaymentMethods: could not cross-check against commercetools PaymentMethod records: ${errorMessage(e)}`,
           ),
         );
-      }
       return { storedPaymentMethods: [...creditCards, ...paypalAccounts, ...usBankAccounts] };
     } catch (e) {
       logger.warn(`Could not find Braintree customer ${braintreeCustomerId}: ${errorMessage(e)}`);
