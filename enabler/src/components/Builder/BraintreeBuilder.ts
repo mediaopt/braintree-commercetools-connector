@@ -9,6 +9,7 @@ import { createElement } from "react";
 import { BraintreePaymentMethodType } from "./types";
 import { RenderTemplate } from "../RenderTemplate";
 import { BuilderType } from "../../types";
+import { isApplePaySupported } from "../ApplePay/applePayAvailability";
 
 class BraintreeComponent implements PaymentComponent {
   private root: Root | null = null;
@@ -71,6 +72,9 @@ class BraintreeComponent implements PaymentComponent {
   }
 
   async isAvailable(): Promise<boolean> {
+    if (this.paymentMethodType === "ApplePay") {
+      return isApplePaySupported();
+    }
     return true;
   }
 

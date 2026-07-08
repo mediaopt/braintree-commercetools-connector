@@ -4,6 +4,7 @@ import { useNotifications } from "../../app/useNotifications";
 import { ApplePayTypes, GeneralPayButtonProps } from "../../types";
 
 import { ApplePayMask } from "./ApplePayMask";
+import { isApplePaySupported } from "./applePayAvailability";
 
 declare const window: any;
 
@@ -22,7 +23,7 @@ export const ApplePayButton: FC<ApplePayButtonProps> = ({
       if (!("ApplePaySession" in window)) {
         throw new Error("ApplePaySession");
       } else {
-        if (window.ApplePaySession.canMakePayments()) {
+        if (isApplePaySupported()) {
           setApplyPaySupport(true);
         }
       }
