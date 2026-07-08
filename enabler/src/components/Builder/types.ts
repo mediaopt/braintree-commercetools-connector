@@ -14,8 +14,6 @@ export type BraintreePaymentMethodType =
   // | "PayPalVault" // PURE_VAULT_DISABLED: pure vault cancelled; uncomment to re-enable
   | "Venmo"; // no commercetools icon-key equivalent — see Builder/paymentMethodTypeMapping.ts
 
-//export type BraintreePaymentMethodDropInType = BraintreePaymentMethodType; //drop in is not supported by this connector
-
 export type BraintreePaymentMethodExpressType = Extract<
   BraintreePaymentMethodType,
   "PayPal" /* | "PayPalVault" | "CreditCardVault" */ // PURE_VAULT_DISABLED: pure vault cancelled; uncomment to re-enable

@@ -151,15 +151,17 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
 
+  // Shared by createExpressPayment and handleInitPayment's non-deferred branch below — same
+  // request, different result handling (one throws on failure, the other sets state + notifies).
+  const fetchCreatePaymentResult = () =>
+    processorRequest<CreatePaymentRequest, CreatePaymentResponse>(
+      requestHeader,
+      createPaymentUrl,
+      { builderType, paymentMethodType, merchantAccountId },
+    );
+
   const createExpressPayment = async (): Promise<DeferredPaymentResult> => {
-    const result = await processorRequest<
-      CreatePaymentRequest,
-      CreatePaymentResponse
-    >(requestHeader, createPaymentUrl, {
-      builderType,
-      paymentMethodType,
-      merchantAccountId,
-    });
+    const result = await fetchCreatePaymentResult();
     if (!result) throw new Error("Could not create express payment");
     return {
       clientToken: result.braintreeData.clientToken,
@@ -190,14 +192,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
             setClientToken(undefined);
           }
         } else {
-          const createPaymentResult = await processorRequest<
-            CreatePaymentRequest,
-            CreatePaymentResponse
-          >(requestHeader, createPaymentUrl, {
-            builderType,
-            paymentMethodType,
-            merchantAccountId,
-          });
+          const createPaymentResult = await fetchCreatePaymentResult();
           if (createPaymentResult) {
             setClientToken(createPaymentResult.braintreeData.clientToken);
             setBraintreeCustomerId(

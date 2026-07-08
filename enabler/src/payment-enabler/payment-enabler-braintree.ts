@@ -20,7 +20,6 @@ import { BraintreeBuilder } from "../components/Builder/BraintreeBuilder";
 import { BraintreeStoredBuilder } from "../components/Builder/BraintreeStoredBuilder";
 import { sessionHeader } from "../helpers/sessionHeader";
 import {
-  // BraintreePaymentMethodDropInType,
   BraintreePaymentMethodExpressType,
   BraintreePaymentMethodType,
 } from "../components/Builder/types";
@@ -127,16 +126,16 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     const { baseOptions } = await this.setupData;
     if (normalizedType === "CreditCard")
       return new BraintreeStoredBuilder("CreditCardStored", baseOptions);
-    /* ACH_STORED_DISABLED start —  reusing a saved PayPal account or ACH bank account is out of scope for this
-    commercetools Checkout SDK build (it only supports storing/reusing credit cards at the moment); charging
-    a stored ACH account would also fail today since "ACHStored" isn't in the processor's
-    StoredPaymentMethodType enum.
+    /* PAYPAL_STORED_DISABLED / ACH_STORED_DISABLED start — reusing a saved PayPal account or ACH
+    bank account is out of scope for this commercetools Checkout SDK build (it only supports
+    storing/reusing credit cards at the moment); charging a stored ACH account would also fail
+    today since "ACHStored" isn't in the processor's StoredPaymentMethodType enum.
 
     if (type === "PayPal")
       return new BraintreeStoredBuilder("PayPalStored", baseOptions);
     if (type === "ACH")
       return new BraintreeStoredBuilder("ACHStored", baseOptions);
-    ACH_STORED_DISABLED end */
+    PAYPAL_STORED_DISABLED / ACH_STORED_DISABLED end */
     throw new Error(`Unsupported stored payment method type: ${type}`);
   }
 

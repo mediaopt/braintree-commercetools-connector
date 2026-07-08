@@ -12,6 +12,14 @@ import { BuilderType } from "../../types";
 import { isApplePaySupported } from "../ApplePay/applePayAvailability";
 import { isVenmoSupported } from "../Venmo/venmoAvailability";
 
+// Per-method device/browser-capability checks for isAvailable() below. Methods not listed here
+// are always considered available — most payment methods don't need a precheck. Add a new entry
+// here (rather than another branch inline) when a method needs one.
+const AVAILABILITY_CHECKS: Partial<Record<BraintreePaymentMethodType, () => boolean>> = {
+  ApplePay: isApplePaySupported,
+  Venmo: isVenmoSupported,
+};
+
 class BraintreeComponent implements PaymentComponent {
   private root: Root | null = null;
   private submitHandler:
@@ -73,13 +81,7 @@ class BraintreeComponent implements PaymentComponent {
   }
 
   async isAvailable(): Promise<boolean> {
-    if (this.paymentMethodType === "ApplePay") {
-      return isApplePaySupported();
-    }
-    if (this.paymentMethodType === "Venmo") {
-      return isVenmoSupported();
-    }
-    return true;
+    return AVAILABILITY_CHECKS[this.paymentMethodType]?.() ?? true;
   }
 
   unmount(): void {

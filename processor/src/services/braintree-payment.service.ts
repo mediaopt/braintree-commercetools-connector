@@ -846,18 +846,16 @@ export class BraintreePaymentService extends AbstractPaymentService {
       // authoritative regardless of whether this succeeds; see the class-level note in abstract-payment.service.ts.
       const vaultedToken = response.creditCard?.token ?? response.paypalAccount?.token;
       if (vaultedToken) {
-        void this.ctPaymentMethodService
-          .save({
-            customerId: ctPayment.customer.id,
-            method: paymentMethodType,
-            paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
-            token: vaultedToken,
-          })
-          .catch((e) =>
-            logger.warn(
-              `transactionSale: could not save commercetools PaymentMethod record for payment ${ctPaymentId} — ${errorMessage(e)}`,
-            ),
-          );
+        this.fireAndForgetCtPaymentMethodSync(
+          () =>
+            this.ctPaymentMethodService.save({
+              customerId: ctPayment.customer!.id,
+              method: paymentMethodType,
+              paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
+              token: vaultedToken,
+            }),
+          `transactionSale: could not save commercetools PaymentMethod record for payment ${ctPaymentId}`,
+        );
       }
     }
     // CT sync — Braintree already processed; local payments have a notifications fallback
@@ -1104,22 +1102,19 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // ctCustomerId (that field can be omitted when the caller only supplied an existing braintreeCustomerId),
     // so it's resolved from cart context instead, same as getStoredPaymentMethods/deleteStoredPaymentMethod.
     // Fire-and-forget end-to-end so the cart lookup doesn't add latency to the vault-token response.
-    void this.ctCartService
-      .getCart({ id: getCartIdFromContext() })
-      .then((ctCartForVault) => {
-        if (!ctCartForVault.customerId) return;
-        return this.ctPaymentMethodService.save({
-          customerId: ctCartForVault.customerId,
-          method: PaymentMethodType.ACH,
-          paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
-          token,
-        });
-      })
-      .catch((e) =>
-        logger.warn(
-          `getAchVaultToken: could not save commercetools PaymentMethod record for payment ${ctPaymentId} — ${errorMessage(e)}`,
-        ),
-      );
+    this.fireAndForgetCtPaymentMethodSync(
+      () =>
+        this.ctCartService.getCart({ id: getCartIdFromContext() }).then((ctCartForVault) => {
+          if (!ctCartForVault.customerId) return;
+          return this.ctPaymentMethodService.save({
+            customerId: ctCartForVault.customerId,
+            method: PaymentMethodType.ACH,
+            paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
+            token,
+          });
+        }),
+      `getAchVaultToken: could not save commercetools PaymentMethod record for payment ${ctPaymentId}`,
+    );
 
     if (!verified) {
       void retryCTSync(
@@ -1191,26 +1186,26 @@ export class BraintreePaymentService extends AbstractPaymentService {
       // accounts would never have a CT counterpart and would permanently false-positive) and ACH
       // isn't offered as a stored payment method to the enabler at all.
       // Fire-and-forget: this is a diagnostic-only cross-check, not needed to answer the request.
-      void this.ctPaymentMethodService
-        .find({
-          customerId: ctCart.customerId,
-          paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
-        })
-        .then((ctPaymentMethods) => {
-          const ctCreditCardCount = ctPaymentMethods.results.filter(
-            (pm) => pm.method === PaymentMethodType.CREDIT_CARD,
-          ).length;
-          if (ctCreditCardCount !== creditCards.length) {
-            logger.warn(
-              `getStoredPaymentMethods: Braintree/commercetools credit card counts differ for customer ${braintreeCustomerId} — Braintree: ${creditCards.length}, commercetools: ${ctCreditCardCount}`,
-            );
-          }
-        })
-        .catch((e) =>
-          logger.warn(
-            `getStoredPaymentMethods: could not cross-check against commercetools PaymentMethod records: ${errorMessage(e)}`,
-          ),
-        );
+      const customerId = ctCart.customerId;
+      this.fireAndForgetCtPaymentMethodSync(
+        () =>
+          this.ctPaymentMethodService
+            .find({
+              customerId,
+              paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
+            })
+            .then((ctPaymentMethods) => {
+              const ctCreditCardCount = ctPaymentMethods.results.filter(
+                (pm) => pm.method === PaymentMethodType.CREDIT_CARD,
+              ).length;
+              if (ctCreditCardCount !== creditCards.length) {
+                logger.warn(
+                  `getStoredPaymentMethods: Braintree/commercetools credit card counts differ for customer ${braintreeCustomerId} — Braintree: ${creditCards.length}, commercetools: ${ctCreditCardCount}`,
+                );
+              }
+            }),
+        'getStoredPaymentMethods: could not cross-check against commercetools PaymentMethod records',
+      );
       return { storedPaymentMethods: [...creditCards, ...paypalAccounts, ...usBankAccounts] };
     } catch (e) {
       logger.warn(`Could not find Braintree customer ${braintreeCustomerId}: ${errorMessage(e)}`);
@@ -1235,27 +1230,38 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // Symmetric with save(): also remove the mirrored commercetools-native PaymentMethod record, if one
     // exists. Braintree deletion above already succeeded and is the authoritative action; this is a
     // best-effort mirror cleanup only — fire-and-forget so it doesn't add latency to the response.
+    // Expected to find nothing for methods vaulted before commercetools-native PaymentMethod tracking existed.
     if (ctCart?.customerId) {
       const customerId = ctCart.customerId;
-      void this.ctPaymentMethodService
-        .getByTokenValue({
-          customerId,
-          tokenValue: token,
-          paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
-        })
-        .then((ctPaymentMethod) =>
-          this.ctPaymentMethodService.delete({
-            customerId,
-            id: ctPaymentMethod.id,
-            version: ctPaymentMethod.version,
-          }),
-        )
-        .catch((err) =>
-          // Expected for methods vaulted before commercetools-native PaymentMethod tracking existed — see
-          // the class-level note in abstract-payment.service.ts.
-          logger.warn(`deleteStoredPaymentMethod: no matching commercetools PaymentMethod record — ${errorMessage(err)}`),
-        );
+      this.fireAndForgetCtPaymentMethodSync(
+        () =>
+          this.ctPaymentMethodService
+            .getByTokenValue({
+              customerId,
+              tokenValue: token,
+              paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
+            })
+            .then((ctPaymentMethod) =>
+              this.ctPaymentMethodService.delete({
+                customerId,
+                id: ctPaymentMethod.id,
+                version: ctPaymentMethod.version,
+              }),
+            ),
+        'deleteStoredPaymentMethod: no matching commercetools PaymentMethod record',
+      );
     }
+  }
+
+  /**
+   * Runs a commercetools PaymentMethod sync operation (save/find/delete against
+   * ctPaymentMethodService) without blocking the caller. Braintree is always the authoritative
+   * action and has already completed by the time this is called; a failure here is logged and
+   * swallowed rather than surfaced, since this mirror is best-effort — see the class-level note
+   * in abstract-payment.service.ts.
+   */
+  private fireAndForgetCtPaymentMethodSync(operation: () => Promise<unknown>, logContext: string): void {
+    void operation().catch((e) => logger.warn(`${logContext}: ${errorMessage(e)}`));
   }
 
   private convertPaymentResultCode(resultCode: PaymentOutcome): string {

@@ -4,7 +4,6 @@ import {
   useRef,
   FC,
   PropsWithChildren,
-  useMemo,
 } from "react";
 import {
   client as braintreeClient,
@@ -97,7 +96,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     // PURE_VAULT_DISABLED: handlePureVault,
     updateCartShipping,
     createExpressPayment,
-    braintreeCustomerId,
   } = usePayment();
   const { shippingOptions } = paymentInfo;
   const { notify } = useNotifications();
