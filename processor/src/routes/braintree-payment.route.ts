@@ -17,6 +17,8 @@ import {
   AchVaultTokenRequestSchemaDTO,
   AchVaultTokenResponseSchema,
   AchVaultTokenResponseSchemaDTO,
+  ExpressClientTokenResponseSchema,
+  ExpressClientTokenResponseSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { StoredPaymentMethodsResponseSchema, StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
 import { BraintreePaymentService } from '../services/braintree-payment.service';
@@ -83,6 +85,31 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
     },
     async (request, reply) => {
       const result = await opts.paymentService.updateCartShipping(request.body);
+      return reply.status(200).send(result);
+    },
+  );
+
+  fastify.get<{ Reply: ExpressClientTokenResponseSchemaDTO }>(
+    '/payments/expressClientToken',
+    {
+      // No preHandler: unlike every other /payments/* route, a cart-bound session is not required
+      // here — a Braintree client token alone is safe to issue anonymously. We still attempt the
+      // SDK's normal session auth below so a cart-bound session gets the customer-aware token
+      // an invalid or cart-less session just falls back to an anonymous
+      // one instead of failing the request.
+      schema: {
+        response: {
+          200: ExpressClientTokenResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        await opts.sessionHeaderAuthHook.authenticate()(request);
+      } catch {
+        // No cart-bound (or no valid) session — getExpressClientToken() falls back to anonymous.
+      }
+      const result = await opts.paymentService.getExpressClientToken();
       return reply.status(200).send(result);
     },
   );

@@ -6,6 +6,7 @@ export const processorUrls = (processorUrl: string) => {
   // PURE_VAULT_DISABLED const customerPrefix = `${processorUrl}${CUSTOMER_ROUTE}`;
   return {
     createPaymentUrl: `${paymentsPrefix}`,
+    expressClientTokenUrl: `${paymentsPrefix}/expressClientToken`,
     transactionSaleUrl: `${paymentsPrefix}/transactionSale`,
     getAchVaultTokenURL: `${paymentsPrefix}/getAchVaultToken`,
     updateCartShippingUrl: `${paymentsPrefix}/updateCartShipping`,

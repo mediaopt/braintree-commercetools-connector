@@ -12,6 +12,7 @@ import {
   dataCollector,
 } from "braintree-web";
 import { FlowType } from "paypal-checkout-components";
+import { Address as PayPalAddress } from "paypal-checkout-components/modules/callback-data";
 
 import { usePayment } from "../../app/usePayment";
 import { useNotifications } from "../../app/useNotifications";
@@ -21,7 +22,9 @@ import {
   PayPalProps,
   GeneralPayButtonProps,
   PayPalFundingSourcesProp,
+  PaymentInfo,
 } from "../../types";
+import { ExpressAddressData } from "../../payment-enabler/interfaces/express";
 import { HOSTED_FIELDS_LABEL } from "../../styles";
 
 import { PayPalCheckoutLoadPayPalSDKOptions } from "braintree-web/paypal-checkout";
@@ -29,6 +32,26 @@ import { PayPalCheckoutLoadPayPalSDKOptions } from "braintree-web/paypal-checkou
 type PayPalMaskProps = GeneralPayButtonProps & PayPalProps;
 
 const FUNDING_SOURCES = ["paypal"];
+
+// PayPal's Address has no separate street-number field, so streetName/streetNumber both get line1.
+const toExpressAddress = (
+  address: PayPalAddress | undefined,
+  firstName: string,
+  lastName: string,
+  email: string,
+): ExpressAddressData => ({
+  country: address?.countryCode ?? "",
+  firstName,
+  lastName,
+  streetName: address?.line1,
+  streetNumber: address?.line1,
+  additionalStreetInfo: address?.line2,
+  region: address?.state,
+  postalCode: address?.postalCode,
+  city: address?.city,
+  phone: address?.phone,
+  email,
+});
 
 export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   flow,
@@ -50,11 +73,22 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   tagline,
   height,
   // PURE_VAULT_DISABLED: isPureVault = false,
-  enableVaulting = false,
+  // enableVaulting is accepted (for prop-passing compatibility) but is currently inert — see
+  // PAYPAL_VAULT_DISABLED below.
   vaultLabel,
+  onExpressPayButtonClick,
+  onPaymentSubmit,
 }) => {
   const [deviceData, setDeviceData] = useState("");
   const paypalVaultCheckbox = useRef<HTMLInputElement>(null);
+  // Holds the real clientToken/paymentInfo returned by createExpressPayment (deferred mode only).
+  // Read via ref, not React state, so setting it mid-click doesn't retrigger the bootstrap effect
+  // below (which depends on paymentInfo/clientToken) while this same click is still in flight.
+  const deferredResultRef = useRef<{
+    clientToken: string;
+    braintreeCustomerId: string;
+    paymentInfo: PaymentInfo;
+  } | null>(null);
 
   const {
     handleTransactionSale,
@@ -62,6 +96,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     clientToken,
     // PURE_VAULT_DISABLED: handlePureVault,
     updateCartShipping,
+    createExpressPayment,
     braintreeCustomerId,
   } = usePayment();
   const { shippingOptions } = paymentInfo;
@@ -155,7 +190,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                 const handleOnApprove = (data: any, actions: any) => {
                   return paypalCheckoutInstance.tokenizePayment(
                     data,
-                    function (err: any, payload: any) {
+                    async function (err: any, payload: any) {
                       //type definition for payload https://braintree.github.io/braintree-web/3.9.0/PayPalCheckout.html#~tokenizePayload
                       /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
                       if (isPureVault) {
@@ -163,35 +198,50 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                       } else {
                       PURE_VAULT_DISABLED end */
                       {
+                        // In deferred mode, deferredResultRef holds the real (post-click)
+                        // paymentInfo/ctPaymentId — the ambient paymentInfo is only the mount-time
+                        // placeholder seeded from initialAmount.
+                        const real = deferredResultRef.current?.paymentInfo;
+                        const realShippingOptions =
+                          real?.shippingOptions ?? shippingOptions;
+
+                        if (onPaymentSubmit) {
+                          await onPaymentSubmit({
+                            shippingAddress: toExpressAddress(
+                              payload.details.shippingAddress,
+                              payload.details.firstName,
+                              payload.details.lastName,
+                              payload.details.email,
+                            ),
+                            billingAddress: toExpressAddress(
+                              payload.details.billingAddress ??
+                                payload.details.shippingAddress,
+                              payload.details.firstName,
+                              payload.details.lastName,
+                              payload.details.email,
+                            ),
+                            customerEmail: payload.details.email,
+                          });
+                        }
+
                         handleTransactionSale(payload.nonce, {
                           deviceData: deviceData,
                           paypalOrderId: data.paymentId,
                           shipping: shipping,
                           storeInVaultOnSuccess:
                             paypalVaultCheckbox.current?.checked === true,
-                          account: {
-                            email: payload.details.email,
-                          },
-                          billing: {
-                            //todo - sync cart shipping address and shipping method id if relevant
-                            firstName: payload.details.firstName,
-                            lastName: payload.details.lastName,
-                            streetName: payload.details.shippingAddress.line1,
-                            streetNumber: payload.details.shippingAddress.line1,
-                            city: payload.details.shippingAddress.city,
-                            country: payload.details.countryCode,
-                            postalCode:
-                              payload.details.shippingAddress.postalCode,
-                          },
                           braintreePaymentDetails: {
-                            braintreeLineItems: paymentInfo.braintreeLineItems, //discount will be retrieved from the cart at the backend and mapped separately
+                            braintreeLineItems:
+                              real?.braintreeLineItems ??
+                              paymentInfo.braintreeLineItems, //discount will be retrieved from the cart at the backend and mapped separately
                             braintreeShipping: payload.shippingAddress,
                             extraShippingCost: payload.shippingOptionId
-                              ? shippingOptions?.find(
+                              ? realShippingOptions?.find(
                                   ({ id }) => id === payload.shippingOptionId,
                                 )?.amount.value
                               : undefined, //only will be returned if shipping was changed inside the PayPal express, then it must be used to update the total payment amount
                           },
+                          ctPaymentIdOverride: real?.ctPaymentId,
                         });
                       }
                       // PURE_VAULT_DISABLED: } (closing else removed)
@@ -304,7 +354,34 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           });
                         },
 
-                        createOrder: () => {
+                        createOrder: async () => {
+                          if (onExpressPayButtonClick) {
+                            // Deferred mode: Checkout creates the real cart and rebinds the
+                            // session to it inside onPayButtonClick — see
+                            // https://docs.commercetools.com/checkout/browser-sdk#use-the-onpaybuttonclick-hook.
+                            // createExpressPayment then creates the CT Payment for real, against
+                            // that cart, since the session now resolves to it.
+                            await onExpressPayButtonClick();
+                            const result = await createExpressPayment();
+                            deferredResultRef.current = result;
+                            const real = result.paymentInfo;
+                            return paypalCheckoutInstance.createPayment({
+                              flow,
+                              locale,
+                              lineItems: real.braintreeLineItems,
+                              shippingOptions: real.shippingOptions?.filter(
+                                ({ countryCode, selected }) =>
+                                  countryCode === real.countryCode && selected,
+                              ),
+                              amount: real.braintreeAmount,
+                              currency: real.currency,
+                              intent,
+                              enableShippingAddress,
+                              shippingAddressEditable,
+                              billingAgreementDescription,
+                              shippingAddressOverride,
+                            });
+                          }
                           // Filter by the cart's country so only one option can be selected:true.
                           // If a pre-selected option exists, pass shippingOptions to createPayment
                           // and omit lineItems — onShippingChange fires immediately and sets them
