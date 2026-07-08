@@ -18,10 +18,6 @@ export type ExpressAddressData = {
   email?: string;
 };
 
-type OnclickResponse = {
-  sessionId: string;
-};
-
 // ExpressShippingOptionData can be structured to meet the type contract of the PSP implemented.
 export type ExpressShippingOptionData = {
   id: string;
@@ -37,9 +33,11 @@ export type ExpressOptions = {
    */
   allowedCountries?: string[];
   /**
-   * A callback function Checkout calls after pay button click. The response of this callback function will include a sessionId to initialize the payment attempt.
+   * Called after the buyer clicks the pay button, before the payment sheet is shown. Checkout is
+   * responsible for creating a Cart and associating it with the current session before this promise
+   * resolves — see https://docs.commercetools.com/checkout/browser-sdk#use-the-onpaybuttonclick-hook.
    */
-  onPayButtonClick: () => Promise<OnclickResponse>;
+  onPayButtonClick: () => Promise<void>;
   /**
    * A callback function that receives an address event when the buyer selects a shipping address in the express checkout pop up.
    @param address The address event received.
@@ -69,6 +67,7 @@ export type ExpressOptions = {
   onPaymentSubmit: (opts: {
     shippingAddress: ExpressAddressData;
     billingAddress: ExpressAddressData;
+    customerEmail: string;
   }) => Promise<void>;
   onComplete?: OnComplete;
 

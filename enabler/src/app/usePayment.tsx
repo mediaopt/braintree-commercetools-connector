@@ -21,6 +21,7 @@ import {
 
 import {
   CreatePaymentResponse,
+  ExpressClientTokenResponse,
   PaymentInfo,
   RequestHeader,
   PaymentProviderProps,
@@ -41,14 +42,21 @@ type PaymentActionResponseData = {
 
 type HandleTransactionSaleType = (
   paymentNonce: string,
-  options?: TransactionSaleOptions,
+  options?: TransactionSaleOptions & { ctPaymentIdOverride?: string },
 ) => Promise<void>;
+
+type DeferredPaymentResult = {
+  clientToken: string;
+  braintreeCustomerId: string;
+  paymentInfo: PaymentInfo;
+};
 
 type PaymentContextT = {
   gettingClientToken: boolean;
   clientToken?: string;
   handleTransactionSale: HandleTransactionSaleType;
   // PURE_VAULT_DISABLED handlePureVault: (paymentNonce: string) => Promise<void>;
+  createExpressPayment: () => Promise<DeferredPaymentResult>;
   paymentInfo: PaymentInfo;
   vaultedPaymentMethods: StoredPaymentMethod[];
   handleGetVaultedPaymentMethods: () => Promise<StoredPaymentMethod[]>;
@@ -72,6 +80,8 @@ const PaymentContext = createContext<PaymentContextT>({
   clientToken: undefined,
   handleTransactionSale: () => Promise.resolve(),
   //PURE_VAULT_DISABLED handlePureVault: () => Promise.resolve(),
+  createExpressPayment: () =>
+    Promise.reject(new Error("createExpressPayment called outside PaymentProvider")),
   paymentInfo: PaymentInfoInitialObject,
   vaultedPaymentMethods: [],
   handleGetVaultedPaymentMethods: () =>
@@ -100,6 +110,8 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   purchaseCallback,
   paymentMethodType,
   builderType,
+  deferredPaymentCreation,
+  initialAmount,
   children,
 }) => {
   // PURE_VAULT_DISABLED const isPureVault = false;
@@ -110,8 +122,17 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
 
   const [clientToken, setClientToken] = useState<string>();
   const [braintreeCustomerId, setBraintreeCustomerId] = useState("");
+  // In deferred mode, no real payment exists yet — seed just enough (currency/amount) from
+  // initialAmount for PayPalMask's SDK bootstrap (loadPayPalSDK) to initialize with.
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>(
-    PaymentInfoInitialObject,
+    deferredPaymentCreation && initialAmount
+      ? {
+          ctPaymentId: "",
+          braintreeAmount:
+            initialAmount.centAmount / 10 ** initialAmount.fractionDigits,
+          currency: initialAmount.currencyCode,
+        }
+      : PaymentInfoInitialObject,
   );
 
   const [vaultedPaymentMethods, setVaultedPaymentMethods] = useState<
@@ -119,6 +140,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   >([]);
   const {
     createPaymentUrl,
+    expressClientTokenUrl,
     transactionSaleUrl,
     // PURE_VAULT_DISABLED: pureVaultUrl,
     updateCartShippingUrl,
@@ -128,28 +150,64 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
 
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
+
+  const createExpressPayment = async (): Promise<DeferredPaymentResult> => {
+    const result = await processorRequest<
+      CreatePaymentRequest,
+      CreatePaymentResponse
+    >(requestHeader, createPaymentUrl, {
+      builderType,
+      paymentMethodType,
+      merchantAccountId,
+    });
+    if (!result) throw new Error("Could not create express payment");
+    return {
+      clientToken: result.braintreeData.clientToken,
+      braintreeCustomerId: result.braintreeData.braintreeCustomerId,
+      paymentInfo: result.payment,
+    };
+  };
+
   useEffect(() => {
     const handleInitPayment = async () => {
       setInitializingPayment(true);
       isLoading(true);
       try {
-        const createPaymentResult = await processorRequest<
-          CreatePaymentRequest,
-          CreatePaymentResponse
-        >(requestHeader, createPaymentUrl, {
-          builderType,
-          paymentMethodType,
-          merchantAccountId,
-        });
-        if (createPaymentResult) {
-          setClientToken(createPaymentResult.braintreeData.clientToken);
-          setBraintreeCustomerId(
-            createPaymentResult.braintreeData.braintreeCustomerId,
-          );
-          setPaymentInfo(createPaymentResult.payment);
+        if (deferredPaymentCreation) {
+          // Deferred mode: fetch a Braintree client token only, to render the button — no CT
+          // Payment is created here. The real payment is created on click, in createExpressPayment.
+          const tokenResult = await processorRequest<
+            undefined,
+            ExpressClientTokenResponse
+          >(requestHeader, expressClientTokenUrl, undefined, "GET");
+          if (tokenResult) {
+            setClientToken(tokenResult.braintreeData.clientToken);
+            setBraintreeCustomerId(
+              tokenResult.braintreeData.braintreeCustomerId,
+            );
+          } else {
+            notify("Error", "Could not fetch payment token");
+            setClientToken(undefined);
+          }
         } else {
-          notify("Error", "Could not create payment");
-          setClientToken(undefined);
+          const createPaymentResult = await processorRequest<
+            CreatePaymentRequest,
+            CreatePaymentResponse
+          >(requestHeader, createPaymentUrl, {
+            builderType,
+            paymentMethodType,
+            merchantAccountId,
+          });
+          if (createPaymentResult) {
+            setClientToken(createPaymentResult.braintreeData.clientToken);
+            setBraintreeCustomerId(
+              createPaymentResult.braintreeData.braintreeCustomerId,
+            );
+            setPaymentInfo(createPaymentResult.payment);
+          } else {
+            notify("Error", "Could not create payment");
+            setClientToken(undefined);
+          }
         }
       } catch (error) {
         notify("Error", "Something went wrong.Please try again later!");
@@ -185,11 +243,17 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       paymentNonce,
       options?,
     ) => {
-      const { braintreePaymentDetails: incomingDetails, ...rest } =
-        options ?? {};
+      const {
+        braintreePaymentDetails: incomingDetails,
+        ctPaymentIdOverride,
+        ...rest
+      } = options ?? {};
 
       const requestBody = {
-        ctPaymentId: paymentInfo.ctPaymentId,
+        // ctPaymentIdOverride is used in the PayPal Express deferred-payment flow, where the real
+        // ctPaymentId (from the click-time createExpressPayment result) differs from paymentInfo's,
+        // which is either stale (mount-time placeholder) or not the payment this transaction targets.
+        ctPaymentId: ctPaymentIdOverride ?? paymentInfo.ctPaymentId,
         paymentMethodNonce: paymentNonce,
         braintreeCustomerId,
         paymentMethodType,
@@ -280,6 +344,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       clientToken,
       handleTransactionSale,
       // PURE_VAULT_DISABLED handlePureVault,
+      createExpressPayment,
       paymentInfo,
       vaultedPaymentMethods,
       handleGetVaultedPaymentMethods,

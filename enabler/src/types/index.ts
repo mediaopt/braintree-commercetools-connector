@@ -13,6 +13,8 @@ import {
 import { BraintreePaymentMethodType } from "../components/Builder/types";
 import { ShippingOption } from "paypal-checkout-components/modules/callback-data";
 import { SupportedLocalPaymentTypes } from "../components/LocalPaymentMethods/types";
+import { CTAmount } from "../payment-enabler/interfaces/general";
+import { ExpressAddressData } from "../payment-enabler/interfaces/express";
 
 export type ClientTokenRequest = {
   paymentId: string;
@@ -69,6 +71,9 @@ export type PaymentProviderProps = RequiredSessionData & {
   merchantAccountId?: string;
   paymentMethodType: BraintreePaymentMethodType;
   builderType?: BuilderType;
+  // PayPal Express deferred-cart-creation mode — see enabler/src/app/usePayment.tsx
+  deferredPaymentCreation?: boolean;
+  initialAmount?: CTAmount;
 };
 
 export type GeneralComponentsProps = PaymentProviderProps &
@@ -179,6 +184,11 @@ export type CreatePaymentResponse = {
   payment: PaymentInfo;
 };
 
+// Shape must match ExpressClientTokenResponseSchema in processor/src/dtos/braintree-payment.dto.ts
+export type ExpressClientTokenResponse = {
+  braintreeData: BraintreePaymentData;
+};
+
 export type TransactionSaleResponse = {
   ok: boolean;
   message: string;
@@ -219,8 +229,18 @@ export type PayPalProps = {
   tagline?: boolean;
   height?: number;
   // PURE_VAULT_DISABLED: isPureVault?: boolean;
+  // Accepted and passed through for compatibility, but currently inert — see
+  // PAYPAL_VAULT_DISABLED in PayPalMask.tsx's showVaultCheckbox.
   enableVaulting?: boolean;
   vaultLabel?: string;
+  // PayPal Express deferred-cart-creation mode — see enabler/src/app/usePayment.tsx
+  onExpressPayButtonClick?: () => Promise<void>;
+  // PayPal Express final address/email sync — see ExpressOptions.onPaymentSubmit
+  onPaymentSubmit?: (opts: {
+    shippingAddress: ExpressAddressData;
+    billingAddress: ExpressAddressData;
+    customerEmail: string;
+  }) => Promise<void>;
 };
 
 export type ShippingAddressOverride = {

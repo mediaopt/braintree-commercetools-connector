@@ -439,6 +439,32 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
+   * Returns a Braintree client token only — no CT Payment is created or stored. Used to render the
+   * PayPal Express button before the real (post-click) cart exists. The session's cart, if any, is
+   * read only to opportunistically resolve a known customer for vaulted-method display — a missing
+   * or invalid session/cart falls back to an anonymous token rather than failing the request, since
+   * a Braintree client token alone is safe to issue without one.
+   */
+  public async getExpressClientToken(): Promise<{
+    braintreeData: { clientToken: string; braintreeCustomerId?: string };
+  }> {
+    const merchantAccountId = getConfig().merchantAccountId;
+    let braintreeCustomerId: string | undefined;
+    try {
+      const cartId = getCartIdFromContext();
+      const ctCart = await this.ctCartService.getCart({ id: cartId });
+      const customer = ctCart.customerId
+        ? await this.braintreeCustomerService.getCtCustomer(ctCart.customerId)
+        : undefined;
+      braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
+    } catch (err) {
+      logger.info(`getExpressClientToken: no cart-bound session, issuing anonymous token — ${errorMessage(err)}`);
+    }
+    const clientToken = await getClientToken({ merchantAccountId, customerId: braintreeCustomerId });
+    return { braintreeData: { clientToken, braintreeCustomerId } };
+  }
+
+  /**
    * Create payment
    *
    * @remarks
