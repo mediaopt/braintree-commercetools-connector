@@ -50,7 +50,7 @@ const getPaymentByBraintreeTransactionId = async (
 
   const results = payments.body.results;
   if (results.length !== 1) {
-    logger.error('There is not any assigned payment');
+    logger.error(`There is not any assigned payment for transaction id ${transactionId}`);
     throw new CustomError(
       400,
       'Bad request: There is not any assigned payment'
@@ -214,7 +214,7 @@ export const handleTransactionWebhook = async (
   const ctTransaction = findChargeTransaction(payment, transaction.id);
   if (!ctTransaction) {
     logger.error(
-      `There is not any assigned transaction for Braintree transaction ${transaction.id}`
+      `There is not any charge transaction with Braintree transaction id ${transaction.id} for payment id ${payment.id}`
     );
     throw new CustomError(
       400,
