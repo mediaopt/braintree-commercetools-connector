@@ -14,6 +14,9 @@ jest.mock('../src/service/commercetools.service', () => ({
   handleLocalPaymentCompleted: jest.fn(() => {
     return;
   }),
+  handleTransactionWebhook: jest.fn(() => {
+    return;
+  }),
 }));
 
 const getRequest = async (kind: WebhookNotificationKind): Promise<Request> => {
@@ -68,6 +71,18 @@ describe('Testing webhooks', () => {
     {
       kind: 'local_payment_completed',
       title: 'completed',
+    },
+    {
+      kind: 'transaction_settled',
+      title: 'transaction settled',
+    },
+    {
+      kind: 'transaction_settlement_declined',
+      title: 'transaction settlement declined',
+    },
+    {
+      kind: 'transaction_disbursed',
+      title: 'transaction disbursed',
     },
   ])('Testing $title webhook call', async ({ kind }) => {
     const request = await getRequest(kind as WebhookNotificationKind);

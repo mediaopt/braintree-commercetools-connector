@@ -2,8 +2,15 @@ import { NextFunction, Request, Response } from 'express';
 import CustomError from '../errors/custom.error';
 import { logger } from '../utils/logger.utils';
 import { parseNotification } from '../service/braintree.service';
-import { handleLocalPaymentCompleted } from '../service/commercetools.service';
-import { WebhookNotificationKind, BaseWebhookNotification } from 'braintree';
+import {
+  handleLocalPaymentCompleted,
+  handleTransactionWebhook,
+} from '../service/commercetools.service';
+import {
+  WebhookNotificationKind,
+  BaseWebhookNotification,
+  TransactionNotification,
+} from 'braintree';
 
 type LocalPaymentCompleted = BaseWebhookNotification & {
   localPaymentCompleted: any;
@@ -64,6 +71,20 @@ export const post = async (
           throw new CustomError(
             500,
             'Error in handling local payment completed process'
+          );
+        }
+        response.status(200).send();
+        return;
+      case 'transaction_settled':
+      case 'transaction_settlement_declined':
+      case 'transaction_disbursed':
+        const transactionNotification = notification as TransactionNotification;
+        try {
+          await handleTransactionWebhook(transactionNotification.transaction);
+        } catch (error) {
+          throw new CustomError(
+            500,
+            'Error in handling transaction webhook process'
           );
         }
         response.status(200).send();

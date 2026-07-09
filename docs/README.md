@@ -10,13 +10,18 @@ This connector has one application:
 
 - this extension handles webhook messages from braintree
 - messages of type check will result in a status 200 response
-- all other messages will result in a status 200 response
+- messages of type local_payment_completed complete the corresponding commercetools payment
+- messages of type transaction_settled, transaction_settlement_declined and transaction_disbursed update the
+  state of the matching commercetools payment transaction (Success or Failure), needed since payment methods
+  like ACH direct debit settle asynchronously and only report their final outcome through these webhooks; if
+  this is the first successful charge, the order is completed the same way as for local_payment_completed
+- all other messages will result in a status 200 response without any further action
 - you need to register the url of the extension in the braintree control panel:
   - Log into the Control Panel
   - Click on the gear icon in the top right corner
   - Click API from the drop-down menu
   - Click on Webhooks and create a new Webhook
-  - Provide the extension URL as the Destination URL and add the Local Payments webhook messages
+  - Provide the extension URL as the Destination URL and add the Local Payments and Transaction webhook messages
   - After creating the webhook you can test the URL by selecting Check URL
 
 # braintree-commercetools-events
