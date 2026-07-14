@@ -1,7 +1,11 @@
 import { TransactionLineItem, PaymentMethod, Customer } from "braintree";
-import { UpdateAction } from "@commercetools/sdk-client-v2";
-import { Payment, Transaction } from "@commercetools/platform-sdk";
-export type UpdateActions = Array<UpdateAction>;
+import {
+  Payment,
+  Transaction,
+  PaymentUpdateAction,
+  CustomerUpdateAction,
+} from "@commercetools/platform-sdk";
+export type UpdateActions = Array<PaymentUpdateAction | CustomerUpdateAction>;
 
 export type CustomerResponse = PaymentMethod | Customer;
 

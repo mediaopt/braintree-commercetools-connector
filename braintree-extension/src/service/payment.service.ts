@@ -11,6 +11,7 @@ import {
   PaymentMethodCreateRequest,
 } from '../types/index.types';
 import {
+  CentPrecisionMoney,
   Payment,
   Transaction as CommercetoolsTransaction,
   TransactionType,
@@ -49,15 +50,20 @@ const getPayPalOrderPaymentToken = (payment: Payment) => {
   return findSuitableTransactionId({ payment }, 'Authorization', 'Initial');
 };
 
+function validateAmountPlanned(payment?: Payment): CentPrecisionMoney {
+  const amountPlanned = payment?.amountPlanned;
+  if (!amountPlanned) {
+    throw new CustomError(500, 'amountPlanned is missing');
+  }
+  return amountPlanned;
+}
+
 function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
   const transactionSaleRequest = payment?.custom?.fields.transactionSaleRequest;
   if (!transactionSaleRequest) {
     throw new CustomError(500, 'transactionSaleRequest is missing');
   }
-  const amountPlanned = payment?.amountPlanned;
-  if (!amountPlanned) {
-    throw new CustomError(500, 'amountPlanned is missing');
-  }
+  const amountPlanned = validateAmountPlanned(payment);
   let initRequest;
   try {
     initRequest = JSON.parse(transactionSaleRequest);
@@ -229,7 +235,9 @@ export async function refund(
         paymentWithOptionalTransaction?.transaction?.id
       )
     );
-    const amountPlanned = paymentWithOptionalTransaction.payment?.amountPlanned;
+    const amountPlanned = validateAmountPlanned(
+      paymentWithOptionalTransaction.payment
+    );
     updateActions.push({
       action: 'addTransaction',
       transaction: {
@@ -237,9 +245,9 @@ export async function refund(
         amount: {
           centAmount: mapBraintreeMoneyToCommercetoolsMoney(
             response.amount,
-            amountPlanned?.fractionDigits
+            amountPlanned.fractionDigits
           ),
-          currencyCode: amountPlanned?.currencyCode,
+          currencyCode: amountPlanned.currencyCode,
         },
         interactionId: response.id,
         timestamp: response.updatedAt,
@@ -307,7 +315,9 @@ export async function submitForSettlement(
         paymentWithOptionalTransaction?.transaction?.id
       )
     );
-    const amountPlanned = paymentWithOptionalTransaction.payment?.amountPlanned;
+    const amountPlanned = validateAmountPlanned(
+      paymentWithOptionalTransaction.payment
+    );
     updateActions.push({
       action: 'addTransaction',
       transaction: {
@@ -315,9 +325,9 @@ export async function submitForSettlement(
         amount: {
           centAmount: mapBraintreeMoneyToCommercetoolsMoney(
             response.amount,
-            amountPlanned?.fractionDigits
+            amountPlanned.fractionDigits
           ),
-          currencyCode: amountPlanned?.currencyCode,
+          currencyCode: amountPlanned.currencyCode,
         },
         interactionId: response.id,
         timestamp: response.updatedAt,
@@ -381,7 +391,9 @@ export async function voidTransaction(
         paymentWithOptionalTransaction?.transaction?.id
       )
     );
-    const amountPlanned = paymentWithOptionalTransaction.payment?.amountPlanned;
+    const amountPlanned = validateAmountPlanned(
+      paymentWithOptionalTransaction.payment
+    );
     updateActions.push({
       action: 'addTransaction',
       transaction: {
@@ -389,9 +401,9 @@ export async function voidTransaction(
         amount: {
           centAmount: mapBraintreeMoneyToCommercetoolsMoney(
             response.amount,
-            amountPlanned?.fractionDigits
+            amountPlanned.fractionDigits
           ),
-          currencyCode: amountPlanned?.currencyCode,
+          currencyCode: amountPlanned.currencyCode,
         },
         interactionId: response.id,
         timestamp: response.updatedAt,
@@ -414,7 +426,7 @@ export async function voidTransaction(
 function handleLocalPaymentMethodTransactionResponse(
   payment: Payment,
   response: LocalPaymentTransaction
-) {
+): UpdateActions {
   const localPayment: LocalPayment = response.localPayment;
   if (
     !payment?.custom?.fields?.LocalPaymentMethodsPaymentId &&

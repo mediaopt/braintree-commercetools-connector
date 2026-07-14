@@ -46,26 +46,26 @@ const setBraintreeCustomerId = async (
   customerVersion: number
 ) => {
   logger.info(`Updating braintreeCustomerId to ${customerId}`);
+  const actions: CustomerUpdateAction[] = [
+    {
+      action: 'setCustomType',
+      type: {
+        typeId: 'type',
+        key: BRAINTREE_CUSTOMER_TYPE_KEY,
+      },
+      fields: {
+        braintreeCustomerId: customerId,
+      },
+    },
+  ];
+  const body: CustomerUpdate = {
+    version: customerVersion,
+    actions,
+  };
   await createApiRoot()
     .customers()
     .withId({ ID: customerId })
-    .post({
-      body: {
-        version: customerVersion,
-        actions: [
-          {
-            action: 'setCustomType',
-            type: {
-              typeId: 'type',
-              key: BRAINTREE_CUSTOMER_TYPE_KEY,
-            },
-            fields: {
-              braintreeCustomerId: customerId,
-            },
-          } as CustomerUpdateAction,
-        ],
-      } as CustomerUpdate,
-    })
+    .post({ body })
     .execute();
 };
 

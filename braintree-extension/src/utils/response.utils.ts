@@ -38,6 +38,15 @@ export const handleRequest = (
     messageType: 'Request',
   });
 
+const buildCustomFieldAction = (
+  name: string,
+  value: unknown,
+  transactionId?: string
+): UpdateActions[number] =>
+  transactionId
+    ? { action: 'setTransactionCustomField', transactionId, name, value }
+    : { action: 'setCustomField', name, value };
+
 export const handlePaymentResponse = (
   messageName: string,
   message: string | object,
@@ -48,18 +57,14 @@ export const handlePaymentResponse = (
     message,
     messageType: 'Response',
   });
-  updateActions.push({
-    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
-    transactionId: transactionId,
-    name: messageName + 'Response',
-    value: stringifyData(message),
-  });
-  updateActions.push({
-    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
-    transactionId: transactionId,
-    name: messageName + 'Request',
-    value: null,
-  });
+  updateActions.push(
+    buildCustomFieldAction(
+      messageName + 'Response',
+      stringifyData(message),
+      transactionId
+    ),
+    buildCustomFieldAction(messageName + 'Request', null, transactionId)
+  );
   return updateActions;
 };
 
@@ -72,18 +77,12 @@ export const handleError = (
     error instanceof Error && 'message' in error
       ? error.message
       : 'Unknown error';
-  const updateActions: UpdateActions = [];
-  updateActions.push({
-    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
-    transactionId: transactionId,
-    name: `${requestName}Response`,
-    value: JSON.stringify({ success: false, message: errorMessage }),
-  });
-  updateActions.push({
-    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
-    transactionId: transactionId,
-    name: `${requestName}Request`,
-    value: null,
-  });
-  return updateActions;
+  return [
+    buildCustomFieldAction(
+      `${requestName}Response`,
+      JSON.stringify({ success: false, message: errorMessage }),
+      transactionId
+    ),
+    buildCustomFieldAction(`${requestName}Request`, null, transactionId),
+  ];
 };

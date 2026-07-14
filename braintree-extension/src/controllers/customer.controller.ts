@@ -1,6 +1,5 @@
 import { Customer, CustomerReference } from '@commercetools/platform-sdk';
-import { CustomError } from 'common-connect/dist';
-import { UpdateAction } from '@commercetools/sdk-client-v2';
+import { CustomError, UpdateActions } from 'common-connect/dist';
 import {
   handleCreateRequest,
   handleFindRequest,
@@ -17,7 +16,7 @@ import {
  */
 const update = async (resource: CustomerReference) => {
   try {
-    let updateActions: Array<UpdateAction> = [];
+    let updateActions: UpdateActions = [];
     if (!resource?.obj) {
       throw new CustomError(400, 'customer obj is missing');
     }
