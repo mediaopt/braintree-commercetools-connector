@@ -87191,6 +87191,195 @@
 				}
 			],
 			"description": "The Project endpoint is used to retrieve certain information from a project."
+		},
+		{
+			"name": "Checkout",
+			"item": [
+				{
+					"name": "Payment Intents",
+					"item": [
+						{
+							"name": "Manage Payment by id",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"capturePayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/{{project-key}}/payment-intents/{{payment-id}}",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"{{project-key}}",
+										"payment-intents",
+										"{{payment-id}}"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "Capture Payment",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"capturePayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{host}}/{{project-key}}/payment-intents/{{payment-id}}",
+											"host": [
+												"{{host}}"
+											],
+											"path": [
+												"{{project-key}}",
+												"payment-intents",
+												"{{payment-id}}"
+											]
+										}
+									},
+									"_postman_previewlanguage": null,
+									"header": null,
+									"cookie": [],
+									"body": null
+								},
+								{
+									"name": "Refund Payment",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"refundPayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"transactionId\": {{transaction-id}},\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{host}}/{{project-key}}/payment-intents/{{payment-id}}",
+											"host": [
+												"{{host}}"
+											],
+											"path": [
+												"{{project-key}}",
+												"payment-intents",
+												"{{payment-id}}"
+											]
+										}
+									},
+									"_postman_previewlanguage": null,
+									"header": null,
+									"cookie": [],
+									"body": null
+								},
+								{
+									"name": "Cancel Payment",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"cancelPayment\",\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{host}}/{{project-key}}/payment-intents/{{payment-id}}",
+											"host": [
+												"{{host}}"
+											],
+											"path": [
+												"{{project-key}}",
+												"payment-intents",
+												"{{payment-id}}"
+											]
+										}
+									},
+									"_postman_previewlanguage": null,
+									"header": null,
+									"cookie": [],
+									"body": null
+								},
+								{
+									"name": "Reverse Payment",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"action\": \"reversePayment\",\n    \"merchantReference\": \"example-reference\"\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{host}}/{{project-key}}/payment-intents/{{payment-id}}",
+											"host": [
+												"{{host}}"
+											],
+											"path": [
+												"{{project-key}}",
+												"payment-intents",
+												"{{payment-id}}"
+											]
+										}
+									},
+									"_postman_previewlanguage": null,
+									"header": null,
+									"cookie": [],
+									"body": null
+								}
+							]
+						}
+					],
+					"description": "The Checkout Payment Intents API is used to perform financial operations on a payment after it has been authorized and an order has been created.  \nSee [https://docs.commercetools.com/checkout/payment-intents-api](https://docs.commercetools.com/checkout/payment-intents-api) for more information."
+				}
+			],
+			"description": "The commercetools Checkout API provides a flexible and robust way to handle payment processing and order completion for your Composable Commerce applications.\n\nSee [https://docs.commercetools.com/checkout/general-concepts](https://docs.commercetools.com/checkout/general-concepts) for more information."
 		}
 	],
 	"auth": {
