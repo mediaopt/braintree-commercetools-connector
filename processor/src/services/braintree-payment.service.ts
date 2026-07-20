@@ -17,6 +17,8 @@ import {
   TransactionType,
   TransactionState,
   PaymentUpdateAction,
+  CartSetShippingAddressAction,
+  CartSetShippingMethodAction,
 } from '@commercetools/platform-sdk';
 import { Transaction, TransactionRequest } from 'braintree';
 
@@ -50,6 +52,7 @@ import {
   // PURE_VAULT_DISABLED: PureVaultRequestSchemaDTO,
   TransactionSaleRequestSchemaDTO,
   UpdateCartShippingResponseSchemaDTO,
+  UpdateCartShippingRequestSchemaDTO,
   AchVaultTokenRequestSchemaDTO,
   AchVaultTokenResponseSchemaDTO,
 } from '../dtos/braintree-payment.dto';
@@ -507,10 +510,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   public async getShippingMethods(ctCartId: string): Promise<ShippingMethod[] | void> {
+    // Express always lets the buyer pick any address inside the PayPal popup regardless of the
+    // cart's starting address/country (enableShippingAddress is hardcoded true for Express), so the
+    // candidate pool is intentionally unscoped — the enabler filters by country client-side once an
+    // address is actually chosen. This is Express-only (see the isExpress call site below).
     return await paymentSDK.ctAPI.client
       .shippingMethods()
-      .matchingCart()
-      .get({ queryArgs: { cartId: ctCartId, expand: 'zoneRates[*].zone' } })
+      .get({ queryArgs: { expand: 'zoneRates[*].zone' } })
       .execute()
       .then((response) => response.body.results)
       .catch((err) => {
@@ -577,7 +583,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       const ctCart = await this.ctCartService.getCart({
         id: cartId,
       });
-      this.validateCartRequiredData(ctCart, isPureVault); // PURE_VAULT_DISABLED: unreachable
+      this.validateCartRequiredData(ctCart, !(isPureVault || isExpress)); // PURE_VAULT_DISABLED: unreachable
 
       const customerPaymentInfo: { customer: CustomerResourceIdentifier } | { anonymousId?: string } = ctCart.customerId
         ? {
@@ -619,7 +625,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           ? Promise.resolve()
           : this.ctPaymentService.createPayment({
               amountPlanned,
-              paymentMethodInfo: { paymentInterface: getConfig().paymentInterface }, //todo - check if a more relevant interface exists
+              paymentMethodInfo: { paymentInterface: getConfig().paymentInterface },
               ...customerPaymentInfo,
               paymentStatus: { interfaceCode: 'Initial', interfaceText: 'Initial' },
               checkoutTransactionItemId: getCheckoutTransactionItemIdFromContext(),
@@ -768,29 +774,32 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
   public async updateCartShipping({
     newShippingMethodId,
-  }: {
-    newShippingMethodId: string;
-  }): Promise<UpdateCartShippingResponseSchemaDTO> {
+    address,
+  }: UpdateCartShippingRequestSchemaDTO): Promise<UpdateCartShippingResponseSchemaDTO> {
     const cartId = getCartIdFromContext();
     try {
       const ctCart = await this.ctCartService.getCart({
         id: cartId,
       });
+      const setShippingAddressAction: CartSetShippingAddressAction | undefined = address
+        ? { action: 'setShippingAddress', address }
+        : undefined;
+      const setShippingMethodAction: CartSetShippingMethodAction = {
+        action: 'setShippingMethod',
+        shippingMethod: {
+          id: newShippingMethodId,
+          typeId: 'shipping-method',
+        },
+      };
       const updatedCard = await paymentSDK.ctAPI.client
         .carts()
         .withId({ ID: ctCart.id })
         .post({
           body: {
             version: ctCart.version,
-            actions: [
-              {
-                action: 'setShippingMethod',
-                shippingMethod: {
-                  id: newShippingMethodId,
-                  typeId: 'shipping-method',
-                },
-              },
-            ],
+            actions: setShippingAddressAction
+              ? [setShippingAddressAction, setShippingMethodAction]
+              : [setShippingMethodAction],
           },
         })
         .execute()
@@ -1373,8 +1382,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     }
   }
 
-  private validateCartRequiredData(ctCart: Cart, isPureVault?: boolean): void {
-    if (isPureVault) return;
+  private validateCartRequiredData(ctCart: Cart, isCartCheckout?: boolean): void {
+    if (!isCartCheckout) return;
     if (!ctCart.customerEmail || !ctCart.billingAddress || !ctCart.shippingAddress)
       throw new ErrorInvalidOperation('Required data missing: email or address');
   }

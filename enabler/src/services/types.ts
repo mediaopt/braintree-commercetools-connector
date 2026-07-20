@@ -45,6 +45,12 @@ PURE_VAULT_DISABLED end */
 
 export type ChangeShippingRequest = {
   newShippingMethodId: string;
+  address?: {
+    country: string;
+    postalCode?: string;
+    city?: string;
+    region?: string;
+  };
 };
 
 export type StoredPaymentMethod = {

@@ -13,6 +13,8 @@ import {
   PaymentUpdateResponseSchemaDTO,
   UpdateCartShippingResponseSchema,
   UpdateCartShippingResponseSchemaDTO,
+  UpdateCartShippingRequestSchema,
+  UpdateCartShippingRequestSchemaDTO,
   AchVaultTokenRequestSchema,
   AchVaultTokenRequestSchemaDTO,
   AchVaultTokenResponseSchema,
@@ -68,16 +70,14 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
   );
 
   fastify.post<{
-    Body: { newShippingMethodId: string };
+    Body: UpdateCartShippingRequestSchemaDTO;
     Reply: UpdateCartShippingResponseSchemaDTO;
   }>(
     '/payments/updateCartShipping',
     {
       preHandler: [opts.sessionHeaderAuthHook.authenticate()],
       schema: {
-        body: Type.Object({
-          newShippingMethodId: Type.String(),
-        }),
+        body: UpdateCartShippingRequestSchema,
         response: {
           200: UpdateCartShippingResponseSchema,
         },

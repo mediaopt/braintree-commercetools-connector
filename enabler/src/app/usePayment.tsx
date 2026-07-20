@@ -61,7 +61,10 @@ type PaymentContextT = {
   vaultedPaymentMethods: StoredPaymentMethod[];
   handleGetVaultedPaymentMethods: () => Promise<StoredPaymentMethod[]>;
   // return shape mirrors UpdateCartShippingResponseSchemaDTO in processor/src/dtos/braintree-payment.dto.ts
-  updateCartShipping: (newShippingMethodId: string) => Promise<{
+  updateCartShipping: (
+    newShippingMethodId: string,
+    address?: ChangeShippingRequest["address"],
+  ) => Promise<{
     braintreeAmount: string;
     amountBreakdown: PayPalCheckoutUpdatePaymentOptions["amountBreakdown"]; //the actually required fields are handled at the processor side
   }>;
@@ -283,7 +286,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         setResultMessage(message);
         setShowResult(true);
         if (purchaseCallback && success) {
-          //todo - implement here redirect to return url
           delete options?.deviceData;
           purchaseCallback(response, options);
         }
@@ -321,11 +323,14 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
    };
   PURE_VAULT_DISABLED end */
 
-    const updateCartShipping = async (newShippingMethodId: string) => {
+    const updateCartShipping = async (
+      newShippingMethodId: string,
+      address?: ChangeShippingRequest["address"],
+    ) => {
       return (await processorRequest<ChangeShippingRequest>(
         requestHeader,
         updateCartShippingUrl,
-        { newShippingMethodId },
+        { newShippingMethodId, address },
         // response shape mirrors UpdateCartShippingResponseSchemaDTO in processor/src/dtos/braintree-payment.dto.ts
       )) as {
         braintreeAmount: string;
