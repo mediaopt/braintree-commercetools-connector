@@ -28,15 +28,16 @@ export const config = {
   localPaymentFallbackUrl: process.env.LOCAL_PAYMENT_FALLBACK_URL || '', //required for local payment methods
   paymentInterface: 'Braintree',
 
-  // TODO review these configurations
-  // supportedUIElements: convertStringCommaSeparatedValuesToArray(process.env.SUPPORTED_UI_ELEMENTS),
-  // enableStoreDetails: process.env.ENABLE_STORE_DETAILS === 'true' ? true : false,
-  // sellerReturnUrl: process.env.SELLER_RETURN_URL || ''
-  //
+  // `supportedUIElements`, `enableStoreDetails`, `sellerReturnUrl` from
+  // commercetools' connect-payment-integration-template are intentionally
+  // omitted: they are unimplemented boilerplate with no functioning upstream
+  // usage, so `enableVaulting` below was kept as the relevant, working
+  // setting instead. Please open an issue if you have a concrete need for
+  // any of these.
 
   // env variables related to stored payment methods feature
   storedPaymentMethodsEnabled: process.env.STORED_PAYMENT_METHODS_ENABLED || 'false',
-  storedPaymentMethodsPaymentInterface: process.env.STORED_PAYMENT_METHODS_PAYMENT_INTERFACE || 'psp-template',
+  storedPaymentMethodsPaymentInterface: process.env.STORED_PAYMENT_METHODS_PAYMENT_INTERFACE || 'Braintree',
   storedPaymentMethodsInterfaceAccount: process.env.STORED_PAYMENT_METHODS_INTERFACE_ACCOUNT || undefined,
 
   // General feature flags

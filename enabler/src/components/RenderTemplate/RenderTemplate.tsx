@@ -125,6 +125,7 @@ const ComponentWithCustomOptions = ({
     /* PAYPAL_STORED_DISABLED / ACH_STORED_DISABLED start — reusing a saved PayPal account or ACH
     bank account is out of scope for this commercetools Checkout SDK build; see the matching
     disabled branch in payment-enabler-braintree.ts's createStoredPaymentMethodBuilder for why.
+    Please open an issue if you are interested in reusing a saved PayPal account or ACH bank account.
     case "PayPalStored":
       return <PayPalStoredButton {...restCustomOptions} />;
     case "ACHStored":

@@ -83,15 +83,21 @@ import { handleCustomTransactionFields, handleCustomFieldResponse } from '../uti
 
 import { LineItemKind, mapCTLineItemToBraintreeLineItem, lineItemPlaceholders } from '../utils/lineItem.utils';
 import { toNum, toMoneyStr } from '../utils/money.utils';
-import { errorMessage, getCtErrorKind, retryCTSync, formatBraintreeSyncContext } from '../utils/error.utils';
+import {
+  errorMessage,
+  getCtErrorKind,
+  retryCTSync,
+  formatBraintreeSyncContext,
+  warnOnFieldMismatch,
+} from '../utils/error.utils';
 import {
   mapCTShippingToBraintreeShipping,
   mapShippingMethodsToBraintreeShippingOptions,
 } from '../utils/shipping.utils';
 import {
   mapBraintreeCreditCardToStoredPaymentMethod,
-  mapBraintreePaypalAccountToStoredPaymentMethod,
-  mapBraintreeUsBankAccountToStoredPaymentMethod,
+  // mapBraintreePaypalAccountToStoredPaymentMethod,
+  // mapBraintreeUsBankAccountToStoredPaymentMethod,
 } from '../utils/storedPaymentMethod.utils';
 import { toPaymentMethodIconKey } from '../utils/paymentMethodIcon.utils';
 import { BraintreeCustomerService } from './braintree-customer.service';
@@ -143,6 +149,18 @@ export class BraintreePaymentService extends AbstractPaymentService {
         : mappedTransaction,
       pspReference: response.id,
     });
+    // Braintree's real status can naturally map to something other than the CT Checkout override
+    // (e.g. autocapture -> Charge). Record that too (same interactionId) so CT's amountPaid and
+    // refundPayment's findSuitableTransactionId(..., 'Charge') fallback see Braintree's actual state,
+    // not just the Authorization entry above. Skipped for failed sales — a single Authorization/Failure
+    // record is enough; there's no additional progression to reflect.
+    if (
+      transactionTypeOverride &&
+      mappedTransaction.type !== transactionTypeOverride &&
+      mappedTransaction.state !== 'Failure'
+    ) {
+      await this.ctPaymentService.updatePayment({ id: ctPayment.id, transaction: mappedTransaction });
+    }
     // Backward compat with extension's updatePaymentFields (common-connect/src/utils/response.utils.ts):
     // setStatusInterfaceCode, setStatusInterfaceText, setMethodInfoMethod are not supported by the CT
     // Checkout SDK and must be applied via a raw CT API call. Own retryCTSync block so a failure here
@@ -160,6 +178,67 @@ export class BraintreePaymentService extends AbstractPaymentService {
       ctPayment.id,
       formatBraintreeSyncContext(response),
     );
+  }
+
+  /**
+   * Best-effort, fire-and-forget: records an Authorization/Initial placeholder transaction on the
+   * payment before the Braintree sale is attempted, so CT Checkout can create the order optimistically
+   * as early as possible, and so a hard Braintree failure (transactionSale throwing before any CT sync
+   * happens) still leaves a record on the payment for a merchant to notice and manually retry.
+   *
+   * Idempotent across retried requests: skips if the payment already has an Authorization transaction
+   * with no interactionId.
+   *
+   * State is deliberately 'Initial', not 'Pending' (contrast with getAchVaultToken's ensureTransaction
+   * placeholder) — @commercetools/connect-payments-sdk's updatePayment only auto-merges a placeholder
+   * into a later real transaction (by matching amount) when its state is 'Initial'; 'Pending' is never
+   * picked up by that fallback and would leave a permanent duplicate. Once the real Braintree response
+   * arrives, updatePaymentWithTransaction's existing ctPaymentService.updatePayment call upgrades this
+   * placeholder in place automatically — no extra reconciliation code needed here.
+   *
+   * Must be created via a raw API call rather than ctPaymentService.updatePayment: the SDK's own
+   * consolidateTransactionChanges silently discards any transaction submitted with state 'Initial' and
+   * no interactionId (treats it as providing no value), so the higher-level method would no-op this.
+   *
+   * TODO: verify with commercetools whether an Initial-state Authorization transaction is sufficient to
+   * trigger CT Checkout's automatic order creation. The only confirmed local precedent (ACH's
+   * ensureTransaction) demonstrates this for Pending state, not Initial. If Initial doesn't trigger order
+   * creation, switch this to Pending and add explicit reconciliation logic in updatePaymentWithTransaction
+   * (see the amount-matching caveat above — Pending doesn't get that for free).
+   */
+  private async recordOptimisticAuthorizationPlaceholder(
+    ctPayment: Payment,
+    amountPlanned: CentPrecisionMoney,
+  ): Promise<void> {
+    try {
+      const hasPlaceholder = ctPayment.transactions.some(
+        (transaction) => transaction.type === 'Authorization' && !transaction.interactionId,
+      );
+      if (hasPlaceholder) return;
+      await paymentSDK.ctAPI.client
+        .payments()
+        .withId({ ID: ctPayment.id })
+        .post({
+          body: {
+            version: ctPayment.version,
+            actions: [
+              {
+                action: 'addTransaction',
+                transaction: {
+                  type: 'Authorization',
+                  state: 'Initial',
+                  amount: { centAmount: amountPlanned.centAmount, currencyCode: amountPlanned.currencyCode },
+                },
+              },
+            ],
+          },
+        })
+        .execute();
+    } catch (e) {
+      logger.warn(
+        `transactionSale: could not record optimistic Authorization placeholder for payment ${ctPayment.id} — ${errorMessage(e)}`,
+      );
+    }
   }
 
   /**
@@ -261,6 +340,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
   // Displaying the Venmo username in the checkout UI is the merchant's responsibility.
   // After a successful Venmo payment, venmoUsername is appended to the merchantReturnUrl
   // as a query parameter. The merchant's return page should read this value from the URL.
+  //
+  // Note: this is purely for the redirect — it's not the only place the username ends up.
+  // getPaymentMethodHint(response) already reads response.venmoAccount.username independently
+  // (Braintree's own transaction record, not this enabler-supplied value) and syncCtPaymentStatus
+  // writes it into the CT Payment's native paymentMethodInfo.method field for every Venmo
+  // transaction, with no extra plumbing needed here.
   private buildRedirectMerchantUrl(
     paymentReference: string,
     paymentStatus?: string,
@@ -444,6 +529,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * read only to opportunistically resolve a known customer for vaulted-method display — a missing
    * or invalid session/cart falls back to an anonymous token rather than failing the request, since
    * a Braintree client token alone is safe to issue without one.
+   *
+   * This token is a throwaway bootstrap value: it is never persisted, and createPayment (below) fetches
+   * an entirely independent client token once the real CT Payment exists — that later token, not this
+   * one, is what actually gets stored via handleCustomFieldResponse('getClientToken', ...).
    */
   public async getExpressClientToken(): Promise<{
     braintreeData: { clientToken: string; braintreeCustomerId?: string };
@@ -783,6 +872,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (!updatedCart && braintreePaymentDetails?.extraShippingCost)
       throw new ErrorInvalidOperation(`could not find updated cart for transactionsSale payment ${ctPaymentId}`);
     const relevantPaymentInfo = updatedCart ? { ...ctPayment, amountPlanned: updatedCart.totalPrice } : ctPayment;
+    void this.recordOptimisticAuthorizationPlaceholder(ctPayment, relevantPaymentInfo.amountPlanned);
     // Braintree has 35-char limit for line item names — see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
     // Braintree rejects zero-amount line items for non-PayPal methods; for PayPal, zero amounts are explicitly allowed
     const isPayPal = paymentMethodType === 'PayPal'; // PAYPAL_STORED_DISABLED: || paymentMethodType === 'PayPalStored'
@@ -827,14 +917,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
         `transactionSale failed for payment ${ctPaymentId} with error ${errorMessage(e)}`,
       );
     }
-    if (localPaymentId) {
-      const saleLocalPaymentId = (response as TransactionWithLocalPayment).localPayment?.paymentId;
-      if (saleLocalPaymentId && localPaymentId !== saleLocalPaymentId) {
-        logger.warn(
-          `localPaymentId mismatch for payment ${ctPaymentId}. Enabler sent: ${localPaymentId}, Braintree returned: ${saleLocalPaymentId}`,
-        );
-      }
-    }
+    warnOnFieldMismatch(ctPaymentId, [
+      {
+        fieldName: 'localPaymentId',
+        enablerValue: localPaymentId,
+        braintreeValue: (response as TransactionWithLocalPayment).localPayment?.paymentId,
+      },
+      { fieldName: 'venmoUsername', enablerValue: venmoUsername, braintreeValue: response.venmoAccount?.username },
+    ]);
     const customFields = handleCustomFieldResponse('transactionSale', response);
     handleCustomTransactionFields(customFields, response, ctPayment);
     // Fire-and-forget: customer update has no webhook fallback, so retries are handled
@@ -1131,6 +1221,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
             // sees an Authorization type transaction. State is Pending because the bank
             // account is awaiting micro-deposit verification;
             // it is merchant responsibility to listen to Braintree webhook or handle in alternative way.
+            // TODO: because this placeholder is Pending (not Initial), @commercetools/connect-payments-sdk's
+            // updatePayment will never auto-merge it into a later real transaction (its amount-matching
+            // fallback only applies to 'Initial'-state placeholders — see
+            // recordOptimisticAuthorizationPlaceholder above). So if/when the merchant later calls
+            // transactionSale with this stored vault token after micro-deposit verification completes,
+            // that call will add a separate, new Authorization transaction rather than resolving this one,
+            // leaving this placeholder permanently orphaned on the payment.
             ensureTransaction: { type: 'Authorization', state: 'Pending' },
           }),
         'getAchVaultToken:pendingSync',
@@ -1163,18 +1260,19 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const gateway = await getBraintreeGateway();
     try {
       const btCustomer = await gateway.customer.find(braintreeCustomerId);
+      // commercetools Checkout's own UI only supports displaying/reusing stored credit cards —
+      // PayPal and ACH bank accounts remain vaulted in Braintree but are not surfaced as stored
+      // payment methods here. This may be requested by customers in future; please open an issue
+      // if you are interested.
       const creditCards = (btCustomer.creditCards ?? []).map(mapBraintreeCreditCardToStoredPaymentMethod);
-      const paypalAccounts = (btCustomer.paypalAccounts ?? []).map(mapBraintreePaypalAccountToStoredPaymentMethod);
+      // const paypalAccounts = (btCustomer.paypalAccounts ?? []).map(mapBraintreePaypalAccountToStoredPaymentMethod);
       // `btCustomer` is cast to `any` because @types/braintree does not declare `usBankAccounts`
       // on the Customer type, even though the SDK populates it at runtime.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const usBankAccounts = ((btCustomer as any).usBankAccounts ?? []).map(
-        mapBraintreeUsBankAccountToStoredPaymentMethod,
-      );
-      logger.info(
-        `getStoredPaymentMethods: customer ${braintreeCustomerId} — creditCards: ${creditCards.length}, paypalAccounts: ${paypalAccounts.length}, usBankAccounts: ${usBankAccounts.length}`,
-      );
-      if (!creditCards.length && !paypalAccounts.length && !usBankAccounts.length) {
+      // const usBankAccounts = ((btCustomer as any).usBankAccounts ?? []).map(
+      //   mapBraintreeUsBankAccountToStoredPaymentMethod,
+      // );
+      logger.info(`getStoredPaymentMethods: customer ${braintreeCustomerId} — creditCards: ${creditCards.length}`);
+      if (!creditCards.length) {
         logger.warn(`No stored payment methods returned by Braintree for customer ${braintreeCustomerId}`);
       }
       // Braintree is the priority/authoritative source here — see the class-level note in
@@ -1206,7 +1304,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
             }),
         'getStoredPaymentMethods: could not cross-check against commercetools PaymentMethod records',
       );
-      return { storedPaymentMethods: [...creditCards, ...paypalAccounts, ...usBankAccounts] };
+      return { storedPaymentMethods: [...creditCards] };
     } catch (e) {
       logger.warn(`Could not find Braintree customer ${braintreeCustomerId}: ${errorMessage(e)}`);
       return { storedPaymentMethods: [] };

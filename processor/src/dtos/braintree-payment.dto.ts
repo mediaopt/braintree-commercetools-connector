@@ -21,7 +21,8 @@ export type StandardPaymentMethodType = ValuesOf<typeof StandardPaymentMethodTyp
 
 export const StoredPaymentMethodType = {
   CREDIT_CARD_STORED: 'CreditCardStored',
-  // PAYPAL_STORED_DISABLED: PayPal stored cancelled; uncomment to re-enable
+  // PAYPAL_STORED_DISABLED: PayPal stored cancelled; uncomment to re-enable; please open an issue
+  // if you are interested in this stored payment method
   // PAYPAL_STORED: 'PayPalStored',
 } as const;
 export type StoredPaymentMethodType = ValuesOf<typeof StoredPaymentMethodType>;

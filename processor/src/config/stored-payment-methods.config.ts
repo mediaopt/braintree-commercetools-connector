@@ -1,4 +1,4 @@
-import { PaymentMethodType } from '../dtos/braintree-payment.dto';
+// import { PaymentMethodType } from '../dtos/braintree-payment.dto'; // only used by commented-out allowedPaymentMethods below
 import { getConfig } from './config';
 
 export type StoredPaymentMethodsConfig = {
@@ -6,7 +6,10 @@ export type StoredPaymentMethodsConfig = {
   config: {
     paymentInterface: string; // paymentInterface to set
     //interfaceAccount?: string; // optional interfaceAccount to set
-    allowedPaymentMethods: PaymentMethodType[];
+    // allowedPaymentMethods was unused config-driven scaffolding;
+    // the CreditCard-only restriction requested by commercetools
+    // is now hardcoded directly in getStoredPaymentMethods() (braintree-payment.service.ts).
+    // allowedPaymentMethods: PaymentMethodType[];
   };
 };
 
@@ -22,7 +25,7 @@ export const getStoredPaymentMethodsConfig = (): StoredPaymentMethodsConfig => {
     config: {
       paymentInterface: getConfig().storedPaymentMethodsPaymentInterface,
       //interfaceAccount: getConfig().storedPaymentMethodsInterfaceAccount,
-      allowedPaymentMethods: [PaymentMethodType.CREDIT_CARD, PaymentMethodType.PAYPAL],
+      // allowedPaymentMethods: [PaymentMethodType.CREDIT_CARD],
     },
   };
 
