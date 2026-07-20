@@ -105,6 +105,9 @@ import {
 import { toPaymentMethodIconKey } from '../utils/paymentMethodIcon.utils';
 import { BraintreeCustomerService } from './braintree-customer.service';
 
+// Initial transaction required for checkout API to ensure the proper order creation.
+const OPTIMISTIC_TRANSACTION_TRIGGER_ORDER: TransactionState = 'Initial';
+
 export class BraintreePaymentService extends AbstractPaymentService {
   private braintreeCustomerService: BraintreeCustomerService;
 
@@ -184,30 +187,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
-   * Best-effort, fire-and-forget: records an Authorization/Initial placeholder transaction on the
-   * payment before the Braintree sale is attempted, so CT Checkout can create the order optimistically
-   * as early as possible, and so a hard Braintree failure (transactionSale throwing before any CT sync
-   * happens) still leaves a record on the payment for a merchant to notice and manually retry.
-   *
-   * Idempotent across retried requests: skips if the payment already has an Authorization transaction
-   * with no interactionId.
-   *
-   * State is deliberately 'Initial', not 'Pending' (contrast with getAchVaultToken's ensureTransaction
-   * placeholder) — @commercetools/connect-payments-sdk's updatePayment only auto-merges a placeholder
-   * into a later real transaction (by matching amount) when its state is 'Initial'; 'Pending' is never
-   * picked up by that fallback and would leave a permanent duplicate. Once the real Braintree response
-   * arrives, updatePaymentWithTransaction's existing ctPaymentService.updatePayment call upgrades this
-   * placeholder in place automatically — no extra reconciliation code needed here.
-   *
-   * Must be created via a raw API call rather than ctPaymentService.updatePayment: the SDK's own
-   * consolidateTransactionChanges silently discards any transaction submitted with state 'Initial' and
-   * no interactionId (treats it as providing no value), so the higher-level method would no-op this.
-   *
-   * TODO: verify with commercetools whether an Initial-state Authorization transaction is sufficient to
-   * trigger CT Checkout's automatic order creation. The only confirmed local precedent (ACH's
-   * ensureTransaction) demonstrates this for Pending state, not Initial. If Initial doesn't trigger order
-   * creation, switch this to Pending and add explicit reconciliation logic in updatePaymentWithTransaction
-   * (see the amount-matching caveat above — Pending doesn't get that for free).
+   * Records a placeholder Authorization transaction before the Braintree sale is attempted (see
+   * OPTIMISTIC_TRANSACTION_TRIGGER_ORDER). Awaited, not fire-and-forget, so it's always committed
+   * before the real transaction — errors are caught and logged internally, never thrown, so a
+   * failure here never blocks the actual charge. Idempotent. Raw API call: ctPaymentService.updatePayment
+   * silently discards an 'Initial' transaction with no interactionId.
    */
   private async recordOptimisticAuthorizationPlaceholder(
     ctPayment: Payment,
@@ -229,7 +213,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
                 action: 'addTransaction',
                 transaction: {
                   type: 'Authorization',
-                  state: 'Initial',
+                  state: OPTIMISTIC_TRANSACTION_TRIGGER_ORDER,
                   amount: { centAmount: amountPlanned.centAmount, currencyCode: amountPlanned.currencyCode },
                 },
               },
@@ -881,7 +865,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (!updatedCart && braintreePaymentDetails?.extraShippingCost)
       throw new ErrorInvalidOperation(`could not find updated cart for transactionsSale payment ${ctPaymentId}`);
     const relevantPaymentInfo = updatedCart ? { ...ctPayment, amountPlanned: updatedCart.totalPrice } : ctPayment;
-    void this.recordOptimisticAuthorizationPlaceholder(ctPayment, relevantPaymentInfo.amountPlanned);
+    await this.recordOptimisticAuthorizationPlaceholder(ctPayment, relevantPaymentInfo.amountPlanned);
     // Braintree has 35-char limit for line item names — see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
     // Braintree rejects zero-amount line items for non-PayPal methods; for PayPal, zero amounts are explicitly allowed
     const isPayPal = paymentMethodType === 'PayPal'; // PAYPAL_STORED_DISABLED: || paymentMethodType === 'PayPalStored'
@@ -1226,18 +1210,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
             interfaceCode: 'settlement_pending',
             interfaceText: 'settlement_pending',
             method: 'us_bank_account',
-            // Optimistic Authorization transaction — CT Checkout creates the order when it
-            // sees an Authorization type transaction. State is Pending because the bank
-            // account is awaiting micro-deposit verification;
-            // it is merchant responsibility to listen to Braintree webhook or handle in alternative way.
-            // TODO: because this placeholder is Pending (not Initial), @commercetools/connect-payments-sdk's
-            // updatePayment will never auto-merge it into a later real transaction (its amount-matching
-            // fallback only applies to 'Initial'-state placeholders — see
-            // recordOptimisticAuthorizationPlaceholder above). So if/when the merchant later calls
-            // transactionSale with this stored vault token after micro-deposit verification completes,
-            // that call will add a separate, new Authorization transaction rather than resolving this one,
-            // leaving this placeholder permanently orphaned on the payment.
-            ensureTransaction: { type: 'Authorization', state: 'Pending' },
+            ensureTransaction: { type: 'Authorization', state: OPTIMISTIC_TRANSACTION_TRIGGER_ORDER },
           }),
         'getAchVaultToken:pendingSync',
         ctPaymentId,
