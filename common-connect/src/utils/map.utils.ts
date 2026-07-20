@@ -147,6 +147,9 @@ export const mapBraintreeTransactionToCommercetoolsTransaction = (
 export const mapCTCustomerToNewBraintreeCustomer = (
   ctCustomer: CTCustomer,
 ) => ({
+  // Deliberately reuses the CT customer id as the Braintree customer id (Braintree honors a
+  // caller-supplied id on customer.create), so the two identifiers stay identical by construction
+  // whenever this connector is the one creating the Braintree customer.
   id: ctCustomer.id,
   firstName: ctCustomer.firstName,
   lastName: ctCustomer.lastName,

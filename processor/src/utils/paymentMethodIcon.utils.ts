@@ -17,9 +17,9 @@ const PAYMENT_METHOD_ICON_KEY_MAP: Record<PaymentMethodType, string> = {
   [PaymentMethodType.APPLE_PAY]: 'applepay',
   [PaymentMethodType.VENMO]: PaymentMethodType.VENMO, // no commercetools icon-key equivalent
   [PaymentMethodType.ACH]: PaymentMethodType.ACH, // no commercetools icon-key equivalent
-  // TODO: commercetools has two Bancontact icon variants ("bancontactcard" / "bancontactmobile")
-  // but this connector only has one generic "bancontact" local payment method. Defaulting to the
-  // card variant — clarify with PayPal/Braintree which icon they actually want here.
+  // commercetools has two Bancontact icon variants ("bancontactcard" / "bancontactmobile") but this
+  // connector only has one generic "bancontact" local payment method. At the moment "card" is selected as
+  // the correct variant; "bancontactmobile" remains a possible alternative if that changes.
   [PaymentMethodType.BANCONTACT]: 'bancontactcard',
   [PaymentMethodType.P24]: 'przelewy24',
   [PaymentMethodType.IDEAL]: PaymentMethodType.IDEAL, // identity — already matches commercetools

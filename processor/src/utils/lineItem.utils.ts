@@ -7,7 +7,7 @@ export enum LineItemKind {
   Credit = 'credit',
 }
 
-// Fields reference: PayPalCheckoutUpdatePaymentOptions in braintree-web/paypal-checkout — not a 1:1 match but the closest type
+// Fields reference: PayPalCheckoutUpdatePaymentOptions in braintree-web/paypal-checkout — not a 1:1 match but the closest type available
 export const BraintreeLineItemSchema = Type.Object({
   name: Type.String(),
   kind: Type.Enum(LineItemKind),
@@ -42,8 +42,7 @@ export const mapCTLineItemToBraintreeLineItem = (ctLineItem: LineItem, cartLocal
   const totalItemPrice = mapCommercetoolsMoneyToBraintreeMoney(ctLineItem.totalPrice);
   const localizedName =
     (cartLocale && ctLineItem.name[cartLocale]) || Object.values(ctLineItem.name)[0] || ctLineItem.productId;
-  const nameWithQuantity =
-    ctLineItem.quantity > 1 ? `${localizedName} (x${ctLineItem.quantity})` : localizedName;
+  const nameWithQuantity = ctLineItem.quantity > 1 ? `${localizedName} (x${ctLineItem.quantity})` : localizedName;
 
   // Get image URL from variant if available
   const imageUrl = ctLineItem.variant?.images?.[0]?.url || '';
