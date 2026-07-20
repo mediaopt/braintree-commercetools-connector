@@ -217,6 +217,22 @@ export const UpdateCartShippingResponseSchema = Type.Object({
 });
 export type UpdateCartShippingResponseSchemaDTO = Static<typeof UpdateCartShippingResponseSchema>;
 
+// `address` carries only what PayPal's onShippingChange provides pre-approval (no street address —
+// PayPal withholds that until final approval) — enough for commercetools to recompute tax/shipping
+// price against the buyer's in-progress country/region instead of the cart's stale stored address.
+export const UpdateCartShippingRequestSchema = Type.Object({
+  newShippingMethodId: Type.String(),
+  address: Type.Optional(
+    Type.Object({
+      country: Type.String(),
+      postalCode: Type.Optional(Type.String()),
+      city: Type.Optional(Type.String()),
+      region: Type.Optional(Type.String()),
+    }),
+  ),
+});
+export type UpdateCartShippingRequestSchemaDTO = Static<typeof UpdateCartShippingRequestSchema>;
+
 export const AchVaultTokenRequestSchema = Type.Object({
   paymentMethodNonce: Type.String(),
   ctPaymentId: Type.String(),

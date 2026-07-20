@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useState,
-  useRef,
-  FC,
-  PropsWithChildren,
-} from "react";
+import { useEffect, useState, useRef, FC, PropsWithChildren } from "react";
 import {
   client as braintreeClient,
   paypalCheckout,
@@ -51,6 +45,20 @@ const toExpressAddress = (
   phone: address?.phone,
   email,
 });
+
+// Which shipping options (if any) are pre-selected for a country — undefined if none is, so callers
+// know to fall back to sending discrete lineItems instead (see buildExpressCreatePaymentOptions).
+const getPreSelectedShippingOptions = (
+  options: PaymentInfo["shippingOptions"],
+  countryCode: string | undefined,
+): PaymentInfo["shippingOptions"] => {
+  const countryOptions = options?.filter(
+    (item) => item.countryCode === countryCode,
+  );
+  return countryOptions?.some(({ selected }) => selected)
+    ? countryOptions
+    : undefined;
+};
 
 export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   flow,
@@ -108,6 +116,40 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     isLoading(true);
 
     const isVault: boolean = flow === ("vault" as FlowType);
+
+    // Builds the shared paypalCheckoutInstance.createPayment(...) args for both createOrder
+    // branches below (deferred vs. non-deferred) — they differ only in whether the data comes from
+    // the real (post-click) result or the ambient paymentInfo. braintreeLineItems never includes a
+    // shipping entry for Express (processor's buildCreatePaymentResponse skips it when isExpress),
+    // but amount does include shipping — sending both together trips PayPal's own item_total
+    // validation (ITEM_TOTAL_MISMATCH). When a shipping option is pre-selected for the buyer's
+    // country, lineItems is omitted and shippingOptions is sent instead; onShippingChange fires
+    // immediately after and sets the correct amountBreakdown via updatePayment.
+    const buildExpressCreatePaymentOptions = (info: {
+      braintreeLineItems: PaymentInfo["braintreeLineItems"];
+      shippingOptions: PaymentInfo["shippingOptions"];
+      countryCode: string | undefined;
+      amount: string | number;
+      currency: string;
+    }) => {
+      const preSelectedOptions = getPreSelectedShippingOptions(
+        info.shippingOptions,
+        info.countryCode,
+      );
+      return {
+        flow,
+        locale,
+        lineItems: preSelectedOptions ? undefined : info.braintreeLineItems,
+        shippingOptions: preSelectedOptions,
+        amount: info.amount,
+        currency: info.currency,
+        intent,
+        enableShippingAddress,
+        shippingAddressEditable,
+        billingAgreementDescription,
+        shippingAddressOverride,
+      };
+    };
 
     const additionalFundingSources: PayPalFundingSourcesProp = {};
     if (payLater) {
@@ -303,13 +345,22 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           actions: any,
                         ) {
                           //data definition can be found here https://developer.paypal.com/sdk/js/reference/#onshippingchange
-                          //todo - verify when should this method be replaced with new atlernatives https://developer.paypal.com/sdk/js/reference/#onshippingchange
+                          // In deferred mode, deferredResultRef holds the real (post-click)
+                          // paymentInfo — the ambient paymentInfo/shippingOptions are only the
+                          // mount-time placeholder, which never has shippingOptions at all. Same
+                          // fallback pattern as handleOnApprove above.
+                          const real = deferredResultRef.current?.paymentInfo;
+                          const realShippingOptions =
+                            real?.shippingOptions ?? shippingOptions;
                           const countryCode =
-                            data.shipping_address.country_code;
-                          if (!shippingOptions?.length) return actions.reject();
+                            data.shipping_address.country_code ??
+                            real?.countryCode ??
+                            paymentInfo.countryCode;
+                          if (!realShippingOptions?.length)
+                            return actions.reject();
 
                           const relevantShippingOptions =
-                            shippingOptions.filter(
+                            realShippingOptions.filter(
                               (item) => item.countryCode === countryCode,
                             );
                           if (!relevantShippingOptions.length)
@@ -336,12 +387,21 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                             );
                           const shippingResult = await updateCartShipping(
                             relevantShippingOptions[activateIndex].id,
+                            {
+                              country: countryCode,
+                              postalCode: data.shipping_address.postal_code,
+                              city: data.shipping_address.city,
+                              region: data.shipping_address.state,
+                            },
                           );
                           setUpdatedTotal(shippingResult.braintreeAmount);
                           return paypalCheckoutInstance.updatePayment({
                             amount: shippingResult.braintreeAmount,
-                            currency: paymentInfo.currency,
-                            lineItems: paymentInfo.braintreeLineItems?.filter(
+                            currency: real?.currency ?? paymentInfo.currency,
+                            lineItems: (
+                              real?.braintreeLineItems ??
+                              paymentInfo.braintreeLineItems
+                            )?.filter(
                               ({ productCode }) => productCode !== "DISCOUNT",
                             ),
                             paymentId: data.paymentId,
@@ -363,54 +423,25 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                             const result = await createExpressPayment();
                             deferredResultRef.current = result;
                             const real = result.paymentInfo;
-                            return paypalCheckoutInstance.createPayment({
-                              flow,
-                              locale,
-                              lineItems: real.braintreeLineItems,
-                              shippingOptions: real.shippingOptions?.filter(
-                                ({ countryCode, selected }) =>
-                                  countryCode === real.countryCode && selected,
-                              ),
-                              amount: real.braintreeAmount,
-                              currency: real.currency,
-                              intent,
-                              enableShippingAddress,
-                              shippingAddressEditable,
-                              billingAgreementDescription,
-                              shippingAddressOverride,
-                            });
-                          }
-                          // Filter by the cart's country so only one option can be selected:true.
-                          // If a pre-selected option exists, pass shippingOptions to createPayment
-                          // and omit lineItems — onShippingChange fires immediately and sets them
-                          // via updatePayment with amountBreakdown.
-                          // For non-express or no pre-selected shipping, lineItems are sent directly and include discount and shipping.
-                          const countryShippingOptions =
-                            shippingOptions?.filter(
-                              (item) =>
-                                item.countryCode === paymentInfo.countryCode,
+                            return paypalCheckoutInstance.createPayment(
+                              buildExpressCreatePaymentOptions({
+                                braintreeLineItems: real.braintreeLineItems,
+                                shippingOptions: real.shippingOptions,
+                                countryCode: real.countryCode,
+                                amount: real.braintreeAmount,
+                                currency: real.currency,
+                              }),
                             );
-                          const preSelectedOptions =
-                            countryShippingOptions?.some(
-                              ({ selected }) => selected,
-                            )
-                              ? countryShippingOptions
-                              : undefined;
-                          return paypalCheckoutInstance.createPayment({
-                            flow,
-                            locale,
-                            lineItems: preSelectedOptions
-                              ? undefined
-                              : paymentInfo.braintreeLineItems,
-                            shippingOptions: preSelectedOptions,
-                            amount: updatedTotal ?? paymentInfo.braintreeAmount,
-                            currency: paymentInfo.currency,
-                            intent,
-                            enableShippingAddress,
-                            shippingAddressEditable,
-                            billingAgreementDescription,
-                            shippingAddressOverride,
-                          });
+                          }
+                          return paypalCheckoutInstance.createPayment(
+                            buildExpressCreatePaymentOptions({
+                              braintreeLineItems: paymentInfo.braintreeLineItems,
+                              shippingOptions,
+                              countryCode: paymentInfo.countryCode,
+                              amount: updatedTotal ?? paymentInfo.braintreeAmount,
+                              currency: paymentInfo.currency,
+                            }),
+                          );
                         },
 
                         onApprove: handleOnApprove,

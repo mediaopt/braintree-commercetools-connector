@@ -1,6 +1,7 @@
 let ckoCartId = null;
 
 const getCart = async () => {
+  const oAuthToken = await fetchCoCoOAuthToken();
   const url = `${__VITE_CTP_API_URL__}/${projectKey}/carts/${ckoCartId}`;
 
   const res = await fetch(url, {
@@ -14,6 +15,7 @@ const getCart = async () => {
 };
 
 const getShippingMethods = async (opts) => {
+  const oAuthToken = await fetchCoCoOAuthToken();
   const url = `${__VITE_CTP_API_URL__}/${projectKey}/shipping-methods/matching-cart?cartId=${ckoCartId}`;
 
   const res = await fetch(url, {
@@ -48,6 +50,7 @@ const getShippingMethods = async (opts) => {
 };
 
 const setShippingMethod = async (opts) => {
+  const oAuthToken = await fetchCoCoOAuthToken();
   const url = `${__VITE_CTP_API_URL__}/${projectKey}/carts/${ckoCartId}`;
   const cart = await getCart();
 
@@ -85,6 +88,7 @@ const setShippingMethod = async (opts) => {
 };
 
 const setShippingAddress = async (opts) => {
+  const oAuthToken = await fetchCoCoOAuthToken();
   const url = `${__VITE_CTP_API_URL__}/${projectKey}/carts/${ckoCartId}`;
   const cart = await getCart();
 
@@ -130,6 +134,7 @@ const setShippingAddress = async (opts) => {
 };
 
 const setBillingAddress = async (opts) => {
+  const oAuthToken = await fetchCoCoOAuthToken();
   const url = `${__VITE_CTP_API_URL__}/${projectKey}/carts/${ckoCartId}`;
   const cart = await getCart();
 
