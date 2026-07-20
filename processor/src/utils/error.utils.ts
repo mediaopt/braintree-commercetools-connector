@@ -6,6 +6,22 @@ const CT_SYNC_BACKOFF_BASE_MS = 500; //timing was selected based on default expe
 
 export const errorMessage = (err: unknown): string => (err instanceof Error ? err.message : JSON.stringify(err));
 
+// Logs a warning for each field whose enabler-sent value diverges from what Braintree's own
+// response reports for it (e.g. localPaymentId, venmoUsername). A field is skipped if either side
+// is missing — a mismatch is only meaningful when both values are actually present.
+export const warnOnFieldMismatch = (
+  ctPaymentId: string,
+  fields: Array<{ fieldName: string; enablerValue: string | undefined; braintreeValue: string | undefined }>,
+): void => {
+  for (const { fieldName, enablerValue, braintreeValue } of fields) {
+    if (enablerValue && braintreeValue && enablerValue !== braintreeValue) {
+      logger.warn(
+        `${fieldName} mismatch for payment ${ctPaymentId}. Enabler sent: ${enablerValue}, Braintree returned: ${braintreeValue}`,
+      );
+    }
+  }
+};
+
 // Builds the `logOnError` context string passed to retryCTSync from a Braintree transaction response.
 export const formatBraintreeSyncContext = (
   response: Pick<Transaction, 'status' | 'orderId' | 'amount'>,

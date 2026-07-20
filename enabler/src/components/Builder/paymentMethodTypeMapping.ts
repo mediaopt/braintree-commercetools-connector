@@ -22,20 +22,22 @@ const CT_ICON_KEY_TO_PAYMENT_METHOD_TYPE: Record<string, BraintreePaymentMethodT
   paypal: "PayPal",
   googlepay: "GooglePay",
   applepay: "ApplePay",
-  // TODO: commercetools has two Bancontact icon variants ("bancontactcard" / "bancontactmobile")
-  // but this connector only has one generic "bancontact" local payment method. Defaulting to the
-  // card variant — clarify with PayPal/Braintree which icon they actually want here.
+  // commercetools has two Bancontact icon variants ("bancontactcard" / "bancontactmobile") but this
+  // connector only has one generic "bancontact" local payment method. At the moment "card" is selected as
+  // the correct variant; "bancontactmobile" remains a possible alternative if that changes.
   bancontactcard: "bancontact",
   przelewy24: "p24",
   ideal: "ideal", // identity — already matches commercetools
   eps: "eps", // identity — already matches commercetools
   blik: "blik", // identity — already matches commercetools
-  // Venmo, ACH, and mybank have no commercetools icon-key equivalent — no entry needed here;
-  // commercetools would never send one of these keys, so they fall through to the pass-through
-  // default below. CreditCardStored is never sent as an incoming `type` either — it's reached via
-  // a hardcoded literal inside createStoredPaymentMethodBuilder once "card"/"CreditCard" normalizes,
-  // not via this lookup — see payment-enabler-braintree.ts.
-  // ACH_STORED_DISABLED: PayPalStored cancelled — see Builder/types.ts and RenderTemplate.tsx.
+  // Venmo, ACH, and mybank have no commercetools icon-key equivalent today — no entry needed here,
+  // they fall through to the pass-through default below. commercetools has been informed of this
+  // gap and plans to add icons for these eventually — when they do, real entries will need to be
+  // added here instead of relying on the fallback. CreditCardStored is never sent as an incoming
+  // `type` either — it's reached via a hardcoded literal inside createStoredPaymentMethodBuilder
+  // once "card"/"CreditCard" normalizes, not via this lookup — see payment-enabler-braintree.ts.
+  // PAYPAL_STORED_DISABLED: PayPalStored cancelled — see Builder/types.ts and RenderTemplate.tsx;
+  // please open an issue if you are interested in this stored payment method.
 };
 
 /**
