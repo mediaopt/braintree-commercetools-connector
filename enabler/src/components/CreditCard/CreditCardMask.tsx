@@ -38,6 +38,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   useKount,
   // PURE_VAULT_DISABLED: isPureVault = false,
   onRegisterSubmit,
+  onRegisterValidation,
 }) => {
   const {
     handleTransactionSale,
@@ -248,6 +249,22 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           invalidInputRef.current = !isValid;
         });
 
+        const showFieldValidation = () => {
+          const state = hostedFieldsInstance.getState();
+          let fieldsKey: HostedFieldsHostedFieldsFieldName;
+          for (fieldsKey in state.fields) {
+            const field = state.fields[fieldsKey];
+            const validField =
+              (field.isValid || field.isPotentiallyValid) && !field.isEmpty;
+            borderClassToggle.map((classToggle) =>
+              FieldKeyMap[fieldsKey].current?.classList.toggle(
+                classToggle,
+                !validField,
+              ),
+            );
+          }
+        };
+
         dataCollector.create(
           {
             client: client,
@@ -316,6 +333,12 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
               ccVaultCheckbox.current?.checked === true,
           ),
         );
+        onRegisterValidation?.({
+          isValid: async () => !emptyInputsRef.current && !invalidInputRef.current,
+          showValidation: async () => {
+            showFieldValidation();
+          },
+        });
         isLoading(false);
       },
     );

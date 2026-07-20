@@ -8,7 +8,7 @@ import { BaseOptions } from "../../payment-enabler/interfaces/baseOptions";
 import { createElement } from "react";
 import { BraintreePaymentMethodType } from "./types";
 import { RenderTemplate } from "../RenderTemplate";
-import { BuilderType } from "../../types";
+import { BuilderType, ValidationHandlers } from "../../types";
 import { isApplePaySupported } from "../ApplePay/applePayAvailability";
 import { isVenmoSupported } from "../Venmo/venmoAvailability";
 
@@ -25,6 +25,7 @@ class BraintreeComponent implements PaymentComponent {
   private submitHandler:
     | ((storePaymentDetails?: boolean) => Promise<void>)
     | null = null;
+  private validationHandlers: ValidationHandlers | null = null;
 
   constructor(
     private paymentMethodType: BraintreePaymentMethodType,
@@ -45,6 +46,9 @@ class BraintreeComponent implements PaymentComponent {
       ...this.config,
       onRegisterSubmit: (handler) => {
         this.submitHandler = handler;
+      },
+      onRegisterValidation: (handlers) => {
+        this.validationHandlers = handlers;
       },
     };
     const componentRender = createElement(RenderTemplate, {
@@ -69,11 +73,11 @@ class BraintreeComponent implements PaymentComponent {
   }
 
   async showValidation(): Promise<void> {
-    // Show validation messages
+    await this.validationHandlers?.showValidation();
   }
 
   async isValid(): Promise<boolean> {
-    return true;
+    return (await this.validationHandlers?.isValid()) ?? true;
   }
 
   async getState() {
