@@ -65,7 +65,6 @@ To use the checkout compatible connector please create a checkout application in
 | Standard | Venmo | `Venmo` | None enforced by the connector | None enforced by the connector |
 | Standard | ACH | `ACH` | US bank account by design; no country code is checked in code | None enforced by the connector |
 | Stored | Credit Card (saved) | `CreditCardStored` | None enforced by the connector | None enforced by the connector |
-| Stored | PayPal (saved)* | `PayPalStored` | None enforced by the connector | None enforced by the connector |
 | Express | PayPal Buy Now | `PayPal` (via the express builder) | None enforced by the connector | None enforced by the connector |
 | Local | Bancontact | `bancontact` | BE | EUR |
 | Local | Blik | `blik` | PL | PLN |
@@ -83,8 +82,20 @@ Express methods only include PayPal Buy Now today.
 A few Braintree local payment method types exist in the underlying SDK but are intentionally excluded from this connector:
 
 - **Sofort**, **Giropay** — obsolete: Braintree no longer supports them.
-- **Trustly** — was never part of this integration — please open an issue if you need this..
-- **GrabPay** — not not currently requested or confirmed as needed — please open an issue if you need this..
+- **Trustly** — was not a part of previous integration — please open an issue if you are interested in this payment method.
+- **GrabPay** — not currently requested or confirmed as needed — please open an issue if you are interested in this payment method.
+
+#### Stored payment methods
+
+Set `STORED_PAYMENT_METHODS_ENABLED=true` on the processor to let customers save and reuse a payment
+method (`GET /stored-payment-methods`, `DELETE /stored-payment-methods/:id`). Only **credit cards**
+(`CreditCardStored`) are offered — this is a hard limit of the commercetools Checkout SDK, whose own
+UI only supports displaying and reusing stored credit cards.
+
+Braintree remains the authoritative source for everything it has vaulted, including PayPal accounts
+and ACH bank accounts saved through other means (e.g. the extension/connector mode) — but this
+checkout-compatible build does not surface those as stored payment methods, since commercetools
+Checkout has no UI to display them. Please open an issue if you are interested in this.
 
 #### Button customization
 

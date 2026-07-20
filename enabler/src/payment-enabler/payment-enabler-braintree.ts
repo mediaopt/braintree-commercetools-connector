@@ -129,7 +129,8 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     /* PAYPAL_STORED_DISABLED / ACH_STORED_DISABLED start — reusing a saved PayPal account or ACH
     bank account is out of scope for this commercetools Checkout SDK build (it only supports
     storing/reusing credit cards at the moment); charging a stored ACH account would also fail
-    today since "ACHStored" isn't in the processor's StoredPaymentMethodType enum.
+    today since "ACHStored" isn't in the processor's StoredPaymentMethodType enum. Please open an
+    issue if you are interested in reusing a saved PayPal account or ACH bank account.
 
     if (type === "PayPal")
       return new BraintreeStoredBuilder("PayPalStored", baseOptions);

@@ -230,7 +230,8 @@ export type PayPalProps = {
   height?: number;
   // PURE_VAULT_DISABLED: isPureVault?: boolean;
   // Accepted and passed through for compatibility, but currently inert — see
-  // PAYPAL_VAULT_DISABLED in PayPalMask.tsx's showVaultCheckbox.
+  // PAYPAL_VAULT_DISABLED in PayPalMask.tsx's showVaultCheckbox; please open an issue if you are
+  // interested in this.
   enableVaulting?: boolean;
   vaultLabel?: string;
   // PayPal Express deferred-cart-creation mode — see enabler/src/app/usePayment.tsx

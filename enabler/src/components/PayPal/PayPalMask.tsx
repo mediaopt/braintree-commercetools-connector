@@ -73,7 +73,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   height,
   // PURE_VAULT_DISABLED: isPureVault = false,
   // enableVaulting is accepted (for prop-passing compatibility) but is currently inert — see
-  // PAYPAL_VAULT_DISABLED below.
+  // PAYPAL_VAULT_DISABLED below; please open an issue if you are interested in this.
   vaultLabel,
   onExpressPayButtonClick,
   onPaymentSubmit,
@@ -453,7 +453,8 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   commercetools Checkout SDK build (it only supports storing/reusing credit cards). The logic
   below works correctly and can be re-enabled for a custom (non-Checkout-SDK) frontend; forcing
   showVaultCheckbox to false also suppresses storeInVaultOnSuccess further down, since the
-  checkbox ref never attaches when the checkbox isn't rendered.
+  checkbox ref never attaches when the checkbox isn't rendered. Please open an issue if you are
+  interested in vaulting a new PayPal account.
   const showVaultCheckbox = useMemo(
     () =>
       enableVaulting &&
