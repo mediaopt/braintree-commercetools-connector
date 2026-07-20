@@ -68,6 +68,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   useKount,
   shipping,
   onRegisterSubmit,
+  onRegisterValidation,
   pendingVerificationText = DEFAULT_PENDING_VERIFICATION_TEXT,
 }: ACHMaskProps) => {
   const {
@@ -139,6 +140,12 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
       if (formRef.current) {
         formRef.current.requestSubmit();
       }
+    });
+    onRegisterValidation?.({
+      isValid: async () => !formButtonDisabledRef.current,
+      showValidation: async () => {
+        formRef.current?.reportValidity();
+      },
     });
   }, [clientToken]);
 

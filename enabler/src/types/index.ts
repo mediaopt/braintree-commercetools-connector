@@ -50,10 +50,18 @@ type LineItemsShipping = {
   shipping?: BraintreeShipping;
 };
 
+export type ValidationHandlers = {
+  isValid: () => Promise<boolean>;
+  showValidation: () => Promise<void>;
+};
+
 export type GeneralPayButtonProps = {
   fullWidth?: boolean;
   buttonText?: string;
   onRegisterSubmit?: (handler: (storePaymentDetails?: boolean) => Promise<void>) => void;
+  // Restores PaymentComponent.isValid()/showValidation() for form-based methods (CreditCard, ACH) —
+  // these are stubbed to always-valid/no-op in BraintreeBuilder.ts unless a component registers here.
+  onRegisterValidation?: (handlers: ValidationHandlers) => void;
 } & UseKount &
   LineItemsShipping;
 

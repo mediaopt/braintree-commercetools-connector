@@ -16,6 +16,7 @@ export const ACHButton: FC<ACHButtonProps> = ({
   useKount,
   shipping,
   onRegisterSubmit,
+  onRegisterValidation,
   pendingVerificationText,
 }: ACHButtonProps) => {
   return (
@@ -27,6 +28,7 @@ export const ACHButton: FC<ACHButtonProps> = ({
       useKount={useKount}
       shipping={shipping}
       onRegisterSubmit={onRegisterSubmit}
+      onRegisterValidation={onRegisterValidation}
       pendingVerificationText={pendingVerificationText}
     />
   );
