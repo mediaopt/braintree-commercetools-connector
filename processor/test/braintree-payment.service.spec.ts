@@ -199,36 +199,24 @@ describe('braintree-payment.service', () => {
     // PaymentMethodType values — ACH/Venmo/mybank have no commercetools equivalent so they're
     // unchanged; bancontact/p24 differ from our own naming (bancontactcard/przelewy24).
     const expectedLocalTypes = ['bancontactcard', 'blik', 'eps', 'ideal', 'mybank', 'przelewy24'];
-    const expectedBaseTypesLoggedIn = ['ACH', 'applepay', 'card', 'googlepay', 'paypal', 'Venmo'];
-    const expectedBaseTypesAnonymous = ['applepay', 'card', 'googlepay', 'paypal', 'Venmo'];
+    // ACH is always included: this discovery endpoint is JWT-authenticated (no cart/customer in
+    // context), so it can't gate on login state — merchants restrict ACH to logged-in customers
+    // via a `customerId != null` payment integration predicate in the merchant center instead.
+    const expectedBaseTypes = ['ACH', 'applepay', 'card', 'googlepay', 'paypal', 'Venmo'];
     const expectedExpressTypes = ['paypal']; // PayPalVault and CreditCardVault are PURE_VAULT_DISABLED
 
-    const cartWithCustomer = { ...mockCartForShippingUpdate(), customerId: 'ct-customer-123' };
-    const cartAnonymous = { ...mockCartForShippingUpdate(), customerId: undefined };
-
-    test('logged-in customer — ACH included in base components', async () => {
-      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cartWithCustomer.id);
-      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cartWithCustomer);
+    test('includes ACH unconditionally, with no cart/customer context available', async () => {
       const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
       const components = result?.components;
-      expect((components as { type: string }[])?.map(({ type }) => type)).toEqual(expectedBaseTypesLoggedIn);
+      expect((components as { type: string }[])?.map(({ type }) => type)).toEqual(expectedBaseTypes);
       expect(result?.dropins).toHaveLength(0);
       expect((result?.express as { type: string }[]).map(({ type }) => type)).toEqual(expectedExpressTypes);
     });
 
-    test('anonymous session — ACH excluded from base components', async () => {
-      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cartAnonymous.id);
-      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cartAnonymous as Cart);
-      const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
-      expect((result?.components as { type: string }[])?.map(({ type }) => type)).toEqual(expectedBaseTypesAnonymous);
-    });
-
     test('without merchant account — returns base components only', async () => {
-      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cartWithCustomer.id);
-      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cartWithCustomer);
       const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
       const components = result?.components;
-      expect((components as { type: string }[])?.map(({ type }) => type)).toEqual(expectedBaseTypesLoggedIn);
+      expect((components as { type: string }[])?.map(({ type }) => type)).toEqual(expectedBaseTypes);
       expect(result?.dropins).toHaveLength(0);
       expect((result?.express as { type: string }[]).map(({ type }) => type)).toEqual(expectedExpressTypes);
     });
@@ -237,12 +225,10 @@ describe('braintree-payment.service', () => {
       jest
         .spyOn(Config, 'getConfig')
         .mockReturnValueOnce({ ...Config.getConfig(), merchantAccountId: 'test-merchant-account' });
-      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cartWithCustomer.id);
-      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cartWithCustomer);
       const result: ConfigResponse = await paymentService.getSupportedPaymentComponents();
       const components = result?.components;
       expect((components as { type: string }[])?.map(({ type }) => type)).toEqual([
-        ...expectedBaseTypesLoggedIn,
+        ...expectedBaseTypes,
         ...expectedLocalTypes,
       ]);
       expect(result?.dropins).toHaveLength(0);
