@@ -1,6 +1,6 @@
 # Braintree Enabler
 
-The enabler is the frontend component library for the commercetools Checkout-compatible Braintree connector. Together with the `processor` module, it replaces the functionality of the discontinued [`braintree-commercetools-client`](https://www.npmjs.com/package/braintree-commercetools-client) npm package. The enabler renders the buttons and talks to the browser-side Braintree/PayPal SDKs, and the `processor` module handles server-side (creating commercetools payments, calling Braintree, syncing state back to commercetools).
+The enabler is the frontend component library for the commercetools Checkout-compatible Braintree connector. It renders payment buttons and talks to the browser-side Braintree/PayPal SDKs; together with the `processor` module, which handles server-side logic (creating commercetools payments, calling Braintree, syncing state back to commercetools), it forms the checkout mode integration.
 
 `BraintreePaymentEnabler` (`src/payment-enabler/payment-enabler-braintree.ts`) is the entry point. It fetches configuration from the processor (`GET /operations/config`) at construction time, then exposes three builder factories:
 

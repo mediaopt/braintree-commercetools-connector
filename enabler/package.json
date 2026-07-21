@@ -1,5 +1,5 @@
 {
-  "name": "braintree-commercetools-client",
+  "name": "payment-enabler-braintree",
   "version": "0.01.29",
   "private": false,
   "type": "module",
