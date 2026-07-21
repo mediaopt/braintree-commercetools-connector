@@ -11,7 +11,7 @@ This is a checkout compatible [connect application](https://marketplace.commerce
 
 [PayPal Braintree commercetools connector](https://marketplace.commercetools.com/integration/paypal-braintree) is available in the commercetools marketplace.
 
-The payments demo and integration to the commercetools frontend can be seen at https://mediaopt.github.io/braintree-demo and [github](https://github.com/mediaopt/braintree-demo).
+The payments demo can be seen at https://mediaopt.github.io/braintree-demo and [GitHub](https://github.com/mediaopt/braintree-demo).
 
 ## For Existing Users
 
@@ -24,10 +24,10 @@ The payments demo and integration to the commercetools frontend can be seen at h
 - If you deploy the connector yourself (both via commercetools connect API and using other services)
   - you **can**:
     - remove the processor and enabler parts from connect.yaml to speed up the installation.
-    - if processor and enabler are removed you can also remove the processor and enabler modules from your repository. common-connect is now required for the extension module.
+    - if processor and enabler are removed you can also remove the processor and enabler modules from your repository. common-connect should remain as is now required for the extension module.
   - if you don't use npm (i.e. use **yarn**) as package manager - you **must** replace the imports for common-connect module in the braintree-extension and processor (if it is not removed already) with the package manager standard, (i.e. for yarn: "common-connect": "link:../common-connect").
 
-### Using the [braintree npm client](https://www.npmjs.com/package/braintree-commercetools-client)
+### Using the [Braintree npm client](https://www.npmjs.com/package/braintree-commercetools-client)
 
 The client is discontinued due to low interest. The core functionality is transferred to the checkout compatible connector edition enabler and processor modules. The following functionality is not included in this build:
 
@@ -44,9 +44,9 @@ The connector includes a checkout mode for faster, streamlined payment processin
 
 - **PayPal SDK Frontend**: The enabler module provides a frontend based on the PayPal SDK for quick checkout integration.
 - **Performance Optimized**: The processor module uses the Commercetools Checkout API for faster cart and payment API interactions.
-- **Limited API Scope**: Some operations available in connector mode (extension module) are not implemented in checkout mode because they are handled directly or not supported by Braintree frontend components.
+- **Limited Scope**: The processor is designed to be used together with the `enabler` to drive the [checkout flow](https://docs.commercetools.com/learning-implement-checkout/implement-commercetools-checkout/intro-to-commercetools-checkout); the only part of the processor API meant to be triggered manually, not through the enabler, is the [Payment Intents API](https://docs.commercetools.com/checkout/payment-intents-api) (`POST /operations/payment-intents/:id`) — see the "Checkout" → "Payment Intents" folder of the [Postman collection](docs/Braintree.postman_collection.json) for request examples.
 
-**Note**: The main purpose of processor and enabler modules is to provide full compatibility with commercetools checkout. Previously existing fine-grained API control and customization is still available via extension module. 
+**Note**: The main purpose of processor and enabler modules is to provide full compatibility with commercetools checkout. Previously existing fine-grained API control and customization is still available via extension module.
 
 To be fully compatible with the checkout SDK, the PayPal Express button supports deferred cart creation: when no cart exists yet (e.g. a product page or mini-cart button), it creates the commercetools cart on first click, immediately before the payment sheet opens.
 
@@ -56,24 +56,26 @@ To use the checkout compatible connector please create a checkout application in
 
 #### Payment methods and their restrictions
 
-| Category | Method | `paymentMethodType` value | Country requirement | Currency requirement |
-|---|---|---|---|---|
-| Standard | Credit Card | `CreditCard` | None enforced by the connector | None enforced by the connector |
-| Standard | PayPal | `PayPal` | None enforced by the connector | None enforced by the connector |
-| Standard | Google Pay | `GooglePay` | None enforced by the connector | None enforced by the connector |
-| Standard | Apple Pay | `ApplePay` | None enforced by the connector | None enforced by the connector |
-| Standard | Venmo | `Venmo` | None enforced by the connector | None enforced by the connector |
-| Standard | ACH | `ACH` | US bank account by design; no country code is checked in code | None enforced by the connector |
-| Stored | Credit Card (saved) | `CreditCardStored` | None enforced by the connector | None enforced by the connector |
-| Express | PayPal Buy Now | `PayPal` (via the express builder) | None enforced by the connector | None enforced by the connector |
-| Local | Bancontact | `bancontact` | BE | EUR |
-| Local | Blik | `blik` | PL | PLN |
-| Local | EPS | `eps` | AT | EUR |
-| Local | iDEAL | `ideal` | NL | EUR |
-| Local | MyBank | `mybank` | IT | EUR |
-| Local | Przelewy24 | `p24` | PL | EUR or PLN |
+| Category | Method              | previous name (npm client)         | checkout reference | Country requirement                                           | Currency requirement           | Recommended predicates                                                                          |
+| -------- | ------------------- | ---------------------------------- | ------------------ | ------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Standard | Credit Card         | `CreditCard`                       | `card`             | None enforced by the connector                                | None enforced by the connector | None needed                                                                                       |
+| Standard | PayPal              | `PayPal`                           | `paypal`           | None enforced by the connector                                | None enforced by the connector | None needed                                                                                       |
+| Standard | Google Pay          | `GooglePay`                        | `googlepay`        | None enforced by the connector                                | None enforced by the connector | None needed                                                                                       |
+| Standard | Apple Pay           | `ApplePay`                         | `applepay`         | None enforced by the connector                                | None enforced by the connector | None needed                                                                                       |
+| Standard | Venmo               | `Venmo`                            | *Venmo*¹           | None enforced by the connector                                | None enforced by the connector | None needed                                                                                       |
+| Standard | ACH                 | `ACH`                              | *ACH*¹             | US bank account by design; no country code is checked in code | None enforced by the connector | `customerId != null and billingAddress.country = "US"` (ACH requires a logged-in, vaultable customer) |
+| Stored   | Credit Card (saved) | `CreditCardStored`                 | `card`             | None enforced by the connector                                | None enforced by the connector | None needed                                                                                       |
+| Express  | PayPal Buy Now      | `PayPal` (via the express builder) | `paypal`           | None enforced by the connector                                | None enforced by the connector | None needed                                                                                       |
+| Local    | Bancontact          | `bancontact`                       | `bancontactcard`   | BE                                                            | EUR                            | `billingAddress.country = "BE" and totalPrice.currencyCode = "EUR"`                                |
+| Local    | Blik                | `blik`                             | `blik`             | PL                                                            | PLN                            | `billingAddress.country = "PL" and totalPrice.currencyCode = "PLN"`                                |
+| Local    | EPS                 | `eps`                              | `eps`              | AT                                                            | EUR                            | `billingAddress.country = "AT" and totalPrice.currencyCode = "EUR"`                                |
+| Local    | iDEAL               | `ideal`                            | `ideal`            | NL                                                            | EUR                            | `billingAddress.country = "NL" and totalPrice.currencyCode = "EUR"`                                |
+| Local    | MyBank              | `mybank`                           | *mybank*¹          | IT                                                            | EUR                            | `billingAddress.country = "IT" and totalPrice.currencyCode = "EUR"`                                |
+| Local    | Przelewy24          | `p24`                              | `przelewy24`       | PL                                                            | EUR or PLN                     | `billingAddress.country = "PL" and (totalPrice.currencyCode = "EUR" or totalPrice.currencyCode = "PLN")` |
 
-This is your responsibility to configure in the merchant center->checkout application->payment integration the relevant payment methods based on your Braintree account settings and Payment integration conditions via predicates for each method based on your shop requirements. 
+¹ Venmo, ACH, and MyBank don't have a commercetools Checkout key yet, so no UI defaults are provided at the moment in merchant center. These methods are supposed to be included in future commercetools releases and when the proper key will be available the merchant center reference will be set to match.
+
+This is your responsibility to configure in the merchant center → checkout application → payment integration the relevant payment methods based on your Braintree account settings, using [payment integration predicates](https://docs.commercetools.com/checkout/payment-integration-predicates#predicate-syntax) — the connector doesn't enforce any of these server-side. The "Recommended predicates" column above shows a starting point for each method: for local payment methods, it's the country/currency pairing the method is fixed to; for ACH, it restricts the method to logged-in customers, since ACH requires vaulting to a Braintree customer and a guest checkout can't complete it even though this connector doesn't block guests from seeing the option.
 
 Express methods only include PayPal Buy Now today.
 
@@ -107,7 +109,6 @@ BRAINTREE_BUTTON_STYLES={"paypal":{"buttonColor":"gold","buttonLabel":"pay","sha
 BRAINTREE_PER_METHOD_CONFIG={"googlePay":{"googleMerchantId":"[your-google-merchant-id]","acquirerCountryCode":"[merchant-country-code]"},"venmo":{"profileId":"[optional-venmo-profile-id]"},"creditCard":{"vaultLabel":"Save my card"},"paypal":{"vaultLabel":"Save my PayPal account"}}
 ```
 
-
 ## Prerequisites
 
 To use the connector you need to have the following:
@@ -118,7 +119,7 @@ To use the connector you need to have the following:
   - client ID (CTP_CLIENT_ID) - the ID of your commercetools API client
   - client secret (CTP_CLIENT_SECRET) - the secret of your commercetools API client
   - scope (CTP_SCOPE) - the scope of your commercetools API client
-- [Braintree merchant account](https://developer.paypal.com/braintree/articles/get-started/overview) and [Braintee gateway credentials](https://developer.paypal.com/braintree/articles/control-panel/important-gateway-credentials), namely:
+- [Braintree merchant account](https://developer.paypal.com/braintree/articles/get-started/overview) and [Braintree gateway credentials](https://developer.paypal.com/braintree/articles/control-panel/important-gateway-credentials), namely:
   - merchant ID (BRAINTREE_MERCHANT_ID)
   - public key (BRAINTREE_PUBLIC_KEY)
   - private key (BRAINTREE_PRIVATE_KEY)
@@ -132,6 +133,12 @@ Please set the following parameters according to your project requirements:
 - BRAINTREE_PAYPAL_DESCRIPTION
 - BRAINTREE_VALIDATE_CARD
 - BRAINTREE_AUTOCAPTURE
+
+### Braintree webhooks
+
+The `braintree-notifications` module listens for [Braintree webhooks](https://developer.paypal.com/braintree/docs/guides/webhooks/overview); the connector currently supports listening for local payment methods and ACH Direct Debit notifications.
+
+The URL required to enable these webhooks on the Braintree side is only available once the connector is installed: in the merchant center, go to the connector installation page → **Apps** → `braintree-notifications` to find it.
 
 ### Checkout options
 
@@ -170,6 +177,7 @@ correspondingly.
 - `cd common-connect`
 - run `npm install` to install the dependencies
 - run `build` to install the dependencies
+- `cd ..`
 - run `docker compose up` to start the local JWT mock server, enabler and processor.
 
 ## Technology Stack
