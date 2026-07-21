@@ -466,18 +466,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const localComponents = hasMerchantAccount
       ? Object.values(LocalPaymentMethodType).map((type) => ({ type: toPaymentMethodIconKey(type) }))
       : [];
-    // ACH requires vaulting to a customer account — only available for logged-in sessions.
-    // This route is JWT-authenticated; getCartIdFromContext() returns undefined for JWT auth
-    // (it only extracts cartId from SessionAuthentication). Guard before fetching.
-    const cartId = getCartIdFromContext();
-    const achComponents =
-      cartId && (await this.ctCartService.getCart({ id: cartId })).customerId
-        ? [{ type: toPaymentMethodIconKey(PaymentMethodType.ACH) }]
-        : [];
     return {
       dropins: [],
       components: [
-        ...achComponents,
+        // ACH requires vaulting to a customer account, but this discovery endpoint is
+        // JWT-authenticated (no cart/customer in context) so that can't be checked here —
+        // merchants restrict ACH to logged-in customers via a `customerId != null` payment
+        // integration predicate in the merchant center instead (see README).
+        { type: toPaymentMethodIconKey(PaymentMethodType.ACH) },
         { type: toPaymentMethodIconKey(PaymentMethodType.APPLE_PAY) },
         { type: toPaymentMethodIconKey(PaymentMethodType.CREDIT_CARD) },
         { type: toPaymentMethodIconKey(PaymentMethodType.GOOGLE_PAY) },
