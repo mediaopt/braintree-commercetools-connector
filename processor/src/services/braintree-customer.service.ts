@@ -11,6 +11,7 @@ import {
 import {
   createCustomer,
   createPaymentMethod,
+  findCustomer,
   mapCTCustomerToNewBraintreeCustomer,
   VAULT_BRAINTREE_OPTIONS,
 } from 'common-connect';
@@ -99,6 +100,18 @@ export class BraintreeCustomerService {
   }
 
   /**
+   * Optimistic lookup used to self-heal a missing/stale `braintreeCustomerId`: resolves to the id of
+   * a Braintree customer matching `ctCustomerId`, or undefined if none exists or the lookup fails.
+   * Silent on failure by design — a miss is the expected, common case for a genuinely new customer,
+   * not something worth a warning on every call.
+   */
+  private async findExistingBraintreeCustomerId(ctCustomerId: string): Promise<string | undefined> {
+    return findCustomer(ctCustomerId)
+      .then((c) => c.id)
+      .catch(() => undefined);
+  }
+
+  /**
    * Vaults a payment method nonce under the given Braintree customer, creating the customer first
    * if needed. Adapted from the disabled pureVault() feature to return token and verified status
    * instead of a generic success response.
@@ -117,28 +130,66 @@ export class BraintreeCustomerService {
     braintreeCustomerId?: string;
     ctCustomerId?: string;
   }): Promise<{ token: string; verified: boolean }> {
-    let paymentMethod: PaymentMethod;
-
-    if (!braintreeCustomerId) {
-      if (!ctCustomerId) throw new ErrorInvalidOperation('ctCustomerId is required when no Braintree customer exists');
-      const ctCustomer = await this.getCtCustomer(ctCustomerId);
-      if (!ctCustomer) throw new ErrorInvalidOperation(`Customer ${ctCustomerId} not found`);
-      // Creates a new Braintree customer and vaults the payment method in one call.
-      // createCustomer already unwraps response.customer — returns BraintreeCustomer directly.
-      const btCustomer = (await createCustomer({
-        ...mapCTCustomerToNewBraintreeCustomer(ctCustomer),
-        paymentMethodNonce,
-      })) as BraintreeCustomer;
-      // Link the new Braintree customer ID back to CT so stored payment methods work in future sessions
-      void this.linkBraintreeCustomerId(ctCustomerId, btCustomer.id);
-      paymentMethod = btCustomer.paymentMethods?.[0] as PaymentMethod;
-    } else {
-      paymentMethod = (await createPaymentMethod({
-        customerId: braintreeCustomerId,
-        paymentMethodNonce,
-        options: VAULT_BRAINTREE_OPTIONS,
-      })) as PaymentMethod;
+    if (!braintreeCustomerId && !ctCustomerId) {
+      throw new ErrorInvalidOperation('ctCustomerId is required when no Braintree customer exists');
     }
+
+    // braintreeCustomerId is set by construction to equal the CT customer id whenever this connector
+    // creates the Braintree customer (mapCTCustomerToNewBraintreeCustomer) — but this field was wiped
+    // on connector redeploy. Optimistically look up a Braintree customer with a matching id whenever we
+    // have a CT customer id to check against — used both to self-heal the missing-id case below and as
+    // a drift check when braintreeCustomerId is already known. The CT customer itself is only needed
+    // for the missing-id case (to create a new Braintree customer if no match is found), so it's fetched
+    // in parallel only then rather than on every call.
+    const [ctCustomer, existingBtCustomerId] = await Promise.all([
+      !braintreeCustomerId && ctCustomerId ? this.getCtCustomer(ctCustomerId) : Promise.resolve(undefined),
+      ctCustomerId ? this.findExistingBraintreeCustomerId(ctCustomerId) : Promise.resolve(undefined),
+    ]);
+
+    let paymentMethod: PaymentMethod | undefined;
+    let resolvedCustomerId = braintreeCustomerId;
+
+    if (!resolvedCustomerId) {
+      if (!ctCustomer) throw new ErrorInvalidOperation(`Customer ${ctCustomerId} not found`);
+
+      if (existingBtCustomerId) {
+        // createCustomer below passes an explicit id, which Braintree rejects with a validation error
+        // if that id is already taken — a matching Braintree customer here means the redeploy-wipe bug
+        // hit this customer, not that they're new, so re-link instead of attempting to create a duplicate.
+        log.warn(
+          `vaultPaymentMethodForCustomer: braintreeCustomerId missing for customer ${ctCustomerId} but a matching Braintree customer exists — re-linking`,
+        );
+        resolvedCustomerId = existingBtCustomerId;
+      } else {
+        // Creates a new Braintree customer and vaults the payment method in one call.
+        // createCustomer already unwraps response.customer — returns BraintreeCustomer directly.
+        const btCustomer = (await createCustomer({
+          ...mapCTCustomerToNewBraintreeCustomer(ctCustomer),
+          paymentMethodNonce,
+        })) as BraintreeCustomer;
+        paymentMethod = btCustomer.paymentMethods?.[0] as PaymentMethod;
+        resolvedCustomerId = btCustomer.id;
+      }
+      // Link the Braintree customer ID back to CT so stored payment methods work in future sessions —
+      // covers both the re-link (found existing) and brand-new-customer cases above. ctCustomerId is
+      // guaranteed defined here: resolvedCustomerId (a copy of braintreeCustomerId) is falsy in this
+      // branch, and the guard at the top of this method already ruled out both being missing.
+      void this.linkBraintreeCustomerId(ctCustomerId!, resolvedCustomerId);
+    } else if (existingBtCustomerId && existingBtCustomerId !== resolvedCustomerId) {
+      // braintreeCustomerId already known but doesn't match a Braintree customer with the CT customer's
+      // id — informational only, doesn't change which customer we vault onto.
+      log.warn(
+        `vaultPaymentMethodForCustomer: braintreeCustomerId mismatch for customer ${ctCustomerId} — stored "${resolvedCustomerId}", found Braintree customer "${existingBtCustomerId}"`,
+      );
+    }
+
+    // createCustomer above already vaults the nonce as part of customer creation; every other path
+    // (found-existing or already-known customer) still needs this explicit call.
+    paymentMethod ??= (await createPaymentMethod({
+      customerId: resolvedCustomerId,
+      paymentMethodNonce,
+      options: VAULT_BRAINTREE_OPTIONS,
+    })) as PaymentMethod;
 
     if (!paymentMethod) throw new ErrorInvalidOperation('Braintree did not return a payment method after vaulting');
 
