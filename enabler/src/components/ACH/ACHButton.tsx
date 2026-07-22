@@ -18,6 +18,7 @@ export const ACHButton: FC<ACHButtonProps> = ({
   onRegisterSubmit,
   onRegisterValidation,
   pendingVerificationText,
+  onError,
 }: ACHButtonProps) => {
   return (
     <ACHMask
@@ -30,6 +31,7 @@ export const ACHButton: FC<ACHButtonProps> = ({
       onRegisterSubmit={onRegisterSubmit}
       onRegisterValidation={onRegisterValidation}
       pendingVerificationText={pendingVerificationText}
+      onError={onError}
     />
   );
 };
