@@ -19,6 +19,7 @@ export const CreditCardButton: FC<CreditCardButton> = ({
   // PURE_VAULT_DISABLED: isPureVault,
   onRegisterSubmit,
   onRegisterValidation,
+  onError,
 }: CreditCardButton) => {
 
   return (
@@ -36,6 +37,7 @@ export const CreditCardButton: FC<CreditCardButton> = ({
       // PURE_VAULT_DISABLED: isPureVault={isPureVault}
       onRegisterSubmit={onRegisterSubmit}
       onRegisterValidation={onRegisterValidation}
+      onError={onError}
     />
   );
 };

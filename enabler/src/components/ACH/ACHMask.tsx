@@ -70,6 +70,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   onRegisterSubmit,
   onRegisterValidation,
   pendingVerificationText = DEFAULT_PENDING_VERIFICATION_TEXT,
+  onError,
 }: ACHMaskProps) => {
   const {
     handleTransactionSale,
@@ -184,6 +185,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
       function (clientErr, clientInstance) {
         if (clientErr) {
           notify("Error", `Error creating client ${clientErr.message}`);
+          onError?.({ code: clientErr.code, message: clientErr.message });
           isLoading(false);
           return;
         }
@@ -198,8 +200,12 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                 "Error",
                 "There was an error creating the USBankAccount instance.",
               );
+              onError?.({
+                code: usBankAccountErr.code,
+                message: usBankAccountErr.message,
+              });
               isLoading(false);
-              throw usBankAccountErr;
+              return;
             }
 
             dataCollector.create(
@@ -230,8 +236,12 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                     "Error",
                     `There was an error tokenizing the bank details, ${tokenizeErr}`,
                   );
+                  onError?.({
+                    code: tokenizeErr.code,
+                    message: tokenizeErr.message,
+                  });
                   isLoading(false);
-                  throw tokenizeErr;
+                  return;
                 }
 
                 const vaultResponse = await processorRequest<
@@ -248,6 +258,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                   token: vaultToken,
                   verified,
                   merchantReturnUrl,
+                  message: vaultErrorMessage,
                 } = vaultResponse || {};
 
                 if (!vaultToken) {
@@ -255,6 +266,12 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                     "Error",
                     "There is an error in vaulting the bank account.",
                   );
+                  onError?.({
+                    code: "ACH_VAULT_FAILED",
+                    message:
+                      vaultErrorMessage ??
+                      "There is an error in vaulting the bank account.",
+                  });
                   isLoading(false);
                   return;
                 }

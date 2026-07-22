@@ -1,6 +1,7 @@
 import { DropinType, PaymentDropinBuilder } from "./dropin";
 import { PaymentExpressBuilder } from "./express";
 import { StoredComponentBuilder, StoredPaymentMethod } from "./stored";
+import { GenericError } from "../../types";
 
 /**
  * Represents the payment enabler. The payment enabler is the entry point for creating the components.
@@ -280,4 +281,10 @@ export type ComponentOptions = {
    * @returns A Promise indicating whether the payment should proceed.
    */
   onPayButtonClick?: () => Promise<{ storePaymentDetails?: boolean }>;
+
+  /**
+   * A callback function that is called when the component encounters an error
+   * (e.g. a Braintree tokenization failure).
+   */
+  onError?: (error: GenericError) => void;
 };

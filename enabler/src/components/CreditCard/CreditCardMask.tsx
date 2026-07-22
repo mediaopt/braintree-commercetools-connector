@@ -39,6 +39,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   // PURE_VAULT_DISABLED: isPureVault = false,
   onRegisterSubmit,
   onRegisterValidation,
+  onError,
 }) => {
   const {
     handleTransactionSale,
@@ -102,6 +103,10 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
         if (response.threeDSecureInfo.status !== "authenticate_successful") {
           isLoading(false);
           notify("Error", "Could not authenticate");
+          onError?.({
+            code: "3DS_AUTHENTICATION_FAILED",
+            message: `Could not authenticate: ${response.threeDSecureInfo.status}`,
+          });
           return;
         }
         if (response.threeDSecureInfo.liabilityShifted) {
@@ -142,6 +147,10 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
         } else {
           notify("Error", "Something went wrong - try again");
         }
+        onError?.({
+          code: error?.code ?? "THREEDS_VERIFY_FAILED",
+          message: error?.message ?? "Something went wrong - try again",
+        });
       });
   };
 
@@ -212,12 +221,17 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           isLoading(false);
           notify("Error", "Something went wrong.");
           console.error(err);
+          onError?.({ code: err.code, message: err.message });
           return;
         }
 
         if (!hostedFieldsInstance) {
           isLoading(false);
           notify("Error", "Credit card fields are not available.");
+          onError?.({
+            code: "HOSTED_FIELDS_UNAVAILABLE",
+            message: "Credit card fields are not available.",
+          });
           return;
         }
         hostedFieldsInstance.on("notEmpty", function (event) {
@@ -298,6 +312,12 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
                     "Error",
                     "Something went wrong. Check your card details and try again.",
                   );
+                  onError?.({
+                    code: err?.code ?? "TOKENIZE_FAILED",
+                    message:
+                      err?.message ??
+                      "Something went wrong. Check your card details and try again.",
+                  });
                   return reject(err);
                 }
 
