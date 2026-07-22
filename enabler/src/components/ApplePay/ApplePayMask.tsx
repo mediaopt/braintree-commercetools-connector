@@ -32,11 +32,6 @@ export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
 
   useEffect(() => {
     if (!clientToken) {
-      // TODO: remove before production — this effect previously returned silently whenever
-      // clientToken wasn't available yet, giving no signal that the Apple Pay button is stuck
-      // waiting on it (as opposed to failing the device/browser capability check in
-      // ApplePayButton.tsx, or failing braintreeClient.create/applePay.create below).
-      notify("Info", "Apple Pay debug: waiting on clientToken, cannot initialize Braintree client yet.");
       return;
     }
     isLoading(true);
@@ -61,11 +56,6 @@ export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
               return;
             }
 
-            // TODO: remove before production — confirms the full chain (capability check ->
-            // clientToken -> braintreeClient.create -> applePay.create) completed successfully;
-            // if the button still doesn't render after this fires, the problem is in the render
-            // condition/CSS below, not Braintree/device eligibility.
-            notify("Info", "Apple Pay debug: applePayInstance created successfully, button should render now.");
             setApplePayInstanceState(applePayInstance);
           },
         );
@@ -149,7 +139,7 @@ export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
             }
           }}
           type="button"
-          className="w-full justify-center text-white bg-primary-900 focus:ring-4 focus:ring-[#050708]/50 font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:focus:ring-gray-600 mr-2 mb-2"
+          className="w-full justify-center text-white bg-black focus:ring-4 focus:ring-[#050708]/50 font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:focus:ring-gray-600 mr-2 mb-2"
         >
           Check out with Apple Pay
           <svg

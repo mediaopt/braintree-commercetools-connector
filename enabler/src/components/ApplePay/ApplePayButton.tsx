@@ -25,19 +25,14 @@ export const ApplePayButton: FC<ApplePayButtonProps> = ({
       } else {
         if (isApplePaySupported()) {
           setApplyPaySupport(true);
-          // TODO: remove before production — temporary confirmation that the device/browser
-          // capability check passed, so failures further down the chain (clientToken,
-          // applePay.create) aren't confused with this check.
-          notify("Info", "Apple Pay debug: device/browser capability check passed (canMakePayments true).");
         } else {
-          // TODO: remove before production — this branch was previously silent: ApplePaySession
-          // existed but canMakePayments() returned false, so the button never appeared and nothing
-          // told you why. Common causes: no card in Apple Wallet, Apple Pay disabled in Settings,
-          // no Face ID/Touch ID enrolled, Private Browsing, or an Apple ID region that doesn't
-          // support Apple Pay.
+          // canMakePayments() false — common cause is no card in Apple Wallet (also: Apple Pay
+          // disabled in Settings, no Face ID/Touch ID enrolled, Private Browsing, or an Apple ID
+          // region that doesn't support Apple Pay).
+          // If you're testing in sandbox and don't see the button, make sure at least one valid card is added to Apple Wallet.
           notify(
-            "Error",
-            "Apple Pay debug: ApplePaySession exists but canMakePayments() returned false — device/browser is not eligible right now.",
+            "Info",
+            "Apple Pay isn't available on this device/browser right now.",
           );
         }
       }
