@@ -35,9 +35,8 @@ export const PayPalExpressStyleProps = {
   ...PayPalCommonDefaultStyles,
   flow: "checkout" as FlowType,
   buttonLabel: "buynow" as ButtonLabelOption,
-  commit: true,
   shippingAddressEditable: true,
-  // payLater, intent, enableShippingAddress are fixed in RenderTemplate
+  // payLater, intent, enableShippingAddress, commit are fixed in RenderTemplate
 };
 
 /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
