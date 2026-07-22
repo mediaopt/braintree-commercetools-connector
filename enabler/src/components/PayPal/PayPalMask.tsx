@@ -308,6 +308,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                         height,
                       },
                       fundingSource: "paypal",
+                      commit,
                       createBillingAgreement: function () {
                         return paypalCheckoutInstance.createPayment({
                           flow: flow,
@@ -339,6 +340,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           height,
                         },
                         fundingSource: fundingSource,
+                        commit,
 
                         onShippingChange: async function (
                           data: any,

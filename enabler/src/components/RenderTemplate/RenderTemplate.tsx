@@ -44,8 +44,13 @@ const ComponentWithCustomOptions = ({
   // buttonStyleOverrides: from BRAINTREE_BUTTON_STYLES env var via processor /operations/config
   // perMethodConfig: from BRAINTREE_PER_METHOD_CONFIG env var via processor /operations/config
   // braintreeEnvironment: "Sandbox" | "Production" from processor config
-  const { buttonStyleOverrides, braintreeEnvironment, enableVaulting, perMethodConfig, ...restCustomOptions } =
-    customOptions;
+  const {
+    buttonStyleOverrides,
+    braintreeEnvironment,
+    enableVaulting,
+    perMethodConfig,
+    ...restCustomOptions
+  } = customOptions;
   const isSandbox = braintreeEnvironment !== "Production";
 
   switch (paymentMethodType) {
@@ -79,7 +84,8 @@ const ComponentWithCustomOptions = ({
       );
     case "PayPal":
       if (builderType === "express") {
-        // Express: shipping is handled through the PayPal flow — enableShippingAddress, payLater and intent are locked
+        // Express: shipping is handled through the PayPal flow — enableShippingAddress, payLater,  intent and commit are locked
+        //commit is locked because the cart is updated on flight and buyer sees the actual final amount at the PayPal side
         return (
           <PayPalButton
             {...PayPalExpressStyleProps}
@@ -89,10 +95,12 @@ const ComponentWithCustomOptions = ({
             enableShippingAddress={true}
             payLater={false}
             intent={"capture" as Intent}
+            commit={true}
           />
         );
       }
-      // Standard: address must be set externally — no address/shipping changes through PayPal
+      // Standard: address must be set externally — no address/shipping changes through PayPal.
+      // commit hardcoded as the final value is submitted to PayPal directly
       return (
         <PayPalButton
           flow={"checkout" as FlowType}
@@ -103,6 +111,7 @@ const ComponentWithCustomOptions = ({
           vaultLabel={perMethodConfig?.paypal?.vaultLabel}
           enableShippingAddress={false}
           shippingAddressEditable={false}
+          commit={true}
         />
       );
     case "Venmo":
@@ -164,7 +173,14 @@ const ComponentWithCustomOptions = ({
           />
         );
       }
-      return <CreditCardButton {...buttonStyleOverrides?.creditCard} {...restCustomOptions} enableVaulting={enableVaulting} vaultLabel={perMethodConfig?.creditCard?.vaultLabel} />;
+      return (
+        <CreditCardButton
+          {...buttonStyleOverrides?.creditCard}
+          {...restCustomOptions}
+          enableVaulting={enableVaulting}
+          vaultLabel={perMethodConfig?.creditCard?.vaultLabel}
+        />
+      );
   }
 };
 
