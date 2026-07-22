@@ -1020,9 +1020,16 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * @returns PaymentUpdateResponseSchemaDTO
    */
   async refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<PaymentUpdateResponseSchemaDTO> {
-    const relevantTransactionId =
-      request.transactionId || findSuitableTransactionId({ payment: request.payment }, 'Charge');
     const { payment: ctPayment, amount } = request;
+    // findSuitableTransactionId throws when no matching transaction exists — treat that the same as
+    // "not found" here so this method's own, payment-id-specific error message is what's surfaced.
+    let relevantTransactionId: string | undefined;
+    try {
+      relevantTransactionId =
+        request.transactionId || findSuitableTransactionId({ payment: request.payment }, 'Charge');
+    } catch {
+      relevantTransactionId = undefined;
+    }
     if (!relevantTransactionId) {
       throw new ErrorInvalidOperation(
         `No suitable for refund transaction found for payment ${ctPayment.id}. Target transaction id: ${relevantTransactionId}`,
@@ -1057,7 +1064,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
   async void(request: CancelPaymentRequest): Promise<PaymentUpdateResponseSchemaDTO> {
     const { payment: ctPayment } = request;
-    const transactionId = findSuitableTransactionId({ payment: ctPayment }, 'Authorization');
+    // findSuitableTransactionId throws when no matching transaction exists — treat that the same as
+    // "not found" here so this method's own, payment-id-specific error message is what's surfaced.
+    let transactionId: string | undefined;
+    try {
+      transactionId = findSuitableTransactionId({ payment: ctPayment }, 'Authorization');
+    } catch {
+      transactionId = undefined;
+    }
     if (!transactionId) {
       throw new ErrorInvalidOperation(
         `No suitable for void transaction found for payment ${ctPayment.id}. Target transaction id: ${transactionId}`,

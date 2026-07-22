@@ -87201,8 +87201,33 @@
 						{
 							"name": "Manage Payment by id",
 							"request": {
+								"auth": {
+									"type": "oauth2",
+									"oauth2": [
+										{
+											"key": "accessToken",
+											"value": "{{ctp_access_token}}",
+											"type": "string"
+										},
+										{
+											"key": "addTokenTo",
+											"value": "header",
+											"type": "string"
+										},
+										{
+											"key": "tokenType",
+											"value": "Bearer",
+											"type": "string"
+										}
+									]
+								},
 								"method": "POST",
-								"header": [],
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
 								"body": {
 									"mode": "raw",
 									"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"capturePayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
@@ -87213,16 +87238,17 @@
 									}
 								},
 								"url": {
-									"raw": "{{host}}/{{project-key}}/payment-intents/{{payment-id}}",
+									"raw": "{{checkout-host}}/{{project-key}}/payment-intents/{{payment-id}}",
 									"host": [
-										"{{host}}"
+										"{{checkout-host}}"
 									],
 									"path": [
 										"{{project-key}}",
 										"payment-intents",
 										"{{payment-id}}"
 									]
-								}
+								},
+								"description": "This is called on the commercetools Checkout host (`{{checkout-host}}`, e.g. `https://checkout.<region>.commercetools.com`) — a different host from `{{host}}` used elsewhere in this collection. Checkout forwards the request to this connector's own `POST /operations/payment-intents/:id` route. Requires an OAuth2 token with the `manage_checkout_payment_intents:{{project-key}}` and `manage_projects:{{project-key}}` scopes."
 							},
 							"response": [
 								{
@@ -87246,9 +87272,9 @@
 											}
 										},
 										"url": {
-											"raw": "{{host}}/{{project-key}}/payment-intents/{{payment-id}}",
+											"raw": "{{checkout-host}}/{{project-key}}/payment-intents/{{payment-id}}",
 											"host": [
-												"{{host}}"
+												"{{checkout-host}}"
 											],
 											"path": [
 												"{{project-key}}",
@@ -87275,7 +87301,7 @@
 										],
 										"body": {
 											"mode": "raw",
-											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"refundPayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"transactionId\": {{transaction-id}},\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"refundPayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"transactionId\": \"{{transaction-id}}\",\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -87283,9 +87309,9 @@
 											}
 										},
 										"url": {
-											"raw": "{{host}}/{{project-key}}/payment-intents/{{payment-id}}",
+											"raw": "{{checkout-host}}/{{project-key}}/payment-intents/{{payment-id}}",
 											"host": [
-												"{{host}}"
+												"{{checkout-host}}"
 											],
 											"path": [
 												"{{project-key}}",
@@ -87320,9 +87346,9 @@
 											}
 										},
 										"url": {
-											"raw": "{{host}}/{{project-key}}/payment-intents/{{payment-id}}",
+											"raw": "{{checkout-host}}/{{project-key}}/payment-intents/{{payment-id}}",
 											"host": [
-												"{{host}}"
+												"{{checkout-host}}"
 											],
 											"path": [
 												"{{project-key}}",
@@ -87349,7 +87375,7 @@
 										],
 										"body": {
 											"mode": "raw",
-											"raw": "{\n    \"action\": \"reversePayment\",\n    \"merchantReference\": \"example-reference\"\n}",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"reversePayment\",\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -87357,9 +87383,9 @@
 											}
 										},
 										"url": {
-											"raw": "{{host}}/{{project-key}}/payment-intents/{{payment-id}}",
+											"raw": "{{checkout-host}}/{{project-key}}/payment-intents/{{payment-id}}",
 											"host": [
-												"{{host}}"
+												"{{checkout-host}}"
 											],
 											"path": [
 												"{{project-key}}",

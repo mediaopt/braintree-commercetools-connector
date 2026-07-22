@@ -44,7 +44,7 @@ The connector includes a checkout mode for faster, streamlined payment processin
 
 - **PayPal SDK Frontend**: The enabler module provides a frontend based on the PayPal SDK for quick checkout integration.
 - **Performance Optimized**: The processor module uses the Commercetools Checkout API for faster cart and payment API interactions.
-- **Limited Scope**: The processor is designed to be used together with the `enabler` to drive the [checkout flow](https://docs.commercetools.com/learning-implement-checkout/implement-commercetools-checkout/intro-to-commercetools-checkout); the only part of the processor API meant to be triggered manually, not through the enabler, is the [Payment Intents API](https://docs.commercetools.com/checkout/payment-intents-api) (`POST /operations/payment-intents/:id`) — see the "Checkout" → "Payment Intents" folder of the [Postman collection](docs/Braintree.postman_collection.json) for request examples.
+- **Limited Scope**: The processor is designed to be used together with the `enabler` to drive the [checkout flow](https://docs.commercetools.com/learning-implement-checkout/implement-commercetools-checkout/intro-to-commercetools-checkout); the only part of the API meant to be triggered manually, not through the enabler, is the [Payment Intents API](https://docs.commercetools.com/checkout/payment-intents-api). Merchants call this on commercetools' own Checkout host (`checkout.<region>.commercetools.com/{projectKey}/payment-intents/{paymentId}`), which forwards the request internally to this connector's `POST /operations/payment-intents/:id` route — merchants should not call that route on the processor directly (see "Checkout mode" below for the local-testing exception). See the "Checkout" → "Payment Intents" folder of the [Postman collection](docs/Braintree.postman_collection.json) for request examples.
 
 **Note**: The main purpose of processor and enabler modules is to provide full compatibility with commercetools checkout. Previously existing fine-grained API control and customization is still available via extension module.
 
@@ -181,6 +181,8 @@ correspondingly.
 - run `build` to install the dependencies
 - `cd ..`
 - run `docker compose up` to start the local JWT mock server, enabler and processor.
+
+In production, the [Payment Intents API](https://docs.commercetools.com/checkout/payment-intents-api) is called on commercetools' own Checkout host, which forwards to the processor's `POST /operations/payment-intents/:id` route. Locally there's no Checkout host in front of the processor, so that route can be hit directly instead for testing.
 
 ## Technology Stack
 
