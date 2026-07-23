@@ -87,7 +87,13 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
                               totalPriceStatus: totalPriceStatus,
                               totalPrice:
                                 paymentInfo.braintreeAmount.toString(),
-                            },
+                              // @types/braintree-web's transactionInfo override type omits
+                              // countryCode even though it's a real, optional field of Google's
+                              // own TransactionInfo (ISO 3166-1 alpha-2; required for merchants
+                              // based in the EEA) that Braintree's Google Pay guide documents
+                              // passing through here.
+                              countryCode: effectiveAcquirerCountryCode,
+                            } as google.payments.api.TransactionInfo,
                           });
 
                         let cardPaymentMethod =

@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useState,
   FC,
   PropsWithChildren,
   useRef,
@@ -49,7 +48,10 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   } = usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
-  const [deviceData, setDeviceData] = useState("");
+  // useRef, not useState: submitPayment/verifyCardAndHandlePurchase are registered once via
+  // onRegisterSubmit inside the [client, threeDS] effect below, which only ever fires once — a
+  // state closure there would permanently see deviceData as "" from before the collector resolved.
+  const deviceDataRef = useRef("");
 
   const { client, threeDS } = useBraintreeClient();
 
@@ -86,7 +88,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
       lineItems?: BraintreeLineItem[];
       shipping?: BraintreeShipping;
     } = {
-      deviceData: deviceData,
+      deviceData: deviceDataRef.current,
     };
     if (shouldVault) {
       options.storeInVaultOnSuccess = true;
@@ -287,7 +289,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           },
           function (dataCollectorErr, dataCollectorInstance) {
             if (!dataCollectorErr && dataCollectorInstance) {
-              setDeviceData(dataCollectorInstance.deviceData);
+              deviceDataRef.current = dataCollectorInstance.deviceData;
             }
           },
         );

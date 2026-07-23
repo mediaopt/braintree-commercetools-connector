@@ -8,8 +8,7 @@ type PayPalButtonProps = PayPalProps & GeneralPayButtonProps;
 
 export const PayPalButton: FC<PayPalButtonProps> = ({
   // PURE_VAULT_DISABLED: isPureVault,
-  enableVaulting,
-  vaultLabel,
+  // PAYPAL_VAULT_DISABLED: enableVaulting, vaultLabel,
   onExpressPayButtonClick,
   onPaymentSubmit,
   fullWidth = true,
@@ -55,8 +54,7 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
       tagline={tagline}
       height={height}
       // PURE_VAULT_DISABLED: isPureVault={isPureVault}
-      enableVaulting={enableVaulting}
-      vaultLabel={vaultLabel}
+      // PAYPAL_VAULT_DISABLED: enableVaulting={enableVaulting} vaultLabel={vaultLabel}
       onExpressPayButtonClick={onExpressPayButtonClick}
       onPaymentSubmit={onPaymentSubmit}
     />
