@@ -18,7 +18,7 @@ import {
   PaymentInfo,
 } from "../../types";
 import { ExpressAddressData } from "../../payment-enabler/interfaces/express";
-import { HOSTED_FIELDS_LABEL } from "../../styles";
+// PAYPAL_VAULT_DISABLED: import { HOSTED_FIELDS_LABEL } from "../../styles";
 
 import { PayPalCheckoutLoadPayPalSDKOptions } from "braintree-web/paypal-checkout";
 
@@ -80,14 +80,17 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   tagline,
   height,
   // PURE_VAULT_DISABLED: isPureVault = false,
-  // enableVaulting is accepted (for prop-passing compatibility) but is currently inert — see
-  // PAYPAL_VAULT_DISABLED below; please open an issue if you are interested in this.
-  vaultLabel,
+  // PAYPAL_VAULT_DISABLED: enableVaulting, vaultLabel — see the disabled block further down;
+  // please open an issue if you are interested in vaulting a new PayPal account.
   onExpressPayButtonClick,
   onPaymentSubmit,
 }) => {
-  const [deviceData, setDeviceData] = useState("");
-  const paypalVaultCheckbox = useRef<HTMLInputElement>(null);
+  // useRef, not useState: handleOnApprove is bound once when the effect below runs and handed
+  // straight to the PayPal Buttons SDK (not React-managed), so a state closure there can
+  // permanently see deviceData as "" if the effect never re-runs after the collector resolves
+  // (e.g. PayPal Express deferred payment creation, where paymentInfo never changes post-mount).
+  const deviceDataRef = useRef("");
+  // PAYPAL_VAULT_DISABLED: const paypalVaultCheckbox = useRef<HTMLInputElement>(null);
   // Holds the real clientToken/paymentInfo returned by createExpressPayment (deferred mode only).
   // Read via ref, not React state, so setting it mid-click doesn't retrigger the bootstrap effect
   // below (which depends on paymentInfo/clientToken) while this same click is still in flight.
@@ -200,7 +203,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
           },
           function (dataCollectorErr, dataCollectorInstance) {
             if (!dataCollectorErr && dataCollectorInstance) {
-              setDeviceData(dataCollectorInstance.deviceData);
+              deviceDataRef.current = dataCollectorInstance.deviceData;
             }
           },
         );
@@ -265,11 +268,11 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                         }
 
                         handleTransactionSale(payload.nonce, {
-                          deviceData: deviceData,
+                          deviceData: deviceDataRef.current,
                           paypalOrderId: data.paymentId,
                           shipping: shipping,
-                          storeInVaultOnSuccess:
-                            paypalVaultCheckbox.current?.checked === true,
+                          // PAYPAL_VAULT_DISABLED: was paypalVaultCheckbox.current?.checked === true
+                          storeInVaultOnSuccess: false,
                           braintreePaymentDetails: {
                             braintreeLineItems:
                               real?.braintreeLineItems ??
@@ -484,10 +487,9 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
 
   /* PAYPAL_VAULT_DISABLED start — vaulting a new PayPal account is out of scope for this
   commercetools Checkout SDK build (it only supports storing/reusing credit cards). The logic
-  below works correctly and can be re-enabled for a custom (non-Checkout-SDK) frontend; forcing
-  showVaultCheckbox to false also suppresses storeInVaultOnSuccess further down, since the
-  checkbox ref never attaches when the checkbox isn't rendered. Please open an issue if you are
-  interested in vaulting a new PayPal account.
+  below (including the enableVaulting/vaultLabel props above and the checkbox JSX below) works
+  correctly and can be re-enabled for a custom (non-Checkout-SDK) frontend. Please open an issue
+  if you are interested in vaulting a new PayPal account.
   const showVaultCheckbox = useMemo(
     () =>
       enableVaulting &&
@@ -497,17 +499,18 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     [enableVaulting, braintreeCustomerId, flow],
   );
   PAYPAL_VAULT_DISABLED end */
-  const showVaultCheckbox = false;
 
   return (
     <div>
       <div id="paypal-button"></div>
+      {/* PAYPAL_VAULT_DISABLED start
       {showVaultCheckbox && (
         <label className={`${HOSTED_FIELDS_LABEL} mb-2`}>
           <input className="mr-3" ref={paypalVaultCheckbox} type="checkbox" />
           {vaultLabel ?? "Save my PayPal account"}
         </label>
       )}
+      PAYPAL_VAULT_DISABLED end */}
     </div>
   );
 };
