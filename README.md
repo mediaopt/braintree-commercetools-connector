@@ -104,10 +104,26 @@ Checkout has no UI to display them. Please open an issue if you are interested i
 Per-method button styling and functional identifiers (colors, labels, `googleMerchantId`, `venmo.profileId`, vault-checkbox label text, etc.) are configured on the processor via two environment variables and served to the enabler through `GET /operations/config` — see `processor/.env.template` for the full reference. Example values:
 
 ```
-BRAINTREE_BUTTON_STYLES={"paypal":{"buttonColor":"gold","buttonLabel":"pay","shape":"pill","size":"responsive"},"paypalExpress":{"buttonColor":"gold","buttonLabel":"buynow","shape":"pill","size":"responsive"},"ach":{"mandateText":"set your own ACH mandate text"},"applePay":{"applePayDisplayName":"set your own store name"},"googlePay":{"buttonTheme":"black","buttonType":"buy"},"venmo":{"desktopFlow":"desktopWebLogin"},"creditCard":{"showPostalCode":false}}
+BRAINTREE_BUTTON_STYLES={"paypal":{"buttonColor":"gold","buttonLabel":"pay","shape":"pill","size":"responsive"},"paypalExpress":{"buttonColor":"gold","buttonLabel":"buynow","shape":"pill","size":"responsive"},"applePay":{"applePayDisplayName":"set your own store name"},"googlePay":{"buttonTheme":"black","buttonType":"buy"},"venmo":{"desktopFlow":"desktopWebLogin"},"creditCard":{"showPostalCode":false}}
 
-BRAINTREE_PER_METHOD_CONFIG={"googlePay":{"googleMerchantId":"[your-google-merchant-id]","acquirerCountryCode":"[merchant-country-code]"},"venmo":{"profileId":"[optional-venmo-profile-id]"},"creditCard":{"vaultLabel":"Save my card"},"paypal":{"vaultLabel":"Save my PayPal account"}}
+BRAINTREE_PER_METHOD_CONFIG={"googlePay":{"googleMerchantId":"[your-google-merchant-id]","acquirerCountryCode":"[merchant-country-code]"},"venmo":{"profileId":"[optional-venmo-profile-id]"},"creditCard":{"vaultLabel":"Save my card"},"ach":{"businessName":"[your business name here]","actionLabel":"COMPLETE CHECKOUT"}}
 ```
+
+##### ACH
+
+The ACH mandate text shown to the shopper and sent to Braintree is built automatically using
+`businessName` and `actionLabel` above — providing `businessName` and keeping `actionLabel` in sync
+with your checkout button's label (if customized in the merchant center) is your responsibility.
+
+To fully replace the mandate text instead, set `ach.mandateText` under `BRAINTREE_BUTTON_STYLES` —
+when present, it's used verbatim. In that case, following
+[Braintree's ACH mandate text requirements](https://developer.paypal.com/braintree/docs/guides/ach/client-side/javascript/v3/)
+is your responsibility.
+
+##### Credit Card
+
+3D Secure verification is enabled by default. It can be disabled or reconfigured via your Braintree
+account's [Rules Manager](https://developer.paypal.com/braintree/docs/guides/3d-secure/rules-manager/javascript/v3/).
 
 ## Prerequisites
 
