@@ -126,9 +126,10 @@ type PayPalButtonStyleOverride = {
 // Shape must match BRAINTREE_BUTTON_STYLES env var in processor/src/config/config.ts
 export type ButtonStyleOverrides = {
   paypal?:        PayPalButtonStyleOverride & { payLater?: boolean; billingAgreementDescription?: string };
+  // payLaterButtonColor has no effect here — Express always forces payLater=false in RenderTemplate.tsx,
+  // so the "Pay Later" funding button branch that reads it never renders for the Express flow.
   paypalExpress?: PayPalButtonStyleOverride;
-  paypalVault?:   PayPalButtonStyleOverride;
-  ach?:           { mandateText?: string; pendingVerificationText?: string };
+  ach?:           { mandateText?: string };
   applePay?:      { applePayDisplayName?: string };
   googlePay?: {
     buttonTheme?: google.payments.api.ButtonColor;
@@ -164,8 +165,12 @@ export type PerMethodConfig = {
   creditCard?: {
     vaultLabel?: string;
   };
-  paypal?: {
-    vaultLabel?: string;
+  ach?: {
+    businessName?: string;
+    // Button-click label quoted inside the auto-generated mandate text (e.g. "COMPLETE CHECKOUT").
+    // If you customize the actual button label in the merchant center, you are responsible for
+    // setting this to match — this connector cannot read that label back to keep them in sync.
+    actionLabel?: string;
   };
 };
 
@@ -238,11 +243,8 @@ export type PayPalProps = {
   tagline?: boolean;
   height?: number;
   // PURE_VAULT_DISABLED: isPureVault?: boolean;
-  // Accepted and passed through for compatibility, but currently inert — see
-  // PAYPAL_VAULT_DISABLED in PayPalMask.tsx's showVaultCheckbox; please open an issue if you are
-  // interested in this.
-  enableVaulting?: boolean;
-  vaultLabel?: string;
+  // PAYPAL_VAULT_DISABLED: enableVaulting?: boolean; vaultLabel?: string; — see PayPalMask.tsx's
+  // showVaultCheckbox; please open an issue if you are interested in vaulting a new PayPal account.
   // PayPal Express deferred-cart-creation mode — see enabler/src/app/usePayment.tsx
   onExpressPayButtonClick?: () => Promise<void>;
   // PayPal Express final address/email sync — see ExpressOptions.onPaymentSubmit
@@ -302,9 +304,12 @@ export type LoadingOverlayType = {
 };
 
 export type GeneralACHProps = {
-  mandateText: string;
+  // Full override — used verbatim, with no substitution, when provided. When absent, ACHMask
+  // builds the Braintree-compliant default template itself using merchantBusinessName/actionLabel.
+  mandateText?: string;
+  merchantBusinessName?: string;
+  actionLabel?: string;
   processorUrl: string;
-  pendingVerificationText?: string;
 };
 
 export type GeneralCreditCardProps = {

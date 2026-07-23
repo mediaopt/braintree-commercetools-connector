@@ -306,6 +306,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
   public async config(): Promise<ConfigResponse> {
     try {
       const config = getConfig();
+      if (!config.buttonStyleOverrides?.ach?.mandateText && !config.perMethodConfig?.ach?.businessName) {
+        logger.warn(
+          'config: neither BRAINTREE_BUTTON_STYLES.ach.mandateText nor BRAINTREE_PER_METHOD_CONFIG.ach.businessName is set — ' +
+            'the ACH mandate text will omit the "on behalf of [business name]" clause entirely',
+        );
+      }
       const result = {
         returnUrl: config.returnUrl,
         environment: config.braintreeEnvironment,
@@ -839,6 +845,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     localPaymentId,
     venmoUsername,
     paypalOrderId,
+    achMandateText,
+    achMandateAcceptedAt,
   }: TransactionSaleRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO> {
     this.validateTransactionSaleParams(
       paymentMethodType,
@@ -883,6 +891,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
         : {}), //see enabler PayPalMask onShippingChange and onApprove
       ...(deviceData ? { deviceData } : {}),
       ...(braintreePaymentDetails?.braintreeShipping ? { shipping: braintreePaymentDetails.braintreeShipping } : {}),
+      ...(achMandateText
+        ? { usBankAccount: { achMandateText, achMandateAcceptedAt: achMandateAcceptedAt ?? new Date().toISOString() } }
+        : {}),
     };
     const transactionRequest = mapRequestToBraintreeTransactionSale(
       relevantPaymentInfo,

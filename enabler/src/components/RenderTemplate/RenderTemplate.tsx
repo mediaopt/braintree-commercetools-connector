@@ -9,7 +9,6 @@ import { BraintreePaymentMethodType } from "../Builder/types";
 import { BaseOptions } from "../../payment-enabler/interfaces/baseOptions";
 import { ComponentOptions } from "../../payment-enabler/interfaces/enabler";
 import {
-  ACHDefaultStyleProps,
   ApplePayDefaultStyleProps,
   PayPalDefaultStyleProps,
   PayPalExpressStyleProps,
@@ -58,8 +57,9 @@ const ComponentWithCustomOptions = ({
     case "ACH":
       return (
         <ACHButton
-          {...ACHDefaultStyleProps}
           {...buttonStyleOverrides?.ach}
+          merchantBusinessName={perMethodConfig?.ach?.businessName}
+          actionLabel={perMethodConfig?.ach?.actionLabel}
           {...restCustomOptions}
         />
       );
@@ -91,7 +91,7 @@ const ComponentWithCustomOptions = ({
             {...PayPalExpressStyleProps}
             {...buttonStyleOverrides?.paypalExpress}
             {...restCustomOptions}
-            enableVaulting={false}
+            // PAYPAL_VAULT_DISABLED: enableVaulting={false}
             enableShippingAddress={true}
             payLater={false}
             intent={"capture" as Intent}
@@ -107,8 +107,7 @@ const ComponentWithCustomOptions = ({
           {...PayPalDefaultStyleProps}
           {...buttonStyleOverrides?.paypal}
           {...restCustomOptions}
-          enableVaulting={enableVaulting}
-          vaultLabel={perMethodConfig?.paypal?.vaultLabel}
+          // PAYPAL_VAULT_DISABLED: enableVaulting={enableVaulting}
           enableShippingAddress={false}
           shippingAddressEditable={false}
           commit={true}

@@ -8,6 +8,18 @@ declare module '@fastify/request-context' {
   }
 }
 
+// @types/braintree doesn't declare this field even though the Braintree Node SDK's runtime
+// attribute whitelist accepts it (transaction_gateway.js's _createSignature() lists
+// "usBankAccount[achMandateText]" / "usBankAccount[achMandateAcceptedAt]").
+declare module 'braintree' {
+  interface TransactionRequest {
+    usBankAccount?: {
+      achMandateText?: string;
+      achMandateAcceptedAt?: string;
+    };
+  }
+}
+
 declare module 'fastify' {
   interface FastifyInstance {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
