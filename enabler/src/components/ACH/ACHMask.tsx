@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useState,
   FC,
   PropsWithChildren,
@@ -57,19 +58,17 @@ type BankDetails = {
   businessName?: string;
 };
 
-const DEFAULT_PENDING_VERIFICATION_TEXT =
-  "Payment is only possible after bank account verification.";
-
 type ACHMaskProps = GeneralPayButtonProps & GeneralACHProps;
 
 export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   processorUrl,
-  mandateText,
+  mandateText: mandateTextOverride,
+  merchantBusinessName,
+  actionLabel,
   useKount,
   shipping,
   onRegisterSubmit,
   onRegisterValidation,
-  pendingVerificationText = DEFAULT_PENDING_VERIFICATION_TEXT,
   onError,
 }: ACHMaskProps) => {
   const {
@@ -88,7 +87,10 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   const [ownershipType, setOwnershipType] = useState<OwnershipType>("");
   const [businessName, setBusinessName] = useState<string>("");
 
-  const [deviceData, setDeviceData] = useState("");
+  // useRef, not useState: read inside the tokenize callback below, which is scheduled
+  // synchronously alongside dataCollector.create() in the same handleSubmit call — a state
+  // closure there would still see the value from before this submission's collector resolved.
+  const deviceDataRef = useRef("");
   const [firstName, setFirstName] = useState<string>("");
   const [lastName, setLastName] = useState<string>("");
   const [streetAddress, setStreetAddress] = useState<string>("");
@@ -107,15 +109,56 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     setPostalCode(postalCode ?? "");
   }, [paymentInfo]);
 
+  const mandateText = useMemo(() => {
+    if (mandateTextOverride) return mandateTextOverride;
+
+    const accountHolderName =
+      ownershipType === "business" ? businessName : `${firstName} ${lastName}`;
+    const formattedAmount = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: paymentInfo.currency,
+    }).format(paymentInfo.braintreeAmount);
+    const authorizationDate = new Date().toLocaleDateString();
+
+    // No fallback placeholder — if the merchant hasn't configured ach.businessName, the
+    // "on behalf of X" clause is dropped entirely rather than showing a placeholder string.
+    // A processor-side warning (config()) is the only signal for this, not client-side text.
+    const onBehalfOfClause = merchantBusinessName
+      ? `Braintree, a service of PayPal, on behalf of ${merchantBusinessName},`
+      : `Braintree, a service of PayPal,`;
+    const initiateClause = merchantBusinessName
+      ? `I authorize ${merchantBusinessName} to initiate`
+      : `I authorize`;
+
+    return (
+      `By clicking ["${actionLabel}"], I authorize ${onBehalfOfClause} ` +
+      `to verify my bank account information using bank information and consumer reports and ${initiateClause} ` +
+      `a one-time ACH/electronic debit to my account as follows: ` +
+      `Account holder: ${accountHolderName}, Account Number: ${accountNumber}, Routing Number: ${routingNumber}, ` +
+      `Amount: ${formattedAmount}, Authorization Date: ${authorizationDate}.`
+    );
+  }, [
+    mandateTextOverride,
+    merchantBusinessName,
+    actionLabel,
+    ownershipType,
+    businessName,
+    firstName,
+    lastName,
+    accountNumber,
+    routingNumber,
+    paymentInfo.braintreeAmount,
+    paymentInfo.currency,
+  ]);
+
   let formButtonDisabled =
     !accountNumber ||
     !routingNumber ||
     !accountType ||
     !ownershipType ||
     !streetAddress ||
-    !extendedAddress ||
     !locality ||
-    !region ||
+    !/^[A-Za-z]{2}$/.test(region) ||
     !postalCode;
 
   if (ownershipType === "business") {
@@ -156,6 +199,8 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
 
     if (formButtonDisabled) return;
     isLoading(true);
+
+    const mandateAcceptedAt = new Date().toISOString();
 
     let bankDetails: BankDetails = {
       accountNumber,
@@ -216,7 +261,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
               },
               function (dataCollectorErr, dataCollectorInstance) {
                 if (!dataCollectorErr && dataCollectorInstance) {
-                  setDeviceData(dataCollectorInstance.deviceData);
+                  deviceDataRef.current = dataCollectorInstance.deviceData;
                 }
               },
             );
@@ -280,9 +325,11 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                   // Instantly verified (bank login / Plaid): proceed with payment immediately.
                   await handleTransactionSale("", {
                     paymentToken: vaultToken,
-                    deviceData,
+                    deviceData: deviceDataRef.current,
                     lineItems: paymentInfo.braintreeLineItems,
                     shipping,
+                    achMandateText: mandateText,
+                    achMandateAcceptedAt: mandateAcceptedAt,
                   });
                   isLoading(false);
                 } else {
@@ -293,7 +340,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                   if (merchantReturnUrl) {
                     window.location.href = merchantReturnUrl;
                   } else {
-                    notify("Info", pendingVerificationText);
+                    notify("Info", mandateText);
                   }
                 }
               },
@@ -438,7 +485,6 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
               className={`${HOSTED_FIELDS} px-3`}
               value={extendedAddress}
               onChange={({ target }) => setExtendedAddress(target.value)}
-              required
             />
           </div>
         </div>
@@ -468,6 +514,9 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
               value={region}
               onChange={({ target }) => setRegion(target.value)}
               required
+              placeholder="NY"
+              pattern="[A-Za-z]{2}"
+              maxLength={2}
             />
           </div>
         </div>
@@ -484,7 +533,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
           required
         />
 
-        <p className="mt-4 text-sm text-gray-500">{pendingVerificationText}</p>
+        <p className="mt-4 text-sm text-gray-500">{mandateText}</p>
       </form>
     </>
   );

@@ -25,6 +25,8 @@ export type TransactionSaleOptions = {
   };
   shipping?: BraintreeShipping;
   lineItems?: BraintreeLineItem[];
+  achMandateText?: string;
+  achMandateAcceptedAt?: string;
 };
 
 export type TransactionSaleRequest = TransactionSaleOptions & {
