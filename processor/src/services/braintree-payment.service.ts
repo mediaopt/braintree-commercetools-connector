@@ -190,8 +190,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * Records a placeholder Authorization transaction before the Braintree sale is attempted (see
    * OPTIMISTIC_TRANSACTION_TRIGGER_ORDER). Awaited, not fire-and-forget, so it's always committed
    * before the real transaction — errors are caught and logged internally, never thrown, so a
-   * failure here never blocks the actual charge. Idempotent. Raw API call: ctPaymentService.updatePayment
-   * silently discards an 'Initial' transaction with no interactionId.
+   * failure here never blocks the actual charge. Idempotent. The transaction itself is discarded by
+   * the SDK (Initial state, no interactionId) — submitting it is still what triggers commercetools'
+   * order creation, matching the same pattern used by commercetools' own reference connectors
+   * (PayPal, Adyen).
    */
   private async recordOptimisticAuthorizationPlaceholder(
     ctPayment: Payment,
@@ -202,25 +204,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
         (transaction) => transaction.type === 'Authorization' && !transaction.interactionId,
       );
       if (hasPlaceholder) return;
-      await paymentSDK.ctAPI.client
-        .payments()
-        .withId({ ID: ctPayment.id })
-        .post({
-          body: {
-            version: ctPayment.version,
-            actions: [
-              {
-                action: 'addTransaction',
-                transaction: {
-                  type: 'Authorization',
-                  state: OPTIMISTIC_TRANSACTION_TRIGGER_ORDER,
-                  amount: { centAmount: amountPlanned.centAmount, currencyCode: amountPlanned.currencyCode },
-                },
-              },
-            ],
-          },
-        })
-        .execute();
+      await this.ctPaymentService.updatePayment({
+        id: ctPayment.id,
+        transaction: {
+          type: 'Authorization',
+          state: OPTIMISTIC_TRANSACTION_TRIGGER_ORDER,
+          amount: { centAmount: amountPlanned.centAmount, currencyCode: amountPlanned.currencyCode },
+        },
+      });
     } catch (e) {
       logger.warn(
         `transactionSale: could not record optimistic Authorization placeholder for payment ${ctPayment.id} — ${errorMessage(e)}`,
