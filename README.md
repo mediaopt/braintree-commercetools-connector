@@ -135,6 +135,10 @@ is your responsibility.
 3D Secure verification is enabled by default. It can be disabled or reconfigured via your Braintree
 account's [Rules Manager](https://developer.paypal.com/braintree/docs/guides/3d-secure/rules-manager/javascript/v3/).
 
+##### Venmo
+
+Displaying the Venmo username in the checkout UI is the merchant's responsibility. After a successful Venmo payment, venmoUsername is appended to the merchantReturnUrl as a query parameter. The merchant's return page should read this value from the URL.
+
 ## Prerequisites
 
 To use the connector you need to have the following:
