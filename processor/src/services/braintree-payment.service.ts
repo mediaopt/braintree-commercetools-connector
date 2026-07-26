@@ -22,12 +22,6 @@ import {
 } from '@commercetools/platform-sdk';
 import { Transaction, TransactionRequest } from 'braintree';
 
-// localPayment is an undocumented field Braintree adds to Transaction for local payment methods
-// See: https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side/javascript/v3
-type TransactionWithLocalPayment = Transaction & {
-  localPayment?: { paymentId?: string };
-};
-
 import {
   CancelPaymentRequest,
   ConfigResponse,
@@ -46,7 +40,6 @@ import {
   PaymentUpdateResponseSchemaDTO,
   PaymentMethodType,
   LocalPaymentMethodType,
-  PaymentOutcome,
   PaymentRequestSchemaDTO,
   PaymentResponseSchemaDTO,
   // PURE_VAULT_DISABLED: PureVaultRequestSchemaDTO,
@@ -104,6 +97,12 @@ import {
 } from '../utils/storedPaymentMethod.utils';
 import { toPaymentMethodIconKey } from '../utils/paymentMethodIcon.utils';
 import { BraintreeCustomerService } from './braintree-customer.service';
+
+// localPayment is an undocumented field Braintree adds to Transaction for local payment methods
+// See: https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side/javascript/v3
+type TransactionWithLocalPayment = Transaction & {
+  localPayment?: { paymentId?: string };
+};
 
 // Initial transaction required for checkout API to ensure the proper order creation.
 const OPTIMISTIC_TRANSACTION_TRIGGER_ORDER: TransactionState = 'Initial';
@@ -861,11 +860,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
       throw new ErrorInvalidOperation(`could not find updated cart for transactionsSale payment ${ctPaymentId}`);
     const relevantPaymentInfo = updatedCart ? { ...ctPayment, amountPlanned: updatedCart.totalPrice } : ctPayment;
     await this.recordOptimisticAuthorizationPlaceholder(ctPayment, relevantPaymentInfo.amountPlanned);
-    // Braintree has 35-char limit for line item names — see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
-    // Braintree rejects zero-amount line items for non-PayPal methods; for PayPal, zero amounts are explicitly allowed
     const isPayPal = paymentMethodType === 'PayPal'; // PAYPAL_STORED_DISABLED: || paymentMethodType === 'PayPalStored'
     const lineItems = (braintreePaymentDetails?.braintreeLineItems ?? [])
+      // Braintree has 35-char limit for line item names — see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
       .map((item) => ({ ...item, name: item.name.substring(0, 35) }))
+      // Braintree rejects zero-amount line items for non-PayPal methods; for PayPal, zero amounts are explicitly allowed
       .filter(({ productCode, unitAmount }) => productCode !== 'DISCOUNT' && (isPayPal || Number(unitAmount) > 0));
     const optionalRequestData: Partial<TransactionRequest> = {
       ...(storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId
@@ -894,18 +893,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
       paymentToken,
       optionalRequestData,
     );
-    // options.submitForSettlement cannot go into optionalRequestData — the mapper's outer spread would replace
-    // the entire options object with just { submitForSettlement: true }, losing storeInVaultOnSuccess etc.
-    // ACH is unconditional, not merchant-configurable: Braintree's us_bank_account transactions don't support
-    // an authorize-only state (no real-time authorization/capture the way card transactions have — ACH is a
-    // batch system), so submitForSettlement must be true regardless of BRAINTREE_AUTOCAPTURE. Omitting it
-    // fails with Braintree validation error 915134 "submit_for_settlement is required and must be true."
+    // options.submitForSettlement is required to be true for ACH and local payment methods
     if (localPaymentId || paymentMethodType === PaymentMethodType.ACH || getConfig().autoCapture) {
       transactionRequest.options!.submitForSettlement = true;
     }
     let response!: Transaction;
     try {
-      response = await transactionSale(transactionRequest); //todo - test discount and external tax
+      response = await transactionSale(transactionRequest);
     } catch (e) {
       logger.error(`transactionSale: Braintree call failed, paymentId: ${ctPaymentId} — ${errorMessage(e)}`);
       throw new ErrorInvalidOperation(
@@ -1260,8 +1254,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       const btCustomer = await gateway.customer.find(braintreeCustomerId);
       // commercetools Checkout's own UI only supports displaying/reusing stored credit cards —
       // PayPal and ACH bank accounts remain vaulted in Braintree but are not surfaced as stored
-      // payment methods here. This may be requested by customers in future; please open an issue
-      // if you are interested.
+      // payment methods here. Please open an issue if you are interested.
       const creditCards = (btCustomer.creditCards ?? []).map(mapBraintreeCreditCardToStoredPaymentMethod);
       // const paypalAccounts = (btCustomer.paypalAccounts ?? []).map(mapBraintreePaypalAccountToStoredPaymentMethod);
       // `btCustomer` is cast to `any` because @types/braintree does not declare `usBankAccounts`
@@ -1273,14 +1266,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
       if (!creditCards.length) {
         logger.warn(`No stored payment methods returned by Braintree for customer ${braintreeCustomerId}`);
       }
-      // Braintree is the priority/authoritative source here — see the class-level note in
-      // abstract-payment.service.ts for why: this connector vaulted directly against Braintree before
+      // This connector vaulted directly against Braintree before
       // commercetools-native PaymentMethod tracking existed, so older stored methods may have no CT
-      // counterpart. We still cross-check against commercetools and log a warning on drift, without
-      // changing what's returned, so the two stores' divergence is visible rather than silent.
-      // Only credit cards are compared — PayPal vaulting is disabled (legacy Braintree-side PayPal
-      // accounts would never have a CT counterpart and would permanently false-positive) and ACH
-      // isn't offered as a stored payment method to the enabler at all.
+      // counterpart. Only credit cards are compared due to current checkout limitations.
       // Fire-and-forget: this is a diagnostic-only cross-check, not needed to answer the request.
       const customerId = ctCart.customerId;
       this.fireAndForgetCtPaymentMethodSync(
@@ -1358,17 +1346,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
    */
   private fireAndForgetCtPaymentMethodSync(operation: () => Promise<unknown>, logContext: string): void {
     void operation().catch((e) => logger.warn(`${logContext}: ${errorMessage(e)}`));
-  }
-
-  private convertPaymentResultCode(resultCode: PaymentOutcome): string {
-    switch (resultCode) {
-      case PaymentOutcome.AUTHORIZED:
-        return 'Success';
-      case PaymentOutcome.REJECTED:
-        return 'Failure';
-      default:
-        return 'Initial';
-    }
   }
 
   private validateCartRequiredData(ctCart: Cart, isCartCheckout?: boolean): void {
