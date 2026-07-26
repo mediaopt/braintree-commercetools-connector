@@ -106,10 +106,20 @@ Per-method button styling and functional identifiers (colors, labels, `googleMer
 ```
 BRAINTREE_BUTTON_STYLES={"paypal":{"buttonColor":"gold","buttonLabel":"pay","shape":"pill","size":"responsive"},"paypalExpress":{"buttonColor":"gold","buttonLabel":"buynow","shape":"pill","size":"responsive"},"applePay":{"applePayDisplayName":"set your own store name"},"googlePay":{"buttonTheme":"black","buttonType":"buy"},"venmo":{"desktopFlow":"desktopWebLogin"},"creditCard":{"showPostalCode":false}}
 
-BRAINTREE_PER_METHOD_CONFIG={"googlePay":{"googleMerchantId":"[your-google-merchant-id]","acquirerCountryCode":"[merchant-country-code]"},"venmo":{"profileId":"[optional-venmo-profile-id]"},"creditCard":{"vaultLabel":"Save my card"},"ach":{"businessName":"[your business name here]","actionLabel":"COMPLETE CHECKOUT"}}
+BRAINTREE_PER_METHOD_CONFIG={"googlePay":{"googleMerchantId":"[your-google-merchant-id]","acquirerCountryCode":"[merchant-country-code]"},"venmo":{"profileId":"[optional-venmo-profile-id]"},"creditCard":{"vaultLabel":"Save my card"},"ach":{"businessName":"[your business name here]","actionLabel":"COMPLETE CHECKOUT","usBankAccountVerificationMethod":"network_check"}}
 ```
 
 ##### ACH
+
+You must contact Braintree to enable the required verification method for the checkout flow.
+
+| Value                                     | Status                             |
+| ----------------------------------------- | ---------------------------------- |
+| `instant_verification_account_validation` | Supported                          |
+| `micro_transfers`                         | Open issue if you need this method |
+| `network_check` (the default if unset)    | Supported                          |
+
+Than the relevant value must be submitted to processor configuration as `ach.usBankAccountVerificationMethod`.
 
 The ACH mandate text shown to the shopper and sent to Braintree is built automatically using
 `businessName` and `actionLabel` above — providing `businessName` and keeping `actionLabel` in sync

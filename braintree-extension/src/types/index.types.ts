@@ -26,6 +26,7 @@ export type PaymentMethodCreateRequest = BraintreePaymentMethodCreateRequest & {
   options: {
     usBankAccountVerificationMethod:
       | 'independent_check'
+      | 'instant_verification_account_validation'
       | 'micro_transfers'
       | 'network_check'
       | 'tokenized_check';

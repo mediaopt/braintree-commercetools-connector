@@ -27,11 +27,21 @@ PURE_VAULT_DISABLED end */
 
 import { log } from '../libs/logger';
 
+import { getConfig } from '../config/config';
+
 import { DefaultCommercetoolsAPI } from '@commercetools/connect-payments-sdk/dist/commercetools/api/root-api';
 
 export type BraintreeCustomerServiceOptions = {
   ctAPI: DefaultCommercetoolsAPI;
 };
+
+// @types/braintree's PaymentMethodCreateRequest.options does support but doesn't declare usBankAccountVerificationMethod
+const buildAchVaultOptions = () => ({
+  ...VAULT_BRAINTREE_OPTIONS,
+  usBankAccountVerificationMethod:
+    getConfig().perMethodConfig?.ach?.usBankAccountVerificationMethod ??
+    VAULT_BRAINTREE_OPTIONS.usBankAccountVerificationMethod,
+});
 
 export class BraintreeCustomerService {
   private ctAPI: DefaultCommercetoolsAPI;
@@ -188,7 +198,7 @@ export class BraintreeCustomerService {
     paymentMethod ??= (await createPaymentMethod({
       customerId: resolvedCustomerId,
       paymentMethodNonce,
-      options: VAULT_BRAINTREE_OPTIONS,
+      options: buildAchVaultOptions(),
     })) as PaymentMethod;
 
     if (!paymentMethod) throw new ErrorInvalidOperation('Braintree did not return a payment method after vaulting');

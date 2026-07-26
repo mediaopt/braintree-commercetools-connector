@@ -896,7 +896,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
     );
     // options.submitForSettlement cannot go into optionalRequestData — the mapper's outer spread would replace
     // the entire options object with just { submitForSettlement: true }, losing storeInVaultOnSuccess etc.
-    if (localPaymentId || getConfig().autoCapture) {
+    // ACH is unconditional, not merchant-configurable: Braintree's us_bank_account transactions don't support
+    // an authorize-only state (no real-time authorization/capture the way card transactions have — ACH is a
+    // batch system), so submitForSettlement must be true regardless of BRAINTREE_AUTOCAPTURE. Omitting it
+    // fails with Braintree validation error 915134 "submit_for_settlement is required and must be true."
+    if (localPaymentId || paymentMethodType === PaymentMethodType.ACH || getConfig().autoCapture) {
       transactionRequest.options!.submitForSettlement = true;
     }
     let response!: Transaction;
