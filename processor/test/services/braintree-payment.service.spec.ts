@@ -2,6 +2,7 @@ import { describe, test, expect, afterEach, jest, beforeEach } from '@jest/globa
 import { ConfigResponse } from '../../src/services/types/operation.type';
 import { paymentSDK } from '../../src/payment-sdk';
 import { PaymentMethodType, LocalPaymentMethodType } from '../../src/dtos/braintree-payment.dto';
+import { LineItemKind } from '../../src/utils/lineItem.utils';
 import { mockGetPaymentResult } from '../utils/mock-payment-results';
 import { mockBraintreeTransaction } from '../utils/mock-payment-data';
 
@@ -290,6 +291,18 @@ describe('braintree-payment.service', () => {
 
     const baseRequest = { ctPaymentId: mockGetPaymentResult.id };
 
+    const lineItem = (totalAmount: string, name: string) => ({
+      name,
+      kind: LineItemKind.Debit,
+      quantity: '1',
+      unitAmount: totalAmount,
+      totalAmount,
+      productCode: 'PRODUCT',
+      unitTaxAmount: '0.00',
+      description: '',
+      url: '',
+    });
+
     test('CreditCard: forwards nonce and deviceData', async () => {
       const result = await braintreePaymentService.transactionSale({
         ...baseRequest,
@@ -423,6 +436,53 @@ describe('braintree-payment.service', () => {
             storeShippingAddressInVault: true,
           }),
         }),
+      );
+    });
+
+    test('discountAmount is derived as the gap between lineItems total and the charged amount', async () => {
+      // mockGetPaymentResult.amountPlanned is 1200.00 GBP; lineItems sum to 1300.00 — the 100.00
+      // gap is the cart discount, which never arrives as its own line item (it's filtered out above).
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.CREDIT_CARD,
+        paymentMethodNonce: 'fake-valid-nonce',
+        braintreePaymentDetails: {
+          braintreeLineItems: [lineItem('700.00', 'Item A'), lineItem('600.00', 'Item B')],
+        },
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(expect.objectContaining({ discountAmount: '100.00' }));
+    });
+
+    test('discountAmount is 0.00 when lineItems already match the charged amount', async () => {
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.CREDIT_CARD,
+        paymentMethodNonce: 'fake-valid-nonce',
+        braintreePaymentDetails: {
+          braintreeLineItems: [lineItem('1200.00', 'Item A')],
+        },
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(expect.objectContaining({ discountAmount: '0.00' }));
+    });
+
+    test('discountAmount also accounts for a separately-submitted shippingAmount (express/extraShippingCost flow)', async () => {
+      const cart = mockGetCartResult(); // totalPrice: $1500.00 (see mock-cart-data.ts)
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cart.id);
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart);
+
+      // extraShippingCost present → amountPlanned is refreshed to the cart's totalPrice ($1500.00).
+      // lineItems (1550.00) + shippingAmount (20.00) - amount (1500.00) = 70.00.
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.PAYPAL,
+        paymentMethodNonce: 'fake-paypal-billing-agreement-nonce',
+        braintreePaymentDetails: {
+          braintreeLineItems: [lineItem('1550.00', 'Item A')],
+          extraShippingCost: '20.00',
+        },
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({ discountAmount: '70.00', shippingAmount: '20.00', amount: '1500.00' }),
       );
     });
   });

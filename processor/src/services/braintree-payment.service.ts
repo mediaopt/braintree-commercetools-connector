@@ -78,7 +78,7 @@ import {
 import { handleCustomTransactionFields, handleCustomFieldResponse } from '../utils/customEntities.utils';
 
 import { LineItemKind, mapCTLineItemToBraintreeLineItem, lineItemPlaceholders } from '../utils/lineItem.utils';
-import { toNum, toMoneyStr } from '../utils/money.utils';
+import { toNum } from '../utils/money.utils';
 import {
   errorMessage,
   getCtErrorKind,
@@ -866,17 +866,29 @@ export class BraintreePaymentService extends AbstractPaymentService {
       .map((item) => ({ ...item, name: item.name.substring(0, 35) }))
       // Braintree rejects zero-amount line items for non-PayPal methods; for PayPal, zero amounts are explicitly allowed
       .filter(({ productCode, unitAmount }) => productCode !== 'DISCOUNT' && (isPayPal || Number(unitAmount) > 0));
+    // discountAmount is derived as the residual needed to balance lineItems (+ shipping, when submitted
+    // separately) against the actual charged amount, rather than read from a separately fetched/echoed
+    // discount value — this keeps it correct regardless of cart discount type, staleness, or rounding.
+    const shippingAmountNum = braintreePaymentDetails?.extraShippingCost
+      ? Number(braintreePaymentDetails.extraShippingCost)
+      : 0;
+    const lineItemsTotal = lineItems.reduce((sum, { totalAmount }) => sum + Number(totalAmount), 0);
+    const discountResidual = lineItemsTotal + shippingAmountNum - toNum(relevantPaymentInfo.amountPlanned);
+    if (discountResidual < -0.01) {
+      log.warn(
+        `transactionSale: lineItems total (${lineItemsTotal.toFixed(2)}) plus shipping (${shippingAmountNum.toFixed(2)}) is less than the charged amount (${toNum(relevantPaymentInfo.amountPlanned).toFixed(2)}) for payment ${ctPaymentId} — discountAmount clamped to 0, check for missing external tax/fees`,
+      );
+    }
+    const discountAmount = Math.max(0, discountResidual).toFixed(relevantPaymentInfo.amountPlanned.fractionDigits);
     const optionalRequestData: Partial<TransactionRequest> = {
       ...(storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId
         ? { customer: { id: ctPayment.customer.id } }
         : {}),
       lineItems,
-      discountAmount: toMoneyStr(updatedCart?.discountOnTotalPrice?.discountedAmount, ctPayment.amountPlanned),
+      discountAmount,
       ...(braintreePaymentDetails?.extraShippingCost
         ? {
-            shippingAmount: Number(braintreePaymentDetails.extraShippingCost).toFixed(
-              ctPayment.amountPlanned.fractionDigits,
-            ),
+            shippingAmount: shippingAmountNum.toFixed(ctPayment.amountPlanned.fractionDigits),
           } //will be only submitted in express mode, then shipping was submitted via SDK through update and can be mapped here, otherwise it is included in line items
         : {}), //see enabler PayPalMask onShippingChange and onApprove
       ...(deviceData ? { deviceData } : {}),
