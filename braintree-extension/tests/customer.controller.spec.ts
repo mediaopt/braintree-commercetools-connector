@@ -1,34 +1,36 @@
 import { customerController } from '../src/controllers/customer.controller';
 import { describe, expect } from '@jest/globals';
 import { CustomerReference } from '@commercetools/platform-sdk';
-import { deleteCustomer } from '../src/service/braintree.service';
-import { UpdateAction } from '@commercetools/sdk-client-v2';
+import { deleteCustomer } from 'common-connect/src/service/braintree.service';
 import { Customer } from 'braintree';
+import {
+  findSetCustomFieldAction,
+  ControllerActionsResponse,
+} from './utils/actions';
 
-function expectCustomerNotFound(
-  findResponse:
-    | {
-        actions: Array<UpdateAction>;
-        statusCode: number;
-      }
-    | undefined
-) {
+function expectCustomerNotFound(findResponse: ControllerActionsResponse) {
   expect(findResponse).toBeDefined();
   expect(findResponse?.statusCode).toBe(200);
-  expect(findResponse?.actions[0].name).toBe('findResponse');
-  expect(findResponse?.actions[0].value).toContain('"success":false');
+  const findAction = findSetCustomFieldAction(
+    findResponse?.actions ?? [],
+    'findResponse'
+  );
+  expect(findAction?.name).toBe('findResponse');
+  expect(findAction?.value).toContain('"success":false');
 }
 
 function expectCustomerFound(
-  findResponse:
-    | { actions: Array<UpdateAction>; statusCode: number }
-    | undefined,
+  findResponse: ControllerActionsResponse,
   customerId: string
 ) {
   expect(findResponse).toBeDefined();
   expect(findResponse?.statusCode).toBe(200);
-  expect(findResponse?.actions[0].name).toBe('findResponse');
-  expect(findResponse?.actions[0].value).toContain(`"id":"${customerId}"`);
+  const findAction = findSetCustomFieldAction(
+    findResponse?.actions ?? [],
+    'findResponse'
+  );
+  expect(findAction?.name).toBe('findResponse');
+  expect(findAction?.value).toContain(`"id":"${customerId}"`);
 }
 
 const getRandomId = (): string => {
@@ -36,20 +38,22 @@ const getRandomId = (): string => {
 };
 
 function expectSuccessfulCreation(
-  createResponse:
-    | { actions: Array<UpdateAction>; statusCode: number }
-    | undefined,
+  createResponse: ControllerActionsResponse,
   customerId: string
 ) {
   expect(createResponse).toBeDefined();
   expect(createResponse?.statusCode).toBe(200);
-  expect(createResponse?.actions[0].name).toBe('createResponse');
-  expect(createResponse?.actions[0].value).toContain(`"id":"${customerId}"`);
+  const createAction = findSetCustomFieldAction(
+    createResponse?.actions ?? [],
+    'createResponse'
+  );
+  expect(createAction?.name).toBe('createResponse');
+  expect(createAction?.value).toContain(`"id":"${customerId}"`);
 }
 
 describe('find customer', () => {
   test('find unknown user', async () => {
-    const customer = ({
+    const customer = {
       obj: {
         id: getRandomId(),
         custom: {
@@ -58,16 +62,20 @@ describe('find customer', () => {
           },
         },
       },
-    } as unknown) as CustomerReference;
+    } as unknown as CustomerReference;
     const response = await customerController('Update', customer);
     expect(response?.statusCode).toBe(200);
-    expect(response?.actions[0].name).toBe('findResponse');
-    expect(response?.actions[0].value).toContain('"success":false');
+    const findAction = findSetCustomFieldAction(
+      response?.actions ?? [],
+      'findResponse'
+    );
+    expect(findAction?.name).toBe('findResponse');
+    expect(findAction?.value).toContain('"success":false');
   });
 
   test('find existing user', async () => {
     const customerId = getRandomId();
-    const findCustomer = ({
+    const findCustomer = {
       obj: {
         id: customerId,
         custom: {
@@ -76,8 +84,8 @@ describe('find customer', () => {
           },
         },
       },
-    } as unknown) as CustomerReference;
-    const createCustomer = ({
+    } as unknown as CustomerReference;
+    const createCustomer = {
       obj: {
         id: customerId,
         firstName: 'firstName',
@@ -90,7 +98,7 @@ describe('find customer', () => {
           },
         },
       },
-    } as unknown) as CustomerReference;
+    } as unknown as CustomerReference;
     const initialFindResponse = await customerController(
       'Update',
       findCustomer
@@ -108,7 +116,7 @@ describe('find customer', () => {
 describe('vaulting', () => {
   test('vault new customer', async () => {
     const customerId = getRandomId();
-    const findCustomer = ({
+    const findCustomer = {
       obj: {
         id: customerId,
         custom: {
@@ -117,8 +125,8 @@ describe('vaulting', () => {
           },
         },
       },
-    } as unknown) as CustomerReference;
-    const createCustomer = ({
+    } as unknown as CustomerReference;
+    const createCustomer = {
       obj: {
         id: customerId,
         firstName: 'firstName',
@@ -131,7 +139,7 @@ describe('vaulting', () => {
           },
         },
       },
-    } as unknown) as CustomerReference;
+    } as unknown as CustomerReference;
     const initialFindResponse = await customerController(
       'Update',
       findCustomer
@@ -141,16 +149,20 @@ describe('vaulting', () => {
     await deleteCustomer(customerId);
     expectCustomerNotFound(initialFindResponse);
     expect(vaultResponse?.statusCode).toBe(200);
-    expect(vaultResponse?.actions[0].name).toBe('vaultResponse');
-    expect(vaultResponse?.actions[0].value).toContain(`"id":"${customerId}"`);
-    const newCustomer = JSON.parse(vaultResponse?.actions[0].value) as Customer;
+    const vaultAction = findSetCustomFieldAction(
+      vaultResponse?.actions ?? [],
+      'vaultResponse'
+    );
+    expect(vaultAction?.name).toBe('vaultResponse');
+    expect(vaultAction?.value).toContain(`"id":"${customerId}"`);
+    const newCustomer = JSON.parse(vaultAction?.value as string) as Customer;
     expect(newCustomer.paymentMethods).toHaveLength(1);
     expectCustomerFound(secondFindResponse, customerId);
   }, 8000);
 
   test('vault new customer', async () => {
     const customerId = getRandomId();
-    const findCustomer = ({
+    const findCustomer = {
       obj: {
         id: customerId,
         custom: {
@@ -159,8 +171,8 @@ describe('vaulting', () => {
           },
         },
       },
-    } as unknown) as CustomerReference;
-    const createCustomer = ({
+    } as unknown as CustomerReference;
+    const createCustomer = {
       obj: {
         id: customerId,
         firstName: 'firstName',
@@ -173,8 +185,8 @@ describe('vaulting', () => {
           },
         },
       },
-    } as unknown) as CustomerReference;
-    const vaultCustomer = ({
+    } as unknown as CustomerReference;
+    const vaultCustomer = {
       obj: {
         id: customerId,
         custom: {
@@ -184,7 +196,7 @@ describe('vaulting', () => {
           },
         },
       },
-    } as unknown) as CustomerReference;
+    } as unknown as CustomerReference;
     const initialFindResponse = await customerController(
       'Update',
       findCustomer
@@ -196,10 +208,12 @@ describe('vaulting', () => {
     expectCustomerNotFound(initialFindResponse);
     expectSuccessfulCreation(createResponse, customerId);
     expect(vaultResponse?.statusCode).toBe(200);
-    expect(vaultResponse?.actions[0].name).toBe('vaultResponse');
-    expect(vaultResponse?.actions[0].value).toContain(
-      `"customerId":"${customerId}"`
+    const vaultAction = findSetCustomFieldAction(
+      vaultResponse?.actions ?? [],
+      'vaultResponse'
     );
+    expect(vaultAction?.name).toBe('vaultResponse');
+    expect(vaultAction?.value).toContain(`"customerId":"${customerId}"`);
     expectCustomerFound(secondFindResponse, customerId);
   }, 8000);
 });

@@ -1,4 +1,4 @@
-import CustomError from '../errors/custom.error';
+import { CustomError } from 'common-connect/dist';
 import envValidators from '../validators/env.validators';
 import { getValidateMessages } from '../validators/helpers.validators';
 

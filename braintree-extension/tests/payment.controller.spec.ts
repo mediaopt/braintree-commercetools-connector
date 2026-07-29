@@ -3,7 +3,10 @@ import { paymentController } from '../src/controllers/payment.controller';
 import isBase64 from 'validator/lib/isBase64';
 import { PaymentReference } from '@commercetools/platform-sdk';
 import { Transaction } from 'braintree';
-import { UpdateActions } from '../src/types/index.types';
+import {
+  findSetCustomFieldAction,
+  ControllerActionsResponse,
+} from './utils/actions';
 
 const getRandomId = (): string => {
   return `test_${Math.floor(Math.random() * Math.pow(2, 10))}`;
@@ -23,12 +26,13 @@ describe('Testing Braintree GetClient Token', () => {
     const paymentResponse = await paymentController('Update', paymentRequest);
     expect(paymentResponse).toBeDefined();
     expect(paymentResponse).toHaveProperty('statusCode', 200);
-    const getClientTokenResponse = paymentResponse?.actions.find(
-      (action) => action.name === 'getClientTokenResponse'
+    const getClientTokenResponse = findSetCustomFieldAction(
+      paymentResponse?.actions ?? [],
+      'getClientTokenResponse'
     );
     expect(getClientTokenResponse).toBeDefined();
     expect(getClientTokenResponse?.name).toBe('getClientTokenResponse');
-    const token = getClientTokenResponse?.value;
+    const token = getClientTokenResponse?.value as string;
     expect(isBase64(token)).toBeTruthy();
     const data = JSON.parse(Buffer.from(token, 'base64').toString());
     expect(data).toBeDefined();
@@ -73,8 +77,9 @@ describe('Testing Braintree GetClient Token', () => {
       const paymentResponse = await paymentController('Update', paymentRequest);
       expect(paymentResponse).toBeDefined();
       expect(paymentResponse).toHaveProperty('statusCode', 200);
-      const getClientTokenResponse = paymentResponse?.actions.find(
-        (action) => action.name === 'getClientTokenResponse'
+      const getClientTokenResponse = findSetCustomFieldAction(
+        paymentResponse?.actions ?? [],
+        'getClientTokenResponse'
       );
       expect(getClientTokenResponse).toBeDefined();
       const token = getClientTokenResponse?.value;
@@ -179,30 +184,25 @@ describe('Testing Braintree Find Transaction', () => {
     paymentResponse = await paymentController('Update', findTransactionRequest);
     expect(paymentResponse).toBeDefined();
     expect(paymentResponse).toHaveProperty('statusCode', 200);
-    const transactionSaleResponse = paymentResponse?.actions.find(
-      (action) => action.name === 'findTransactionResponse'
+    const transactionSaleResponse = findSetCustomFieldAction(
+      paymentResponse?.actions ?? [],
+      'findTransactionResponse'
     );
     expect(transactionSaleResponse).toBeDefined();
-    transaction = JSON.parse(transactionSaleResponse?.value)[0] as Transaction;
+    transaction = JSON.parse(transactionSaleResponse?.value as string)[0] as Transaction;
     expect(transaction).toHaveProperty('orderId', orderId);
   }, 20000);
 });
 
-function expectSuccessfulTransaction(
-  paymentResponse:
-    | {
-        actions: UpdateActions;
-        statusCode: number;
-      }
-    | undefined
-) {
+function expectSuccessfulTransaction(paymentResponse: ControllerActionsResponse) {
   expect(paymentResponse).toBeDefined();
   expect(paymentResponse).toHaveProperty('statusCode', 200);
-  const transactionSaleResponse = paymentResponse?.actions.find(
-    (action) => action.name === 'transactionSaleResponse'
+  const transactionSaleResponse = findSetCustomFieldAction(
+    paymentResponse?.actions ?? [],
+    'transactionSaleResponse'
   );
   expect(transactionSaleResponse).toBeDefined();
-  return JSON.parse(transactionSaleResponse?.value) as Transaction;
+  return JSON.parse(transactionSaleResponse?.value as string) as Transaction;
 }
 
 describe('Testing Braintree aftersales', () => {
@@ -246,11 +246,12 @@ describe('Testing Braintree aftersales', () => {
     } as unknown as PaymentReference;
     paymentResponse = await paymentController('Update', voidRequest);
     expect(paymentResponse).toHaveProperty('statusCode', 200);
-    const voidResponse = paymentResponse?.actions.find(
-      (action) => action.name === 'voidResponse'
+    const voidResponse = findSetCustomFieldAction(
+      paymentResponse?.actions ?? [],
+      'voidResponse'
     );
     expect(voidResponse).toBeDefined();
-    payment = JSON.parse(voidResponse?.value);
+    payment = JSON.parse(voidResponse?.value as string);
     expect(payment).toHaveProperty('status', 'voided');
   }, 20000);
 
@@ -294,11 +295,12 @@ describe('Testing Braintree aftersales', () => {
     } as unknown as PaymentReference;
     paymentResponse = await paymentController('Update', settlementRequest);
     expect(paymentResponse).toHaveProperty('statusCode', 200);
-    const settlementResponse = paymentResponse?.actions.find(
-      (action) => action.name === 'submitForSettlementResponse'
+    const settlementResponse = findSetCustomFieldAction(
+      paymentResponse?.actions ?? [],
+      'submitForSettlementResponse'
     );
     expect(settlementResponse).toBeDefined();
-    payment = JSON.parse(settlementResponse?.value);
+    payment = JSON.parse(settlementResponse?.value as string);
     expect(payment).toHaveProperty('status', 'submitted_for_settlement');
   }, 20000);
 
@@ -344,11 +346,12 @@ describe('Testing Braintree aftersales', () => {
     } as unknown as PaymentReference;
     paymentResponse = await paymentController('Update', refundRequest);
     expect(paymentResponse).toHaveProperty('statusCode', 200);
-    const refundResponse = paymentResponse?.actions.find(
-      (action) => action.name === 'refundResponse'
+    const refundResponse = findSetCustomFieldAction(
+      paymentResponse?.actions ?? [],
+      'refundResponse'
     );
     expect(refundResponse).toBeDefined();
-    payment = JSON.parse(refundResponse?.value);
+    payment = JSON.parse(refundResponse?.value as string);
     expect(payment).toHaveProperty('status', 'settling');
     expect(payment).toHaveProperty('type', 'credit');
     expect(payment).toHaveProperty('refundedTransactionId', interfaceId);

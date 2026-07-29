@@ -1,12 +1,7 @@
-import { Payment, Transaction } from '@commercetools/platform-sdk';
-import { UpdateAction } from '@commercetools/sdk-client-v2';
 import {
-  Customer,
-  PaymentMethod,
   PaymentMethodCreateRequest as BraintreePaymentMethodCreateRequest,
   PaymentInstrumentType as BraintreePaymentInstrumentType,
   Transaction as BraintreeTransaction,
-  TransactionLineItem,
 } from 'braintree';
 
 export type Message = {
@@ -27,19 +22,11 @@ export type Wrapper = (
   validator: ValidatorFunction
 ) => (value: object) => boolean;
 
-export type PaymentWithOptionalTransaction = {
-  payment: Payment;
-  transaction?: Transaction;
-};
-
-export type UpdateActions = Array<UpdateAction>;
-
-export type CustomerResponse = PaymentMethod | Customer;
-
 export type PaymentMethodCreateRequest = BraintreePaymentMethodCreateRequest & {
   options: {
     usBankAccountVerificationMethod:
       | 'independent_check'
+      | 'instant_verification_account_validation'
       | 'micro_transfers'
       | 'network_check'
       | 'tokenized_check';
@@ -62,17 +49,4 @@ export type LocalPayment = {
 
 export type LocalPaymentTransaction = BraintreeTransaction & {
   localPayment: LocalPayment;
-};
-
-export type Package = {
-  carrier: string;
-  trackingNumber: string;
-  notifyPayer?: boolean;
-  items?: LineItem[];
-};
-
-type LineItem = TransactionLineItem & {
-  upc_code?: string;
-  upc_type?: string;
-  image_url?: string;
 };

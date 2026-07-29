@@ -1,119 +1,71 @@
-import { BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY } from '../connector/actions';
-import { getCurrentTimestamp } from './data.utils';
-import { logger } from './logger.utils';
-import { UpdateActions, CustomerResponse } from '../types/index.types';
-import { Customer } from '@commercetools/platform-sdk';
+import {
+  logger,
+  handleInterfaceInteraction,
+  stringifyData,
+  removeEmptyProperties,
+  MessageFieldData,
+  UpdateActions,
+} from 'common-connect/dist';
+
+const logCleanMessage = ({
+  messageName,
+  message,
+  messageType,
+}: MessageFieldData): UpdateActions => {
+  if (typeof message === 'object') {
+    removeEmptyProperties(message);
+  }
+  logger.info(`${messageName} ${messageType}: ${JSON.stringify(message)}`);
+  return [
+    {
+      action: 'addInterfaceInteraction',
+      ...handleInterfaceInteraction({
+        messageName,
+        message,
+        messageType,
+      }),
+    },
+  ];
+};
 
 export const handleRequest = (
-  requestName: string,
-  request: string | object
-): UpdateActions => {
-  const updateActions: UpdateActions = [];
-  if (typeof request === 'object') {
-    removeEmptyProperties(request);
-  }
-  updateActions.push({
-    action: 'addInterfaceInteraction',
-    type: {
-      typeId: 'type',
-      key: BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
-    },
-    fields: {
-      type: requestName + 'Request',
-      data: stringifyData(request),
-      timestamp: getCurrentTimestamp(),
-    },
+  messageName: string,
+  message: string | object
+): UpdateActions =>
+  logCleanMessage({
+    messageName,
+    message,
+    messageType: 'Request',
   });
-  logger.info(`${requestName} request: ${JSON.stringify(request)}`);
-  return updateActions;
-};
 
-function stringifyData(data: string | object) {
-  return typeof data === 'string' ? data : JSON.stringify(data);
-}
+const buildCustomFieldAction = (
+  name: string,
+  value: unknown,
+  transactionId?: string
+): UpdateActions[number] =>
+  transactionId
+    ? { action: 'setTransactionCustomField', transactionId, name, value }
+    : { action: 'setCustomField', name, value };
 
 export const handlePaymentResponse = (
-  requestName: string,
-  response: string | object,
+  messageName: string,
+  message: string | object,
   transactionId?: string
 ): UpdateActions => {
-  const updateActions: UpdateActions = [];
-  if (typeof response === 'object') {
-    removeEmptyProperties(response);
-  }
-  updateActions.push({
-    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
-    transactionId: transactionId,
-    name: requestName + 'Response',
-    value: stringifyData(response),
+  const updateActions = logCleanMessage({
+    messageName,
+    message,
+    messageType: 'Response',
   });
-  updateActions.push({
-    action: 'addInterfaceInteraction',
-    type: {
-      typeId: 'type',
-      key: BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
-    },
-    fields: {
-      type: requestName + 'Response',
-      data: stringifyData(response),
-      timestamp: getCurrentTimestamp(),
-    },
-  });
-  updateActions.push({
-    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
-    transactionId: transactionId,
-    name: requestName + 'Request',
-    value: null,
-  });
+  updateActions.push(
+    buildCustomFieldAction(
+      messageName + 'Response',
+      stringifyData(message),
+      transactionId
+    ),
+    buildCustomFieldAction(messageName + 'Request', null, transactionId)
+  );
   return updateActions;
-};
-
-export const handleCustomerResponse = (
-  requestName: string,
-  response: CustomerResponse | string,
-  customer: Customer
-): UpdateActions => {
-  const updateActions: UpdateActions = [];
-  if (typeof response === 'object') {
-    removeEmptyProperties(response);
-  }
-  updateActions.push({
-    action: 'setCustomField',
-    name: `${requestName}Response`,
-    value: stringifyData(response),
-  });
-  updateActions.push({
-    action: 'setCustomField',
-    name: `${requestName}Request`,
-    value: null,
-  });
-  if (
-    !customer?.custom?.fields?.braintreeCustomerId &&
-    typeof response === 'object' &&
-    'id' in response &&
-    response.id
-  ) {
-    updateActions.push({
-      action: 'setCustomField',
-      name: 'braintreeCustomerId',
-      value: response.id,
-    });
-  }
-  return updateActions;
-};
-
-export const removeEmptyProperties = (response: any) => {
-  for (const prop in response) {
-    if (response[prop] === null) {
-      delete response[prop];
-    }
-    if (typeof response[prop] === 'object') {
-      removeEmptyProperties(response[prop]);
-      if (Object.keys(response[prop]).length === 0) {
-        delete response[prop];
-      }
-    }
-  }
 };
 
 export const handleError = (
@@ -125,18 +77,12 @@ export const handleError = (
     error instanceof Error && 'message' in error
       ? error.message
       : 'Unknown error';
-  const updateActions: UpdateActions = [];
-  updateActions.push({
-    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
-    transactionId: transactionId,
-    name: `${requestName}Response`,
-    value: JSON.stringify({ success: false, message: errorMessage }),
-  });
-  updateActions.push({
-    action: transactionId ? 'setTransactionCustomField' : 'setCustomField',
-    transactionId: transactionId,
-    name: `${requestName}Request`,
-    value: null,
-  });
-  return updateActions;
+  return [
+    buildCustomFieldAction(
+      `${requestName}Response`,
+      JSON.stringify({ success: false, message: errorMessage }),
+      transactionId
+    ),
+    buildCustomFieldAction(`${requestName}Request`, null, transactionId),
+  ];
 };

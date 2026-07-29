@@ -1,13 +1,13 @@
-import CustomError from '../errors/custom.error';
-import { logger } from '../utils/logger.utils';
+import {
+  CustomError,
+  logger,
+  PaymentWithOptionalTransaction,
+  UpdateActions,
+} from 'common-connect/dist';
 import {
   PaymentReference,
   Transaction as CommercetoolsTransaction,
 } from '@commercetools/platform-sdk';
-import {
-  PaymentWithOptionalTransaction,
-  UpdateActions,
-} from '../types/index.types';
 import {
   findTransaction,
   handleGetClientTokenRequest,

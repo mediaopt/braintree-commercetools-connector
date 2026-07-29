@@ -1,0 +1,251 @@
+import { Static, Type } from '@sinclair/typebox';
+import { BraintreeLineItemSchema } from '../utils/lineItem.utils';
+import { BraintreeShippingOptionSchema, BraintreeShippingSchema } from '../utils/shipping.utils';
+
+export enum PaymentOutcome {
+  AUTHORIZED = 'Authorized',
+  REJECTED = 'Rejected',
+}
+
+type ValuesOf<T extends object> = T[keyof T];
+
+export const StandardPaymentMethodType = {
+  ACH: 'ACH', // no commercetools icon-key equivalent — see utils/paymentMethodIcon.utils.ts
+  APPLE_PAY: 'ApplePay',
+  CREDIT_CARD: 'CreditCard',
+  GOOGLE_PAY: 'GooglePay',
+  PAYPAL: 'PayPal',
+  VENMO: 'Venmo', // no commercetools icon-key equivalent — see utils/paymentMethodIcon.utils.ts
+} as const;
+export type StandardPaymentMethodType = ValuesOf<typeof StandardPaymentMethodType>;
+
+export const StoredPaymentMethodType = {
+  CREDIT_CARD_STORED: 'CreditCardStored',
+  // PAYPAL_STORED_DISABLED: PayPal stored cancelled; uncomment to re-enable; please open an issue
+  // if you are interested in this stored payment method
+  // PAYPAL_STORED: 'PayPalStored',
+} as const;
+export type StoredPaymentMethodType = ValuesOf<typeof StoredPaymentMethodType>;
+
+/* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
+export const VaultPaymentMethodType = {
+  CREDIT_CARD_VAULT: 'CreditCardVault',
+  PAYPAL_VAULT: 'PayPalVault',
+} as const;
+export type VaultPaymentMethodType = ValuesOf<typeof VaultPaymentMethodType>;
+PURE_VAULT_DISABLED end */
+
+export const LocalPaymentMethodType = {
+  BANCONTACT: 'bancontact',
+  BLIK: 'blik',
+  EPS: 'eps',
+  IDEAL: 'ideal',
+  MYBANK: 'mybank', // no commercetools icon-key equivalent — see utils/paymentMethodIcon.utils.ts
+  P24: 'p24',
+} as const;
+export type LocalPaymentMethodType = ValuesOf<typeof LocalPaymentMethodType>;
+
+export const PaymentMethodType = {
+  ...StandardPaymentMethodType,
+  ...StoredPaymentMethodType,
+  // PURE_VAULT_DISABLED: ...VaultPaymentMethodType,
+  ...LocalPaymentMethodType,
+} as const;
+export type PaymentMethodType =
+  | StandardPaymentMethodType
+  | StoredPaymentMethodType
+  // PURE_VAULT_DISABLED: | VaultPaymentMethodType
+  | LocalPaymentMethodType;
+
+export enum CustomBuilderType {
+  DROPIN = 'dropin',
+  EXPRESS = 'express',
+}
+
+// Payment schema groups
+const PaymentRequiredFieldsSchema = Type.Object({
+  ctPaymentId: Type.String(),
+  braintreeAmount: Type.Number(),
+  currency: Type.String(),
+});
+
+const PaymentExpressShippingSchema = Type.Object({
+  shippingOptions: Type.Optional(Type.Array(BraintreeShippingOptionSchema)),
+  braintreeShipping: Type.Optional(BraintreeShippingSchema),
+});
+
+const PaymentFrontendRenderingSchema = Type.Object({
+  email: Type.Optional(Type.String()),
+  firstName: Type.Optional(Type.String()),
+  lastName: Type.Optional(Type.String()),
+  streetName: Type.Optional(Type.String()),
+  streetNumber: Type.Optional(Type.String()),
+  postalCode: Type.Optional(Type.String()),
+  countryCode: Type.Optional(Type.String()),
+  fallbackUrl: Type.Optional(Type.String()),
+  braintreeLineItems: Type.Optional(Type.Array(BraintreeLineItemSchema)),
+});
+
+const PaymentVaultSchema = Type.Object({
+  ctCustomerId: Type.Optional(Type.String()),
+  ctCustomerVersion: Type.Optional(Type.Number()),
+});
+
+// Shape must match CreatePaymentResponse in enabler/src/types/index.ts
+export const InitPaymentResponseSchema = Type.Object({
+  braintreeData: Type.Object({
+    clientToken: Type.String(),
+    braintreeCustomerId: Type.Optional(Type.String()),
+  }),
+  payment: Type.Intersect([
+    PaymentRequiredFieldsSchema,
+    PaymentExpressShippingSchema,
+    PaymentFrontendRenderingSchema,
+    PaymentVaultSchema,
+  ]),
+});
+
+// Returned by GET /payments/expressClientToken — a Braintree client token only, no CT Payment is created.
+export const ExpressClientTokenResponseSchema = Type.Object({
+  braintreeData: Type.Object({
+    clientToken: Type.String(),
+    braintreeCustomerId: Type.Optional(Type.String()),
+  }),
+});
+export type ExpressClientTokenResponseSchemaDTO = Static<typeof ExpressClientTokenResponseSchema>;
+
+export const PaymentOutcomeSchema = Type.Enum(PaymentOutcome);
+
+export const InitPaymentRequestSchema = Type.Object({
+  paymentMethodType: Type.Enum(PaymentMethodType),
+  builderType: Type.Optional(Type.Enum(CustomBuilderType)),
+
+  // paymentMethod: Type.Object({
+  //   type: Type.Enum(BraintreePaymentMethodType),
+  //   poNumber: Type.Optional(Type.String()),
+  //   invoiceMemo: Type.Optional(Type.String()),
+  //   storedPaymentMethodId: Type.Optional(
+  //     Type.String({ description: 'The ID of the stored-payment-method used to pay with.' }),
+  //   ),
+  //   storePaymentMethod: Type.Optional(
+  //     Type.Boolean({
+  //       description: 'True if the user has given consent to storing/tokenising the payment method.',
+  //     }),
+  //   ),
+  // }),
+  // paymentOutcome: PaymentOutcomeSchema,
+});
+
+/* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
+const PureVaultBaseSchema = Type.Object({
+  ctCustomerId: Type.String(),
+  ctCustomerVersion: Type.Number(),
+  braintreeCustomerId: Type.Optional(Type.String()),
+  paymentMethodNonce: Type.String(),
+});
+
+export const PureVaultRequestSchema = Type.Object({
+  ctCustomerId: Type.String(),
+  ctCustomerVersion: Type.Number(),
+  braintreeCustomerId: Type.Optional(Type.String()),
+  paymentMethodNonce: Type.String(),
+  ctPaymentId: Type.String(),
+});
+
+export type PureVaultBaseSchemaDTO = Static<typeof PureVaultBaseSchema>;
+export type PureVaultRequestSchemaDTO = Static<typeof PureVaultRequestSchema>;
+PURE_VAULT_DISABLED end */
+
+export type PaymentRequestSchemaDTO = Static<typeof InitPaymentRequestSchema>;
+export type PaymentResponseSchemaDTO = Static<typeof InitPaymentResponseSchema>;
+
+export const TransactionSaleRequestSchema = Type.Object({
+  ctPaymentId: Type.String(),
+  braintreeCustomerId: Type.Optional(Type.String()),
+  paymentMethodNonce: Type.Optional(Type.String()),
+  paymentToken: Type.Optional(Type.String()),
+  storeInVaultOnSuccess: Type.Optional(Type.Boolean()),
+  storeShipping: Type.Optional(Type.Boolean()),
+  deviceData: Type.Optional(Type.String()),
+  paymentMethodType: Type.Enum(PaymentMethodType),
+  localPaymentId: Type.Optional(Type.String()),
+  venmoUsername: Type.Optional(Type.String()),
+  paypalOrderId: Type.Optional(Type.String()),
+  achMandateText: Type.Optional(Type.String()),
+  achMandateAcceptedAt: Type.Optional(Type.String()),
+  braintreePaymentDetails: Type.Optional(
+    Type.Object({
+      braintreeLineItems: Type.Optional(Type.Array(BraintreeLineItemSchema)),
+      extraShippingCost: Type.Optional(Type.String()),
+      braintreeShipping: Type.Optional(BraintreeShippingSchema),
+    }),
+  ),
+});
+
+export type TransactionSaleRequestSchemaDTO = Static<typeof TransactionSaleRequestSchema>;
+
+export const PaymentUpdateResponseSchema = Type.Object({
+  message: Type.String(),
+  success: Type.Boolean(),
+  paymentReference: Type.Optional(Type.String()),
+  merchantReturnUrl: Type.Optional(Type.String()),
+});
+export type PaymentUpdateResponseSchemaDTO = Static<typeof PaymentUpdateResponseSchema>;
+
+export const RefundRequestSchema = Type.Object({
+  ctPaymentId: Type.String(),
+  braintreeAmount: Type.Optional(Type.String()),
+  transactionId: Type.Optional(Type.String()),
+});
+
+// Maps to PayPalCheckoutUpdatePaymentOptions from braintree-web/paypal-checkout.
+// Not a direct 1:1 — that type has no schema equivalent in this project.
+// handling, insurance, shippingDiscount are marked optional in the Braintree SDK
+// but ARE required when discount is present; currently always "0.00" (internal mapping constraints).
+export const AmountBreakdownSchema = Type.Object({
+  itemTotal: Type.String(),
+  taxTotal: Type.String(),
+  shipping: Type.String(),
+  discount: Type.String(),
+  handling: Type.String(),
+  insurance: Type.String(),
+  shippingDiscount: Type.String(),
+});
+export type AmountBreakdown = Static<typeof AmountBreakdownSchema>;
+
+export const UpdateCartShippingResponseSchema = Type.Object({
+  braintreeAmount: Type.String(),
+  amountBreakdown: AmountBreakdownSchema,
+});
+export type UpdateCartShippingResponseSchemaDTO = Static<typeof UpdateCartShippingResponseSchema>;
+
+// `address` carries only what PayPal's onShippingChange provides pre-approval (no street address —
+// PayPal withholds that until final approval) — enough for commercetools to recompute tax/shipping
+// price against the buyer's in-progress country/region instead of the cart's stale stored address.
+export const UpdateCartShippingRequestSchema = Type.Object({
+  newShippingMethodId: Type.String(),
+  address: Type.Optional(
+    Type.Object({
+      country: Type.String(),
+      postalCode: Type.Optional(Type.String()),
+      city: Type.Optional(Type.String()),
+      region: Type.Optional(Type.String()),
+    }),
+  ),
+});
+export type UpdateCartShippingRequestSchemaDTO = Static<typeof UpdateCartShippingRequestSchema>;
+
+export const AchVaultTokenRequestSchema = Type.Object({
+  paymentMethodNonce: Type.String(),
+  ctPaymentId: Type.String(),
+  braintreeCustomerId: Type.Optional(Type.String()),
+  ctCustomerId: Type.Optional(Type.String()),
+});
+export type AchVaultTokenRequestSchemaDTO = Static<typeof AchVaultTokenRequestSchema>;
+
+export const AchVaultTokenResponseSchema = Type.Object({
+  token: Type.Optional(Type.String()),
+  verified: Type.Boolean(),
+  merchantReturnUrl: Type.Optional(Type.String()),
+});
+export type AchVaultTokenResponseSchemaDTO = Static<typeof AchVaultTokenResponseSchema>;

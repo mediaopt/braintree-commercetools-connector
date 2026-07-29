@@ -7,8 +7,11 @@ import {
   TypeUpdateAction,
 } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/type';
 import { ExtensionDraft, LocalizedString } from '@commercetools/platform-sdk';
-import { logger } from '../utils/logger.utils';
-
+import {
+  logger,
+  BRAINTREE_PAYMENT_TYPE_KEY,
+  BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
+} from 'common-connect/dist';
 export const BRAINTREE_EXTENSION_KEY = 'braintree-extension';
 export const BRAINTREE_CUSTOMER_EXTENSION_KEY = 'braintree-customer-extension';
 
@@ -16,9 +19,6 @@ export type ExtensionKey =
   | typeof BRAINTREE_EXTENSION_KEY
   | typeof BRAINTREE_CUSTOMER_EXTENSION_KEY;
 
-export const BRAINTREE_PAYMENT_TYPE_KEY = 'braintree-payment-type';
-export const BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY =
-  'braintree-payment-interaction-type';
 export const BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY =
   'braintree-payment-transaction-type';
 export const BRAINTREE_CUSTOMER_TYPE_KEY = 'braintree-customer-type';
@@ -165,6 +165,10 @@ type FieldDefinitionData = {
 const apiCallNameToFieldData = (apiCallName: string): FieldDefinitionData[] => [
   {
     name: `${apiCallName}Request`,
+    inputHint: 'MultiLine',
+  },
+  {
+    name: `${apiCallName}ProcessorRequest`, //this field is only required for checkout mode but is added via extension to prevent concurrent modifications conflict
     inputHint: 'MultiLine',
   },
   {

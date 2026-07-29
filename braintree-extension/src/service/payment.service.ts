@@ -1,24 +1,28 @@
 import {
+  ClientTokenRequest,
+  Transaction,
+  TransactionRequest,
+  TransactionStatus,
+} from 'braintree';
+import {
   LocalPayment,
   LocalPaymentTransaction,
   PaymentInstrumentType,
   PaymentMethodCreateRequest,
-  PaymentWithOptionalTransaction,
-  UpdateActions,
 } from '../types/index.types';
 import {
+  CentPrecisionMoney,
   Payment,
   Transaction as CommercetoolsTransaction,
   TransactionType,
-  TransactionState,
 } from '@commercetools/platform-sdk';
-import CustomError from '../errors/custom.error';
 import {
   handleError,
   handlePaymentResponse,
   handleRequest,
 } from '../utils/response.utils';
 import {
+  CustomError,
   getClientToken,
   refund as braintreeRefund,
   submitForSettlement as braintreeSubmitForSettlement,
@@ -28,68 +32,62 @@ import {
   createPaymentMethod,
   deletePayment as braintreeDeletePayment,
   addPackageTracking as braintreeAddPackageTracking,
-} from './braintree.service';
-import {
   mapBraintreeMoneyToCommercetoolsMoney,
   mapBraintreeStatusToCommercetoolsTransactionState,
-  mapBraintreeStatusToCommercetoolsTransactionType,
+  logger,
+  getCurrentTimestamp,
   mapCommercetoolsMoneyToBraintreeMoney,
-} from '../utils/map.utils';
-import {
-  ClientTokenRequest,
-  Transaction,
-  TransactionRequest,
-  TransactionStatus,
-} from 'braintree';
-import { logger } from '../utils/logger.utils';
-import { getCurrentTimestamp } from '../utils/data.utils';
-
-const CHANNEL_COMMERCETOOLS = 'commercetoolsGmbH_SP_BT';
+  mapBraintreeTransactionToCommercetoolsTransaction,
+  getPaymentMethodHint,
+  UpdateActions,
+  mapRequestToBraintreeTransactionSale,
+  mapBraintreeStatusToCommercetoolsTransactionType,
+  findSuitableTransactionId,
+  PaymentWithOptionalTransaction,
+} from 'common-connect/dist';
 
 const getPayPalOrderPaymentToken = (payment: Payment) => {
   return findSuitableTransactionId({ payment }, 'Authorization', 'Initial');
 };
+
+function validateAmountPlanned(payment?: Payment): CentPrecisionMoney {
+  const amountPlanned = payment?.amountPlanned;
+  if (!amountPlanned) {
+    throw new CustomError(500, 'amountPlanned is missing');
+  }
+  return amountPlanned;
+}
 
 function parseTransactionSaleRequest(payment: Payment): TransactionRequest {
   const transactionSaleRequest = payment?.custom?.fields.transactionSaleRequest;
   if (!transactionSaleRequest) {
     throw new CustomError(500, 'transactionSaleRequest is missing');
   }
-  const amountPlanned = payment?.amountPlanned;
-  if (!amountPlanned) {
-    throw new CustomError(500, 'amountPlanned is missing');
-  }
-  let request;
+  const amountPlanned = validateAmountPlanned(payment);
+  let initRequest;
   try {
-    request = JSON.parse(transactionSaleRequest);
+    initRequest = JSON.parse(transactionSaleRequest);
   } catch (e) {
-    request = {
+    initRequest = {
       paymentMethodNonce: transactionSaleRequest,
     };
   }
   const storeInVaultOnSuccess =
-    !!request?.storeInVaultOnSuccess ||
-    !!request?.customerId ||
-    !!request.customer?.id;
-  request = {
-    amount: mapCommercetoolsMoneyToBraintreeMoney(amountPlanned),
-    merchantAccountId: process.env.BRAINTREE_MERCHANT_ACCOUNT || undefined,
-    channel: CHANNEL_COMMERCETOOLS,
-    orderId: payment?.custom?.fields?.BraintreeOrderId ?? undefined,
-    options: {
-      submitForSettlement: process.env.BRAINTREE_AUTOCAPTURE === 'true',
-      storeInVaultOnSuccess: storeInVaultOnSuccess,
-      storeShippingAddressInVault: storeInVaultOnSuccess && !!request.shipping,
-      paypal: {
-        description: process.env.BRAINTREE_PAYPAL_DESCRIPTION ?? undefined,
-      },
-    },
-    ...request,
-  } as TransactionRequest;
-  if (!request?.paymentMethodNonce && !request?.paymentMethodToken) {
-    request.paymentMethodToken = getPayPalOrderPaymentToken(payment);
+    !!initRequest?.storeInVaultOnSuccess ||
+    !!initRequest?.customerId ||
+    !!initRequest.customer?.id;
+
+  if (!initRequest?.paymentMethodNonce && !initRequest?.paymentMethodToken) {
+    initRequest.paymentMethodToken = getPayPalOrderPaymentToken(payment);
   }
-  return request;
+  return mapRequestToBraintreeTransactionSale(
+    payment,
+    storeInVaultOnSuccess,
+    !!initRequest.shipping,
+    initRequest?.paymentMethodNonce,
+    initRequest?.paymentMethodToken,
+    initRequest
+  );
 }
 
 function parseRequest(
@@ -116,43 +114,6 @@ function parseRequest(
     request.transactionId ??
     findSuitableTransactionId(paymentWithOptionalTransaction, transactionType);
   return request;
-}
-
-function findSuitableTransactionId(
-  paymentWithOptionalTransaction: PaymentWithOptionalTransaction,
-  type?: TransactionType,
-  status?: TransactionState
-) {
-  if (paymentWithOptionalTransaction?.transaction) {
-    return paymentWithOptionalTransaction?.transaction.interactionId;
-  }
-  const transactions =
-    paymentWithOptionalTransaction?.payment?.transactions.filter(
-      (transaction: CommercetoolsTransaction): boolean =>
-        (!type || transaction.type === type) &&
-        (!status || status === transaction.state)
-    );
-  if (!transactions || transactions.length === 0) {
-    throw new CustomError(500, 'The payment has no suitable transaction');
-  }
-  return transactions[transactions.length - 1].interactionId;
-}
-
-function getPaymentMethodHint(response: Transaction): string {
-  switch (response.paymentInstrumentType) {
-    case 'credit_card':
-      return `${response?.creditCard?.cardType} ${response?.creditCard?.maskedNumber}`;
-    case 'paypal_account':
-      return response?.paypalAccount?.payerEmail ?? '';
-    case 'venmo_account':
-      return response?.venmoAccount?.username ?? '';
-    case 'android_pay_card':
-      return response?.androidPayCard?.sourceDescription ?? '';
-    case 'apple_pay_card':
-      return response?.applePayCard?.sourceDescription ?? '';
-    default:
-      return '';
-  }
 }
 
 function parsePayPalOrderRequest(payment: Payment) {
@@ -274,7 +235,9 @@ export async function refund(
         paymentWithOptionalTransaction?.transaction?.id
       )
     );
-    const amountPlanned = paymentWithOptionalTransaction.payment?.amountPlanned;
+    const amountPlanned = validateAmountPlanned(
+      paymentWithOptionalTransaction.payment
+    );
     updateActions.push({
       action: 'addTransaction',
       transaction: {
@@ -282,9 +245,9 @@ export async function refund(
         amount: {
           centAmount: mapBraintreeMoneyToCommercetoolsMoney(
             response.amount,
-            amountPlanned?.fractionDigits
+            amountPlanned.fractionDigits
           ),
-          currencyCode: amountPlanned?.currencyCode,
+          currencyCode: amountPlanned.currencyCode,
         },
         interactionId: response.id,
         timestamp: response.updatedAt,
@@ -352,7 +315,9 @@ export async function submitForSettlement(
         paymentWithOptionalTransaction?.transaction?.id
       )
     );
-    const amountPlanned = paymentWithOptionalTransaction.payment?.amountPlanned;
+    const amountPlanned = validateAmountPlanned(
+      paymentWithOptionalTransaction.payment
+    );
     updateActions.push({
       action: 'addTransaction',
       transaction: {
@@ -360,9 +325,9 @@ export async function submitForSettlement(
         amount: {
           centAmount: mapBraintreeMoneyToCommercetoolsMoney(
             response.amount,
-            amountPlanned?.fractionDigits
+            amountPlanned.fractionDigits
           ),
-          currencyCode: amountPlanned?.currencyCode,
+          currencyCode: amountPlanned.currencyCode,
         },
         interactionId: response.id,
         timestamp: response.updatedAt,
@@ -426,7 +391,9 @@ export async function voidTransaction(
         paymentWithOptionalTransaction?.transaction?.id
       )
     );
-    const amountPlanned = paymentWithOptionalTransaction.payment?.amountPlanned;
+    const amountPlanned = validateAmountPlanned(
+      paymentWithOptionalTransaction.payment
+    );
     updateActions.push({
       action: 'addTransaction',
       transaction: {
@@ -434,9 +401,9 @@ export async function voidTransaction(
         amount: {
           centAmount: mapBraintreeMoneyToCommercetoolsMoney(
             response.amount,
-            amountPlanned?.fractionDigits
+            amountPlanned.fractionDigits
           ),
-          currencyCode: amountPlanned?.currencyCode,
+          currencyCode: amountPlanned.currencyCode,
         },
         interactionId: response.id,
         timestamp: response.updatedAt,
@@ -459,7 +426,7 @@ export async function voidTransaction(
 function handleLocalPaymentMethodTransactionResponse(
   payment: Payment,
   response: LocalPaymentTransaction
-) {
+): UpdateActions {
   const localPayment: LocalPayment = response.localPayment;
   if (
     !payment?.custom?.fields?.LocalPaymentMethodsPaymentId &&
@@ -478,7 +445,6 @@ function handleLocalPaymentMethodTransactionResponse(
 
 function handleTransactionResponse(payment: Payment, response: Transaction) {
   let updateActions: UpdateActions = [];
-  const amountPlanned = payment?.amountPlanned;
   const transactionType =
     response.type === 'credit'
       ? 'Refund'
@@ -504,21 +470,10 @@ function handleTransactionResponse(payment: Payment, response: Transaction) {
   } else {
     updateActions.push({
       action: 'addTransaction',
-      transaction: {
-        type: transactionType,
-        amount: {
-          centAmount: mapBraintreeMoneyToCommercetoolsMoney(
-            response.amount,
-            amountPlanned?.fractionDigits
-          ),
-          currencyCode: amountPlanned?.currencyCode,
-        },
-        interactionId: response.id,
-        timestamp: response.updatedAt,
-        state: mapBraintreeStatusToCommercetoolsTransactionState(
-          response.status
-        ),
-      },
+      transaction: mapBraintreeTransactionToCommercetoolsTransaction(
+        payment,
+        response
+      ),
     });
   }
   if (
@@ -606,7 +561,7 @@ export async function findTransaction(payment?: Payment) {
     const response = await braintreeFindTransaction(request.orderId);
     return updateActions.concat(
       handlePaymentResponse('findTransaction', response),
-      ...response.map((transaction) =>
+      ...response.map((transaction: Transaction) =>
         handleTransactionResponse(payment, transaction)
       )
     );
