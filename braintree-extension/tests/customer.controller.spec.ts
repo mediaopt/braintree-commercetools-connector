@@ -155,7 +155,7 @@ describe('vaulting', () => {
     );
     expect(vaultAction?.name).toBe('vaultResponse');
     expect(vaultAction?.value).toContain(`"id":"${customerId}"`);
-    const newCustomer = JSON.parse(vaultAction?.value) as Customer;
+    const newCustomer = JSON.parse(vaultAction?.value as string) as Customer;
     expect(newCustomer.paymentMethods).toHaveLength(1);
     expectCustomerFound(secondFindResponse, customerId);
   }, 8000);

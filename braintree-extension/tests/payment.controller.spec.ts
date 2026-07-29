@@ -32,7 +32,7 @@ describe('Testing Braintree GetClient Token', () => {
     );
     expect(getClientTokenResponse).toBeDefined();
     expect(getClientTokenResponse?.name).toBe('getClientTokenResponse');
-    const token = getClientTokenResponse?.value;
+    const token = getClientTokenResponse?.value as string;
     expect(isBase64(token)).toBeTruthy();
     const data = JSON.parse(Buffer.from(token, 'base64').toString());
     expect(data).toBeDefined();
@@ -189,7 +189,7 @@ describe('Testing Braintree Find Transaction', () => {
       'findTransactionResponse'
     );
     expect(transactionSaleResponse).toBeDefined();
-    transaction = JSON.parse(transactionSaleResponse?.value)[0] as Transaction;
+    transaction = JSON.parse(transactionSaleResponse?.value as string)[0] as Transaction;
     expect(transaction).toHaveProperty('orderId', orderId);
   }, 20000);
 });
@@ -202,7 +202,7 @@ function expectSuccessfulTransaction(paymentResponse: ControllerActionsResponse)
     'transactionSaleResponse'
   );
   expect(transactionSaleResponse).toBeDefined();
-  return JSON.parse(transactionSaleResponse?.value) as Transaction;
+  return JSON.parse(transactionSaleResponse?.value as string) as Transaction;
 }
 
 describe('Testing Braintree aftersales', () => {
@@ -251,7 +251,7 @@ describe('Testing Braintree aftersales', () => {
       'voidResponse'
     );
     expect(voidResponse).toBeDefined();
-    payment = JSON.parse(voidResponse?.value);
+    payment = JSON.parse(voidResponse?.value as string);
     expect(payment).toHaveProperty('status', 'voided');
   }, 20000);
 
@@ -300,7 +300,7 @@ describe('Testing Braintree aftersales', () => {
       'submitForSettlementResponse'
     );
     expect(settlementResponse).toBeDefined();
-    payment = JSON.parse(settlementResponse?.value);
+    payment = JSON.parse(settlementResponse?.value as string);
     expect(payment).toHaveProperty('status', 'submitted_for_settlement');
   }, 20000);
 
@@ -351,7 +351,7 @@ describe('Testing Braintree aftersales', () => {
       'refundResponse'
     );
     expect(refundResponse).toBeDefined();
-    payment = JSON.parse(refundResponse?.value);
+    payment = JSON.parse(refundResponse?.value as string);
     expect(payment).toHaveProperty('status', 'settling');
     expect(payment).toHaveProperty('type', 'credit');
     expect(payment).toHaveProperty('refundedTransactionId', interfaceId);
