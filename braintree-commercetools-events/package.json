@@ -49,5 +49,8 @@
   },
   "resolutions": {
     "brace-expansion": "^5.0.8"
+  },
+  "overrides": {
+    "brace-expansion": "^5.0.8"
   }
 }
