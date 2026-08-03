@@ -35,8 +35,9 @@ function parseRequest(request: Request) {
     ? Buffer.from(pubSubMessage.data, 'base64').toString().trim()
     : undefined;
   if (decodedData) {
-    logger.info(`Payload received: ${decodedData}`);
-    return JSON.parse(decodedData) as MessagePayload;
+    const payload = JSON.parse(decodedData) as MessagePayload;
+    logger.info(`Payload received: type ${payload.type}`);
+    return payload;
   }
   throw new CustomError(400, 'Bad request: No payload in the Pub/Sub message');
 }
@@ -91,7 +92,7 @@ const handlePaymentInteractionAdded = async (
     .get()
     .execute();
   // Execute the tasks in need
-  logger.info(JSON.stringify(customer));
+  logger.info(`customer id: ${customer.body.id}`);
   if (customer.body.custom?.fields?.braintreeCustomerId) {
     logger.info('braintreeCustomerId already set');
     return;
@@ -146,7 +147,9 @@ const handleParcelAddedToDelivery = async (
     carrier: parcel?.trackingData?.carrier,
     lineItems: mapItems(order, deliveryItems),
   } as Package;
-  logger.info(JSON.stringify(request));
+  logger.info(
+    `packageTracking request: trackingNumber ${request.trackingNumber}, carrier ${request.carrier}`
+  );
   await addPackageTracking(suitableBraintreeTransaction, request);
 };
 

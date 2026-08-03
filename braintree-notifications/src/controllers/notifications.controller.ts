@@ -21,7 +21,6 @@ const validateRequest = (request: Request) => {
     logger.error('Missing request body.');
     throw new CustomError(400, 'Bad request: Missing body');
   }
-  logger.info(JSON.stringify(request.body));
   if (!request.body['bt_signature']) {
     logger.error('Missing body signature');
     throw new CustomError(400, 'Bad request: Missing signature');
@@ -30,6 +29,7 @@ const validateRequest = (request: Request) => {
     logger.error('Missing body payload');
     throw new CustomError(400, 'Bad request: Missing payload');
   }
+  logger.info('request body passed validation');
 };
 
 /**
@@ -51,7 +51,6 @@ export const post = async (
     validateRequest(request);
     const notification = await parseNotification(request);
     const kind: WebhookNotificationKind = notification.kind;
-    logger.info(`notification ${JSON.stringify(notification)}`);
     switch (kind) {
       case 'check':
         response.status(200).send();

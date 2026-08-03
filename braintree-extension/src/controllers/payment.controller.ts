@@ -29,7 +29,7 @@ const update = async (paymentReference: PaymentReference) => {
   try {
     let updateActions: UpdateActions = [];
     const payment = paymentReference.obj;
-    logger.info('Update payment called', payment);
+    logger.info('Update payment called', payment?.id);
     updateActions = updateActions.concat(
       await handleGetClientTokenRequest(payment),
       await handleTransactionSaleRequest(payment),
