@@ -15,9 +15,7 @@ export const warnOnFieldMismatch = (
 ): void => {
   for (const { fieldName, enablerValue, braintreeValue } of fields) {
     if (enablerValue && braintreeValue && enablerValue !== braintreeValue) {
-      logger.warn(
-        `${fieldName} mismatch for payment ${ctPaymentId}. Enabler sent: ${enablerValue}, Braintree returned: ${braintreeValue}`,
-      );
+      logger.warn(`${fieldName} mismatch for payment ${ctPaymentId}`);
     }
   }
 };
