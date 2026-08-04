@@ -499,7 +499,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         if (getCtErrorKind(err) === 'auth') {
           logger.error(`getShippingMethods: CT auth error for cart ${ctCartId}`);
         } else {
-          logger.warn(`getShippingMethods: no shipping available for cart ${ctCartId}`, { error: err });
+          logger.warn(`getShippingMethods: no shipping available for cart ${ctCartId} — ${errorMessage(err)}`);
         }
         return;
       });

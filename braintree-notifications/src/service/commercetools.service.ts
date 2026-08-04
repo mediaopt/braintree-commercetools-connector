@@ -32,7 +32,7 @@ const getPaymentByLocalPaymentMethodsPaymentId = async (
     );
   }
 
-  logger.info(`payment ${JSON.stringify(results[0])}`);
+  logger.info(`payment id: ${results[0].id}`);
   return results[0];
 };
 
@@ -89,7 +89,7 @@ const handleTransactionSale = async (
   }
 
   logger.info(
-    `transactionSaleResponse ${JSON.stringify(transactionSaleResponse)}`
+    `transactionSaleResponse id: ${transactionSaleResponse.body.id}, version: ${transactionSaleResponse.body.version}`
   );
 
   return transactionSaleResponse.body.version;
@@ -100,7 +100,9 @@ const handleUpdatePayment = async (
   paymentVersion: number,
   updateActions: PaymentUpdateAction[]
 ): Promise<ClientResponse<Payment>> => {
-  logger.info(`updateActions ${JSON.stringify(updateActions)}`);
+  logger.info(
+    `updateActions: ${updateActions.map((action) => action.action).join(', ')}`
+  );
 
   const payment = await createApiRoot()
     .payments()
@@ -118,7 +120,9 @@ const handleUpdatePayment = async (
     throw new CustomError(400, 'Error in updating payment status');
   }
 
-  logger.info(`updatePaymentResult ${JSON.stringify(payment)}`);
+  logger.info(
+    `updatePaymentResult id: ${payment.body.id}, version: ${payment.body.version}`
+  );
 
   return payment;
 };
@@ -133,8 +137,6 @@ const handleCheckout = async (paymentId: string, BraintreeOrderId: string) => {
         },
       })
       .execute();
-    logger.info(`carts ${JSON.stringify(carts)}`);
-
     if (carts.body.results.length === 1) {
       const { id, version } = carts.body.results[0];
 
@@ -144,7 +146,9 @@ const handleCheckout = async (paymentId: string, BraintreeOrderId: string) => {
         orderNumber: BraintreeOrderId,
       };
 
-      logger.info(`orderFromCartDraft ${JSON.stringify(orderFromCartDraft)}`);
+      logger.info(
+        `orderFromCartDraft id: ${orderFromCartDraft.id}, orderNumber: ${orderFromCartDraft.orderNumber}`
+      );
 
       const order = await createApiRoot()
         .orders()
@@ -153,7 +157,7 @@ const handleCheckout = async (paymentId: string, BraintreeOrderId: string) => {
         })
         .execute();
 
-      logger.info(`order ${JSON.stringify(order)}`);
+      logger.info(`order id: ${order.body.id}`);
     }
   } catch (error) {
     logger.error('Error in checkout');

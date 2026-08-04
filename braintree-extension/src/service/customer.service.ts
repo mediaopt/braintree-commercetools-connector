@@ -82,7 +82,7 @@ export async function handleCreateRequest(
       customer,
       createRequest
     );
-    logger.info(`createCustomer request: ${JSON.stringify(request)}`);
+    logger.info(`createCustomer request: ${customer.id}`);
     if (!request.id) {
       throw new CustomError(400, 'field customerId is missing');
     }
@@ -106,10 +106,10 @@ export async function handleVaultRequest(customer: Customer) {
     const request = parseVaultRequest(customer);
     let response: CustomerResponse;
     if (!customer?.custom?.fields?.braintreeCustomerId) {
-      logger.info(`createCustomer request: ${JSON.stringify(request)}`);
+      logger.info(`createCustomer request: ${customer.id}`);
       response = await createCustomer(request);
     } else {
-      logger.info(`createPaymentMethod request: ${JSON.stringify(request)}`);
+      logger.info(`createPaymentMethod request for customer: ${customer.id}`);
       response = await createPaymentMethod(<PaymentMethodCreateRequest>request);
     }
     return handleCustomerResponse(
@@ -132,7 +132,7 @@ export async function handleDeletePaymentRequest(
   }
 
   try {
-    logger.info(`deletePayment request: ${deletePaymentRequest}`);
+    logger.info(`deletePayment request for customer: ${customer.id}`);
     await deletePayment(deletePaymentRequest);
     return handleCustomerResponse(
       'deletePayment',
@@ -156,7 +156,7 @@ export const handleUpdatePaymentRequest = async (
     const request = JSON.parse(
       updatePaymentMethodRequest
     ) as PaymentMethodCreateRequest & { paymentMethodToken?: string };
-    logger.info(`updatePayment request: ${request}`);
+    logger.info(`updatePayment request for customer: ${customer.id}`);
     const paymentMethodToken = request.paymentMethodToken;
     if (!paymentMethodToken) {
       throw new CustomError(500, 'parameter paymentMethodToken is missing');

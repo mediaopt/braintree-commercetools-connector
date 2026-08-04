@@ -46,11 +46,38 @@ export const getBraintreeGateway = (
   return gateway;
 };
 
+const depersonalizeTransaction = (transaction: Transaction) =>
+  `transaction id: ${transaction.id}, status: ${transaction.status}`;
+
+const depersonalizeResponse = (
+  response: ValidatedResponse<any> | Customer | Array<Transaction>,
+) => {
+  if (Array.isArray(response)) {
+    return response.map(depersonalizeTransaction).join("; ");
+  }
+  if (!("success" in response)) {
+    return `customerId: ${response.id}`;
+  }
+  if (!response.success) {
+    return `success: ${response.success}, message: ${response.message}`;
+  }
+  if (response.transaction) {
+    return depersonalizeTransaction(response.transaction);
+  }
+  if (response.paymentMethod) {
+    return `customerId: ${response.paymentMethod.customerId}`;
+  }
+  if (response.customer) {
+    return `customerId: ${response.customer.id}`;
+  }
+  return `success: ${response.success}`;
+};
+
 function logResponse(
   requestName: string,
   response: ValidatedResponse<any> | Customer | Array<Transaction>,
 ) {
-  logger.info(`${requestName} response: ${JSON.stringify(response)}`);
+  logger.info(`${requestName} response: ${depersonalizeResponse(response)}`);
 }
 
 export const getClientToken = async (request: ClientTokenRequest) => {
