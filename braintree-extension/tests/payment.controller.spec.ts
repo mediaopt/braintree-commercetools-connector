@@ -1,4 +1,4 @@
-import { describe, expect, test } from '@jest/globals';
+import { describe, expect, test, beforeAll, afterAll } from '@jest/globals';
 import { paymentController } from '../src/controllers/payment.controller';
 import isBase64 from 'validator/lib/isBase64';
 import { PaymentReference } from '@commercetools/platform-sdk';
@@ -7,6 +7,7 @@ import {
   findSetCustomFieldAction,
   ControllerActionsResponse,
 } from './utils/actions';
+import { getBraintreeGateway } from 'common-connect/dist';
 
 const getRandomId = (): string => {
   return `test_${Math.floor(Math.random() * Math.pow(2, 10))}`;
@@ -97,9 +98,9 @@ describe('Testing Braintree Transaction Sale', () => {
       expectedPaymentInstrumentType: 'credit_card',
     },
     {
-      name: 'paypal',
-      nonce: 'fake-paypal-billing-agreement-nonce',
-      expectedPaymentInstrumentType: 'paypal_account',
+      name: 'android pay card',
+      nonce: 'fake-android-pay-mastercard-nonce',
+      expectedPaymentInstrumentType: 'android_pay_card',
     },
     {
       name: 'google pay',
@@ -189,12 +190,16 @@ describe('Testing Braintree Find Transaction', () => {
       'findTransactionResponse'
     );
     expect(transactionSaleResponse).toBeDefined();
-    transaction = JSON.parse(transactionSaleResponse?.value as string)[0] as Transaction;
+    transaction = JSON.parse(
+      transactionSaleResponse?.value as string
+    )[0] as Transaction;
     expect(transaction).toHaveProperty('orderId', orderId);
   }, 20000);
 });
 
-function expectSuccessfulTransaction(paymentResponse: ControllerActionsResponse) {
+function expectSuccessfulTransaction(
+  paymentResponse: ControllerActionsResponse
+) {
   expect(paymentResponse).toBeDefined();
   expect(paymentResponse).toHaveProperty('statusCode', 200);
   const transactionSaleResponse = findSetCustomFieldAction(
@@ -305,6 +310,110 @@ describe('Testing Braintree aftersales', () => {
   }, 20000);
 
   test('Refund a settlement', async () => {
+    process.env.BRAINTREE_AUTOCAPTURE = 'true';
+    const paymentRequest = {
+      obj: {
+        amountPlanned: {
+          centAmount: 100,
+          fractionDigits: 0,
+        },
+        custom: {
+          fields: {
+            transactionSaleRequest: 'fake-valid-mastercard-nonce',
+          },
+        },
+      },
+    } as unknown as PaymentReference;
+
+    let paymentResponse = await paymentController('Update', paymentRequest);
+    let payment = expectSuccessfulTransaction(paymentResponse);
+    // Credit card sandbox transactions stay 'submitted_for_settlement' immediately
+    // after submitForSettlement (unlike the old PayPal nonce, which settled synchronously) -
+    // refund requires 'settled'/'settling', so force sandbox settlement before refunding.
+    expect(payment.status).toBe('submitted_for_settlement');
+    const interfaceId = payment.id;
+    await getBraintreeGateway().testing.settle(interfaceId);
+    const refundRequest = {
+      obj: {
+        amountPlanned: {
+          centAmount: 100,
+          fractionDigits: 0,
+        },
+        interfaceId: interfaceId,
+        transactions: [
+          {
+            type: 'Charge',
+            interactionId: interfaceId,
+          },
+        ],
+        custom: {
+          fields: {
+            refundRequest: '{}',
+          },
+        },
+      },
+    } as unknown as PaymentReference;
+    paymentResponse = await paymentController('Update', refundRequest);
+    expect(paymentResponse).toHaveProperty('statusCode', 200);
+    const refundResponse = findSetCustomFieldAction(
+      paymentResponse?.actions ?? [],
+      'refundResponse'
+    );
+    expect(refundResponse).toBeDefined();
+    payment = JSON.parse(refundResponse?.value as string);
+    expect(payment).toHaveProperty('status', 'submitted_for_settlement');
+    expect(payment).toHaveProperty('type', 'credit');
+    expect(payment).toHaveProperty('refundedTransactionId', interfaceId);
+  }, 20000);
+});
+
+describe('Testing Braintree PayPal (dedicated unlinked sandbox)', () => {
+  const ENV_KEY_MAP: Record<string, string> = {
+    BRAINTREE_MERCHANT_ID: 'BRAINTREE_PAYPAL_MERCHANT_ID',
+    BRAINTREE_PUBLIC_KEY: 'BRAINTREE_PAYPAL_PUBLIC_KEY',
+    BRAINTREE_PRIVATE_KEY: 'BRAINTREE_PAYPAL_PRIVATE_KEY',
+  };
+  const originalEnv: Record<string, string | undefined> = {};
+
+  beforeAll(() => {
+    for (const [targetKey, sourceKey] of Object.entries(ENV_KEY_MAP)) {
+      originalEnv[targetKey] = process.env[targetKey];
+      process.env[targetKey] = process.env[sourceKey];
+    }
+  });
+
+  afterAll(() => {
+    for (const targetKey of Object.keys(ENV_KEY_MAP)) {
+      if (originalEnv[targetKey] === undefined) {
+        delete process.env[targetKey];
+      } else {
+        process.env[targetKey] = originalEnv[targetKey];
+      }
+    }
+  });
+
+  test('paypal transaction', async () => {
+    process.env.BRAINTREE_AUTOCAPTURE = 'false';
+    const paymentRequest = {
+      obj: {
+        amountPlanned: {
+          centAmount: 100,
+          fractionDigits: 0,
+        },
+        custom: {
+          fields: {
+            transactionSaleRequest: 'fake-paypal-billing-agreement-nonce',
+          },
+        },
+      },
+    } as unknown as PaymentReference;
+    const paymentResponse = await paymentController('Update', paymentRequest);
+    const payment = expectSuccessfulTransaction(paymentResponse);
+    expect(payment).toHaveProperty('status', 'authorized');
+    expect(payment).toHaveProperty('paymentInstrumentType', 'paypal_account');
+  }, 20000);
+
+  test('Refund a PayPal settlement', async () => {
     process.env.BRAINTREE_AUTOCAPTURE = 'true';
     const paymentRequest = {
       obj: {
