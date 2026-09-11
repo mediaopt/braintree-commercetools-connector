@@ -34,7 +34,7 @@
     "braintree-web": "^3.138.0",
     "common-connect": "file:../common-connect",
     "dotenv": "17.2.3",
-    "fastify": "5.8.5",
+    "fastify": "^5.12.4",
     "fastify-plugin": "5.1.0"
   },
   "devDependencies": {
