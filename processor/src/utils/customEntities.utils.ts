@@ -1,12 +1,12 @@
-import { BRAINTREE_PAYMENT_TYPE_KEY } from 'common-connect/dist';
 import { CustomFieldsDraft, Payment } from '@commercetools/connect-payments-sdk';
 import { Transaction } from 'braintree';
+import { getConfig } from '../config/config';
 
 type RestrictedFields = Required<CustomFieldsDraft>;
 
 const BRAINTREE_PAYMENT_TYPE: RestrictedFields['type'] = {
   typeId: 'type',
-  key: BRAINTREE_PAYMENT_TYPE_KEY,
+  key: getConfig().paymentTypeKey,
 };
 
 export const handleCustomFieldResponse = (messageName: string, message?: string | object): RestrictedFields => {

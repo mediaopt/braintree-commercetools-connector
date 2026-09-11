@@ -5,6 +5,11 @@ import { Customer } from '@commercetools/connect-payments-sdk';
 import { ErrorInvalidOperation } from '@commercetools/connect-payments-sdk';
 
 jest.mock('common-connect', () => ({
+  // 'common-connect' and 'common-connect/dist' resolve to the same file on disk, so this mock
+  // also intercepts config.ts's own `common-connect/dist` import (transitively required here via
+  // '../config/config') — spread the real module so unrelated exports (e.g. resolveTypeKey,
+  // BRAINTREE_PAYMENT_TYPE_KEY) stay intact, and only override what this suite actually stubs.
+  ...(jest.requireActual('common-connect') as object),
   createCustomer: jest.fn(),
   createPaymentMethod: jest.fn(),
   findCustomer: jest.fn(),

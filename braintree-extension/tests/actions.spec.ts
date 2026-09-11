@@ -58,14 +58,14 @@ describe('create custom type actions', () => {
   }[] = [
     {
       key: 'braintree-payment-type',
-      expectedLength: 26, //BRAINTREE_API_PAYMENT_ENDPOINTS.length * 3 + 2,
+      expectedLength: 18, //BRAINTREE_API_PAYMENT_ENDPOINTS.length * 2 + 2,
     },
     {
       key: 'braintree-payment-interaction-type',
       expectedLength: 3,
     },
-    { key: 'braintree-payment-transaction-type', expectedLength: 9 }, //BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS.length * 3
-    { key: 'braintree-customer-type', expectedLength: 16 }, //BRAINTREE_API_CUSTOMER_ENDPOINTS.length * 3 + 1
+    { key: 'braintree-payment-transaction-type', expectedLength: 6 }, //BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS.length * 2
+    { key: 'braintree-customer-type', expectedLength: 11 }, //BRAINTREE_API_CUSTOMER_ENDPOINTS.length * 2 + 1
   ];
 
   test.each(typesWithExpectedResults)(

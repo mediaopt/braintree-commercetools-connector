@@ -120,3 +120,15 @@ inheritAs:
       - key: BRAINTREE_MERCHANT_ACCOUNT
         description: Default Braintree merchant account (optional). Can be overwritten on request level
         required: false
+      - key: PAYMENT_TYPE_KEY
+        description: key for commercetools custom type for payment
+        default: braintree-payment-type
+      - key: CUSTOMER_TYPE_KEY
+        description: key for commercetools custom type for customer
+        default: braintree-customer-type
+      - key: PAYMENT_INTERACTION_TYPE_KEY
+        description: key for commercetools custom type for payment interaction
+        default: braintree-payment-interaction-type
+      - key: PAYMENT_TRANSACTION_TYPE_KEY
+        description: key for commercetools custom type for payment transaction
+        default: braintree-payment-transaction-type
