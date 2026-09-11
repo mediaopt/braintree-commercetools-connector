@@ -4,6 +4,9 @@ export const BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY =
 
 export const BRAINTREE_CUSTOMER_TYPE_KEY = "braintree-customer-type";
 
+export const BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY =
+  "braintree-payment-transaction-type";
+
 export const VAULT_BRAINTREE_OPTIONS = {
   failOnDuplicatePaymentMethod: true,
   usBankAccountVerificationMethod: "network_check",

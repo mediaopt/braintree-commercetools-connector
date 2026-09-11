@@ -4,3 +4,4 @@ export * from "./service";
 export * from "./types/index.types";
 export * from "./utils";
 export * from "./constants";
+export * from "./braintreeCustomTypes";

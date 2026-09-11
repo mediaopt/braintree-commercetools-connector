@@ -6,11 +6,20 @@ import {
   TypeRemoveFieldDefinitionAction,
   TypeUpdateAction,
 } from '@commercetools/platform-sdk/dist/declarations/src/generated/models/type';
-import { ExtensionDraft, LocalizedString } from '@commercetools/platform-sdk';
+import { ExtensionDraft } from '@commercetools/platform-sdk';
 import {
   logger,
   BRAINTREE_PAYMENT_TYPE_KEY,
   BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
+  BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY,
+  BRAINTREE_CUSTOMER_TYPE_KEY,
+  BraintreeCustomTypeKeys,
+  FieldDefinitionData,
+  CUSTOM_TYPE_DESCRIPTORS,
+  PAYMENT_INTERACTION_TYPE_FIELDS,
+  apiCallNameToFieldData,
+  resolveTypeKey,
+  toFieldDefinition,
 } from 'common-connect/dist';
 export const BRAINTREE_EXTENSION_KEY = 'braintree-extension';
 export const BRAINTREE_CUSTOMER_EXTENSION_KEY = 'braintree-customer-extension';
@@ -19,9 +28,7 @@ export type ExtensionKey =
   | typeof BRAINTREE_EXTENSION_KEY
   | typeof BRAINTREE_CUSTOMER_EXTENSION_KEY;
 
-export const BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY =
-  'braintree-payment-transaction-type';
-export const BRAINTREE_CUSTOMER_TYPE_KEY = 'braintree-customer-type';
+export { BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY, BRAINTREE_CUSTOMER_TYPE_KEY };
 
 export const BRAINTREE_API_PAYMENT_ENDPOINTS = [
   'getClientToken',
@@ -142,11 +149,7 @@ export async function createExtension(
   logger.info(`extension with key ${extensionKey} is created`);
 }
 
-export type BraintreeCustomTypeKeys =
-  | typeof BRAINTREE_PAYMENT_TYPE_KEY
-  | typeof BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY
-  | typeof BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY
-  | typeof BRAINTREE_CUSTOMER_TYPE_KEY;
+export type { BraintreeCustomTypeKeys };
 
 const brainreeCustomTypeKeys: BraintreeCustomTypeKeys[] = [
   BRAINTREE_PAYMENT_TYPE_KEY,
@@ -155,28 +158,10 @@ const brainreeCustomTypeKeys: BraintreeCustomTypeKeys[] = [
   BRAINTREE_CUSTOMER_TYPE_KEY,
 ];
 
-type FieldDefinitionData = {
-  name: string;
-  label?: LocalizedString;
-  typeName?: 'String' | 'DateTime';
-  inputHint?: 'SingleLine' | 'MultiLine';
-};
-
-const apiCallNameToFieldData = (apiCallName: string): FieldDefinitionData[] => [
-  {
-    name: `${apiCallName}Request`,
-    inputHint: 'MultiLine',
-  },
-  {
-    name: `${apiCallName}ProcessorRequest`, //this field is only required for checkout mode but is added via extension to prevent concurrent modifications conflict
-    inputHint: 'MultiLine',
-  },
-  {
-    name: `${apiCallName}Response`,
-    inputHint: 'MultiLine',
-  },
-];
-
+// The full field set per type — this extension's own schema (every field it provisions). Note
+// apiCallNameToFieldData() is called without isProcessor here, so it only ever contributes
+// Request+Response fields — the ProcessorRequest field per endpoint is processor's own to
+// provision (see processor/src/connectors/post-deploy.ts), not extension's.
 const customFieldsDefinitionData: Record<
   BraintreeCustomTypeKeys,
   FieldDefinitionData[]
@@ -196,19 +181,15 @@ const customFieldsDefinitionData: Record<
         de: 'Bestellnummer',
       },
     },
-    ...BRAINTREE_API_PAYMENT_ENDPOINTS.map((endpoint) =>
+    ...BRAINTREE_API_PAYMENT_ENDPOINTS.flatMap((endpoint) =>
       apiCallNameToFieldData(endpoint)
-    ).flat(),
+    ),
   ],
-  [BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY]: [
-    { name: 'type', inputHint: 'SingleLine' },
-    { name: 'data', inputHint: 'MultiLine' },
-    { name: 'timestamp', typeName: 'DateTime' },
-  ],
+  [BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY]: PAYMENT_INTERACTION_TYPE_FIELDS,
   [BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY]: [
-    ...BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS.map((endpoint) =>
+    ...BRAINTREE_API_PAYMENT_TRANSACTION_ENDPOINTS.flatMap((endpoint) =>
       apiCallNameToFieldData(endpoint)
-    ).flat(),
+    ),
   ],
   [BRAINTREE_CUSTOMER_TYPE_KEY]: [
     {
@@ -218,64 +199,25 @@ const customFieldsDefinitionData: Record<
       },
       inputHint: 'SingleLine',
     },
-    ...BRAINTREE_API_CUSTOMER_ENDPOINTS.map((endpoint) =>
+    ...BRAINTREE_API_CUSTOMER_ENDPOINTS.flatMap((endpoint) =>
       apiCallNameToFieldData(endpoint)
-    ).flat(),
+    ),
   ],
 };
 
-const fieldCredentialsToDefinition = ({
-  name,
-  label,
-  typeName,
-  inputHint,
-}: FieldDefinitionData): FieldDefinition => ({
-  name,
-  label: label ?? { en: name },
-  type: { name: typeName ?? 'String' },
-  inputHint,
-  required: false,
-});
-
-const customTypesNames: Record<
-  BraintreeCustomTypeKeys,
-  { name: LocalizedString; resourceTypeIds: string[] }
-> = {
-  [BRAINTREE_PAYMENT_TYPE_KEY]: {
-    name: {
-      en: 'Custom payment type to braintree fields',
-    },
-    resourceTypeIds: ['payment'],
-  },
-  [BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY]: {
-    name: {
-      en: 'Custom payment interaction type to braintree fields',
-    },
-    resourceTypeIds: ['payment-interface-interaction'],
-  },
-  [BRAINTREE_PAYMENT_TRANSACTION_TYPE_KEY]: {
-    name: {
-      en: 'Custom payment transaction type to braintree fields',
-    },
-    resourceTypeIds: ['transaction'],
-  },
-  [BRAINTREE_CUSTOMER_TYPE_KEY]: {
-    name: {
-      en: 'Custom customer type to braintree fields',
-    },
-    resourceTypeIds: ['customer'],
-  },
-};
-
+// Looks up name/resourceTypeIds directly off CUSTOM_TYPE_DESCRIPTORS and resolves the key through
+// common-connect — to ensure processor's compatibility.
 const customTypeDataToCustomType = (
   key: BraintreeCustomTypeKeys
-): TypeDraft => ({
-  ...customTypesNames[key],
-  key,
-  fieldDefinitions: customFieldsDefinitionData[key].map(
-    fieldCredentialsToDefinition
-  ),
-});
+): TypeDraft => {
+  const { name, resourceTypeIds } = CUSTOM_TYPE_DESCRIPTORS[key];
+  return {
+    key: resolveTypeKey(key),
+    name,
+    resourceTypeIds,
+    fieldDefinitions: customFieldsDefinitionData[key].map(toFieldDefinition),
+  };
+};
 
 const customTypesDrafts = Object.fromEntries(
   brainreeCustomTypeKeys.map((key) => [key, customTypeDataToCustomType(key)])
@@ -354,7 +296,7 @@ export async function addOrUpdateCustomType(
       logger.info(`existing type ${type.key} is updated`);
     }
   }
-  if (!types.find((type) => type.key === customTypeKey)) {
+  if (!types.find((type) => type.key === customTypeDraft.key)) {
     await apiRoot
       .types()
       .post({
