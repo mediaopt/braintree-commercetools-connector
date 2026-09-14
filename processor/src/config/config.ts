@@ -1,3 +1,9 @@
+import {
+  BRAINTREE_PAYMENT_TYPE_KEY,
+  BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
+  resolveTypeKey,
+} from 'common-connect/dist';
+
 export const config = {
   // Required by Payment SDK
   projectKey: process.env.CTP_PROJECT_KEY || 'payment-integration',
@@ -43,6 +49,12 @@ export const config = {
   // General feature flags
   autoCapture: process.env.BRAINTREE_AUTOCAPTURE === 'true',
   enableVaulting: process.env.STORED_PAYMENT_METHODS_ENABLED === 'true',
+
+  // Custom type keys for processor-owned audit logging (see connectors/post-deploy.ts) — same
+  // env-override/fallback resolution as braintree-extension's own type key resolution, so both
+  // modules resolve to the same custom types when both are installed on the same project.
+  paymentTypeKey: resolveTypeKey(BRAINTREE_PAYMENT_TYPE_KEY),
+  interactionTypeKey: resolveTypeKey(BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY),
 
   // Per-button style overrides forwarded via /operations/config → enabler baseOptions → RenderTemplate buttonStyleOverrides
   // Format: JSON object with keys: paypal, paypalExpress, paypalVault, ach, applePay, googlePay, venmo, creditCard — all optional
