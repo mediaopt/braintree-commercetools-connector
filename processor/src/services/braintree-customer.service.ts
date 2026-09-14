@@ -114,8 +114,11 @@ export class BraintreeCustomerService {
    * a Braintree customer matching `ctCustomerId`, or undefined if none exists or the lookup fails.
    * Silent on failure by design — a miss is the expected, common case for a genuinely new customer,
    * not something worth a warning on every call.
+   *
+   * Public so transactionSale (braintree-payment.service.ts) can run the same check directly before
+   * deciding whether to embed a Braintree "create customer" payload.
    */
-  private async findExistingBraintreeCustomerId(ctCustomerId: string): Promise<string | undefined> {
+  public async findExistingBraintreeCustomerId(ctCustomerId: string): Promise<string | undefined> {
     return findCustomer(ctCustomerId)
       .then((c) => c.id)
       .catch(() => undefined);

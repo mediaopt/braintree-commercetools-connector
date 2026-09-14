@@ -880,9 +880,20 @@ export class BraintreePaymentService extends AbstractPaymentService {
       );
     }
     const discountAmount = Math.max(0, discountResidual).toFixed(relevantPaymentInfo.amountPlanned.fractionDigits);
+    // braintreeCustomerId can be missing because the CT custom field was wiped (frequently occurring redeploy issue),
+    // not because the customer is new. Check for a pre-existing Braintree customer
+    // (ids are equal to the CT customer id by construction) before embedding an inline "create customer"
+    // payload — otherwise Braintree rejects the whole sale with "Customer ID has already been taken"
+    // when that customer already exists.
+    let existingBtCustomerId: string | undefined;
+    if (storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId) {
+      existingBtCustomerId = await this.braintreeCustomerService.findExistingBraintreeCustomerId(ctPayment.customer.id);
+    }
     const optionalRequestData: Partial<TransactionRequest> = {
       ...(storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId
-        ? { customer: { id: ctPayment.customer.id } }
+        ? existingBtCustomerId
+          ? { customerId: existingBtCustomerId } // attach to the pre-existing Braintree customer instead of re-creating it
+          : { customer: { id: ctPayment.customer.id } }
         : {}),
       lineItems,
       discountAmount,
