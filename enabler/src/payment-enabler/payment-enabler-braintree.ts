@@ -19,10 +19,7 @@ import { BaseOptions } from "./interfaces/baseOptions";
 import { BraintreeBuilder } from "../components/Builder/BraintreeBuilder";
 import { BraintreeStoredBuilder } from "../components/Builder/BraintreeStoredBuilder";
 import { sessionHeader } from "../helpers/sessionHeader";
-import {
-  BraintreePaymentMethodExpressType,
-  BraintreePaymentMethodType,
-} from "../components/Builder/types";
+import { BraintreePaymentMethodExpressType } from "../components/Builder/types";
 import { toBraintreePaymentMethodType } from "../components/Builder/paymentMethodTypeMapping";
 
 export class BraintreePaymentEnabler implements PaymentEnabler {
@@ -155,14 +152,9 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
       return {};
     }
     const data = await response.json();
-    const normalizedAllowedTypes = allowedMethodTypes.map(
-      toBraintreePaymentMethodType,
-    );
     const methods: StoredPaymentMethod[] = (
       data.storedPaymentMethods ?? []
-    ).filter((m: StoredPaymentMethod) =>
-      normalizedAllowedTypes.includes(m.type as BraintreePaymentMethodType),
-    );
+    ).filter((m: StoredPaymentMethod) => allowedMethodTypes.includes(m.type));
     return { storedPaymentMethods: methods };
   }
 
