@@ -80,7 +80,7 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     });
   };
   async createComponentBuilder(
-    type: BraintreePaymentMethodType,
+    type: string,
   ): Promise<PaymentComponentBuilder | never> {
     const normalizedType = toBraintreePaymentMethodType(type);
     const { baseOptions } = await this.setupData;
@@ -96,7 +96,7 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
   }
 
   async createExpressBuilder(
-    type: BraintreePaymentMethodExpressType,
+    type: string,
   ): Promise<PaymentExpressBuilder | never> {
     const normalizedType = toBraintreePaymentMethodType(
       type,
@@ -155,9 +155,14 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
       return {};
     }
     const data = await response.json();
+    const normalizedAllowedTypes = allowedMethodTypes.map(
+      toBraintreePaymentMethodType,
+    );
     const methods: StoredPaymentMethod[] = (
       data.storedPaymentMethods ?? []
-    ).filter((m: StoredPaymentMethod) => allowedMethodTypes.includes(m.type));
+    ).filter((m: StoredPaymentMethod) =>
+      normalizedAllowedTypes.includes(m.type as BraintreePaymentMethodType),
+    );
     return { storedPaymentMethods: methods };
   }
 
