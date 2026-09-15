@@ -19,10 +19,7 @@ import { BaseOptions } from "./interfaces/baseOptions";
 import { BraintreeBuilder } from "../components/Builder/BraintreeBuilder";
 import { BraintreeStoredBuilder } from "../components/Builder/BraintreeStoredBuilder";
 import { sessionHeader } from "../helpers/sessionHeader";
-import {
-  BraintreePaymentMethodExpressType,
-  BraintreePaymentMethodType,
-} from "../components/Builder/types";
+import { BraintreePaymentMethodExpressType } from "../components/Builder/types";
 import { toBraintreePaymentMethodType } from "../components/Builder/paymentMethodTypeMapping";
 
 export class BraintreePaymentEnabler implements PaymentEnabler {
@@ -80,7 +77,7 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     });
   };
   async createComponentBuilder(
-    type: BraintreePaymentMethodType,
+    type: string,
   ): Promise<PaymentComponentBuilder | never> {
     const normalizedType = toBraintreePaymentMethodType(type);
     const { baseOptions } = await this.setupData;
@@ -96,7 +93,7 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
   }
 
   async createExpressBuilder(
-    type: BraintreePaymentMethodExpressType,
+    type: string,
   ): Promise<PaymentExpressBuilder | never> {
     const normalizedType = toBraintreePaymentMethodType(
       type,
