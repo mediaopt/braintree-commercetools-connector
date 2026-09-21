@@ -276,7 +276,7 @@ describe('braintree-payment.service', () => {
       const result = await braintreePaymentService.getStoredPaymentMethods();
 
       expect(result.storedPaymentMethods).toHaveLength(1);
-      expect(result.storedPaymentMethods[0]).toMatchObject({ type: 'CreditCard', token: 'cc-1' });
+      expect(result.storedPaymentMethods[0]).toMatchObject({ type: 'card', token: 'cc-1' });
     });
   });
 

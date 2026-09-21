@@ -3,7 +3,7 @@ import { StoredPaymentMethod } from '../dtos/stored-payment-methods.dto';
 
 export const mapBraintreeCreditCardToStoredPaymentMethod = (cc: CreditCard): StoredPaymentMethod => ({
   id: cc.token,
-  type: 'CreditCard',
+  type: 'card',
   token: cc.token,
   isDefault: cc.default ?? false,
   createdAt: cc.createdAt,

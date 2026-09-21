@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  FC,
-  PropsWithChildren,
-  useRef,
-  RefObject,
-} from "react";
+import { useEffect, FC, PropsWithChildren, useRef, RefObject } from "react";
 import { hostedFields, dataCollector } from "braintree-web";
 
 import { useBraintreeClient } from "../../app/useBraintreeClient";
@@ -350,13 +344,14 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           });
 
         onRegisterSubmit?.((storePaymentDetails) =>
-          submitPayment(
+        submitPayment(
             (storePaymentDetails ?? false) ||
               ccVaultCheckbox.current?.checked === true,
           ),
         );
         onRegisterValidation?.({
-          isValid: async () => !emptyInputsRef.current && !invalidInputRef.current,
+          isValid: async () =>
+            !emptyInputsRef.current && !invalidInputRef.current,
           showValidation: async () => {
             showFieldValidation();
           },
@@ -424,7 +419,8 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
         </label>
         <div ref={ccCvvRef} id="cvv" className={`${HOSTED_FIELDS} p-3`}></div>
 
-        {enableVaulting &&
+        {!onRegisterSubmit &&
+          enableVaulting &&
           braintreeCustomerId && ( //PURE_VAULT_DISABLED  && !isPureVault
             <>
               <label className={`${HOSTED_FIELDS_LABEL} mb-2`}>
