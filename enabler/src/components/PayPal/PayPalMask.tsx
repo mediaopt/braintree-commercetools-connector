@@ -99,6 +99,9 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     braintreeCustomerId: string;
     paymentInfo: PaymentInfo;
   } | null>(null);
+  // Processor-computed shipping from the last onShippingChange (what PayPal was sent via updatePayment);
+  // takes priority over the possibly stale shippingOptions lookup in handleOnApprove.
+  const selectedShippingCostRef = useRef<string | undefined>(undefined);
 
   const {
     handleTransactionSale,
@@ -278,11 +281,13 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               real?.braintreeLineItems ??
                               paymentInfo.braintreeLineItems, //discount will be retrieved from the cart at the backend and mapped separately
                             braintreeShipping: payload.shippingAddress,
-                            extraShippingCost: payload.shippingOptionId
-                              ? realShippingOptions?.find(
-                                  ({ id }) => id === payload.shippingOptionId,
-                                )?.amount.value
-                              : undefined, //only will be returned if shipping was changed inside the PayPal express, then it must be used to update the total payment amount
+                            extraShippingCost:
+                              selectedShippingCostRef.current ??
+                              (payload.shippingOptionId
+                                ? realShippingOptions?.find(
+                                    ({ id }) => id === payload.shippingOptionId,
+                                  )?.amount.value
+                                : undefined), //set only in express mode, where shipping is submitted separately from line items
                           },
                           ctPaymentIdOverride: real?.ctPaymentId,
                         });
@@ -400,6 +405,8 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                             },
                           );
                           setUpdatedTotal(shippingResult.braintreeAmount);
+                          selectedShippingCostRef.current =
+                            shippingResult.amountBreakdown?.shipping;
                           return paypalCheckoutInstance.updatePayment({
                             amount: shippingResult.braintreeAmount,
                             currency: real?.currency ?? paymentInfo.currency,

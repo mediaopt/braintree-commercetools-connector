@@ -107,6 +107,16 @@ type TransactionWithLocalPayment = Transaction & {
 // Initial transaction required for checkout API to ensure the proper order creation.
 const OPTIMISTIC_TRANSACTION_TRIGGER_ORDER: TransactionState = 'Initial';
 
+// Single source for the DISCOUNT credit item — transactionSale filters on and rebuilds this exact shape for PayPal.
+const buildDiscountLineItem = (amount: string) => ({
+  name: 'Discount',
+  kind: 'credit' as LineItemKind,
+  unitAmount: amount,
+  totalAmount: amount,
+  productCode: 'DISCOUNT',
+  ...lineItemPlaceholders,
+});
+
 export class BraintreePaymentService extends AbstractPaymentService {
   private braintreeCustomerService: BraintreeCustomerService;
 
@@ -584,6 +594,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
         lastPaymentRef ? this.ctPaymentService.getPayment({ id: lastPaymentRef.id }) : Promise.resolve(undefined),
       ]);
 
+      const cartTotal = ctCart.taxedPrice?.totalGross ?? ctCart.totalPrice;
+      if (amountPlanned.centAmount !== cartTotal.centAmount || amountPlanned.currencyCode !== cartTotal.currencyCode) {
+        logger.warn(`createPayment: payment amount does not match cart total for cart ${ctCart.id}`);
+      }
+
       /* PURE_VAULT_DISABLED start
     this.validateCustomerRequiredData(customer, isPureVault);
      PURE_VAULT_DISABLED end */
@@ -698,15 +713,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
       : ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale));
     if (!isPureVault) {
       if (ctCart.discountOnTotalPrice?.discountedAmount) {
-        const amount = mapCommercetoolsMoneyToBraintreeMoney(ctCart.discountOnTotalPrice.discountedAmount);
-        extendedLineItems.push({
-          name: 'Discount',
-          kind: 'credit' as LineItemKind,
-          unitAmount: amount,
-          totalAmount: amount,
-          productCode: 'DISCOUNT',
-          ...lineItemPlaceholders,
-        });
+        extendedLineItems.push(
+          buildDiscountLineItem(mapCommercetoolsMoneyToBraintreeMoney(ctCart.discountOnTotalPrice.discountedAmount)),
+        );
       }
       if (!isExpress && ctCart.shippingInfo) {
         const amount = mapCommercetoolsMoneyToBraintreeMoney(ctCart.shippingInfo.price);
@@ -879,7 +888,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
         `transactionSale: lineItems total (${lineItemsTotal.toFixed(2)}) plus shipping (${shippingAmountNum.toFixed(2)}) is less than the charged amount (${toNum(relevantPaymentInfo.amountPlanned).toFixed(2)}) for payment ${ctPaymentId} — discountAmount clamped to 0, check for missing external tax/fees`,
       );
     }
-    const discountAmount = Math.max(0, discountResidual).toFixed(relevantPaymentInfo.amountPlanned.fractionDigits);
+    const { fractionDigits } = relevantPaymentInfo.amountPlanned;
+    const residualDiscount = Math.max(0, discountResidual).toFixed(fractionDigits);
+    // PayPal declines a sale whose discount is sent as discountAmount instead of a DISCOUNT credit line item
+    // (the form the PayPal order was created with). The credit item is rebuilt from the residual rather than
+    // echoed from createPayment, since the cart discount can change after a shipping update.
+    const sendDiscountAsLineItem = isPayPal && Number(residualDiscount) > 0;
+    if (sendDiscountAsLineItem) lineItems.push(buildDiscountLineItem(residualDiscount));
+    const discountAmount = sendDiscountAsLineItem ? (0).toFixed(fractionDigits) : residualDiscount;
     // braintreeCustomerId can be missing because the CT custom field was wiped (frequently occurring redeploy issue),
     // not because the customer is new. Check for a pre-existing Braintree customer
     // (ids are equal to the CT customer id by construction) before embedding an inline "create customer"
