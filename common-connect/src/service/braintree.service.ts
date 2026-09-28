@@ -212,6 +212,15 @@ export const findTransaction = async (orderId: string) => {
   return transactions;
 };
 
+export const getTransaction = async (
+  transactionId: string,
+): Promise<Transaction> => {
+  const gateway = getBraintreeGateway();
+  const transaction = await gateway.transaction.find(transactionId);
+  logResponse("getTransaction", [transaction]);
+  return transaction;
+};
+
 function streamToTransaction(stream: Stream): Promise<Array<Transaction>> {
   const transactions: Transaction[] = [];
   return new Promise((resolve, reject) => {

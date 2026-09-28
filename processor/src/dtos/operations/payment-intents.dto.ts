@@ -79,3 +79,4 @@ export const PaymentIntentResponseSchema = Type.Object({
 });
 
 export type PaymentIntentRequestSchemaDTO = Static<typeof PaymentIntentRequestSchema>;
+export type PaymentIntentResponseSchemaDTO = Static<typeof PaymentIntentResponseSchema>;

@@ -13,6 +13,7 @@ import {
 } from './types/operation.type';
 
 import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-componets.dto';
+import { PaymentIntentResponseSchemaDTO } from '../dtos/operations/payment-intents.dto';
 import {
   PaymentUpdateResponseSchemaDTO,
   PaymentRequestSchemaDTO,
@@ -145,7 +146,7 @@ export abstract class AbstractPaymentService {
    * @param request - commercetools payment object, optional braintree money refund amount, optional transaction ID
    * @returns Promise with success response
    */
-  abstract refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<PaymentUpdateResponseSchemaDTO>;
+  abstract refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<PaymentIntentResponseSchemaDTO>;
 
   /**
    * Settlement
@@ -156,7 +157,7 @@ export abstract class AbstractPaymentService {
    * @param request - commercetools payment and optional transaction ID to settle
    * @returns Promise with success response
    */
-  abstract settlement(request: ModifyPaymentWithTransactionRequest): Promise<PaymentUpdateResponseSchemaDTO>;
+  abstract settlement(request: ModifyPaymentWithTransactionRequest): Promise<PaymentIntentResponseSchemaDTO>;
 
   /**
    * Cancel payment (void)
@@ -167,7 +168,18 @@ export abstract class AbstractPaymentService {
    * @param request - commercetools payment
    * @returns Promise with success response
    */
-  abstract void(request: CancelPaymentRequest): Promise<PaymentUpdateResponseSchemaDTO>;
+  abstract void(request: CancelPaymentRequest): Promise<PaymentIntentResponseSchemaDTO>;
+
+  /**
+   * Reverse payment
+   *
+   * @remarks
+   * Abstract method to refund what has been captured or void what hasn't. The actual implementation should be provided by subclasses.
+   *
+   * @param request - commercetools payment
+   * @returns Promise with success response
+   */
+  abstract reversePayment(request: CancelPaymentRequest): Promise<PaymentIntentResponseSchemaDTO>;
 
   /**
    * Modify payment
@@ -183,14 +195,13 @@ export abstract class AbstractPaymentService {
    * | capture       | settlement|
    * | refund        | refund    |
    * | cancel        | void      |
-   *
-   * reverse is not implemented in current connector iteration
+   * | reverse       | refund or void (see reversePayment) |
    *
    * @param opts - input for payment modification including payment ID, action and payment amount
    * @returns Promise with success response
    */
 
-  public async modifyPayment(opts: ModifyPayment): Promise<PaymentUpdateResponseSchemaDTO> {
+  public async modifyPayment(opts: ModifyPayment): Promise<PaymentIntentResponseSchemaDTO> {
     const ctPayment = await this.ctPaymentService.getPayment({
       id: opts.paymentId,
     });
@@ -214,7 +225,7 @@ export abstract class AbstractPaymentService {
         });
       }
       case 'reversePayment': {
-        return await this.void({ payment: ctPayment });
+        return await this.reversePayment({ payment: ctPayment });
       }
       default: {
         throw new ErrorInvalidOperation(`Operation not supported.`);
