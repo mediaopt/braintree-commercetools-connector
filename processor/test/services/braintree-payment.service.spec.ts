@@ -34,7 +34,7 @@ import * as CommonConnect from 'common-connect/dist';
 // import { mockGetCartResult } from '../utils/mock-cart-data';
 import { Cart, Customer } from '@commercetools/connect-payments-sdk';
 import { BraintreeCustomerService } from '../../src/services/braintree-customer.service';
-import { CentPrecisionMoney } from '@commercetools/platform-sdk';
+import { CentPrecisionMoney, Transaction } from '@commercetools/platform-sdk';
 import { mockCartForShippingUpdate, mockCartWithExternalTax, mockGetCartResult } from '../utils/mock-cart-data';
 import * as Config from '../../src/config/config';
 import { BraintreePaymentServiceOptions } from '../../src/services/types/braintree-payment.type';
@@ -72,25 +72,26 @@ describe('braintree-payment.service', () => {
   // Raw CT client calls (setStatusInterfaceCode etc., placeholder add/overwrite) — CT sync is awaited in the
   // response path, so it's mocked for the whole file instead of letting it reach the real CT API.
   const savedClient = paymentSDK.ctAPI.client;
-  let rawPaymentPost: jest.Mock;
-  const rawActionCalls = () =>
-    rawPaymentPost.mock.calls.map((call: any) => call[0].body.actions as Array<Record<string, any>>);
+  type RawPaymentPostArgs = { body: { version: number; actions: Array<Record<string, unknown>> } };
+  let rawPaymentPost: jest.Mock<(args: RawPaymentPostArgs) => unknown>;
+  const rawActionCalls = () => rawPaymentPost.mock.calls.map(([args]) => args.body.actions);
+  const setCtClient = (client: unknown) => ((paymentSDK.ctAPI as { client: unknown }).client = client);
 
   beforeEach(() => {
     jest.setTimeout(10000);
     jest.resetAllMocks();
-    const execute = jest.fn<() => Promise<any>>().mockResolvedValue({ body: {} });
-    rawPaymentPost = jest.fn().mockReturnValue({ execute });
+    const execute = jest.fn<() => Promise<unknown>>().mockResolvedValue({ body: {} });
+    rawPaymentPost = jest.fn<(args: RawPaymentPostArgs) => unknown>().mockReturnValue({ execute });
     const withId = jest.fn().mockReturnValue({ post: rawPaymentPost });
-    (paymentSDK.ctAPI as any).client = { payments: jest.fn().mockReturnValue({ withId }) };
+    setCtClient({ payments: jest.fn().mockReturnValue({ withId }) });
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
-    (paymentSDK.ctAPI as any).client = savedClient;
+    setCtClient(savedClient);
   });
 
-  const transaction = (overrides: Record<string, unknown>) => ({
+  const transaction = (overrides: Partial<Transaction>): Transaction => ({
     id: 'tx',
     type: 'Authorization',
     state: 'Success',
@@ -836,7 +837,7 @@ describe('braintree-payment.service', () => {
       const result = await sale(payment.id);
 
       expect(result.success).toBe(true);
-      const updateCalls = (paymentSDK.ctPaymentService.updatePayment as jest.Mock).mock.calls.map((c: any) => c[0]);
+      const updateCalls = jest.mocked(paymentSDK.ctPaymentService.updatePayment).mock.calls.map(([opts]) => opts);
       // The CT write is awaited — already happened by the time transactionSale resolved.
       expect(updateCalls[0]).toEqual(
         expect.objectContaining({
@@ -846,7 +847,7 @@ describe('braintree-payment.service', () => {
         }),
       );
       // No pre-charge placeholder of any kind, via the SDK or raw.
-      expect(updateCalls.some((c: any) => c.transaction && !c.transaction.interactionId)).toBe(false);
+      expect(updateCalls.some((opts) => opts.transaction && !opts.transaction.interactionId)).toBe(false);
       expect(
         rawActionCalls()
           .flat()
@@ -873,7 +874,7 @@ describe('braintree-payment.service', () => {
         },
       ]);
       expect(rawPaymentPost).toHaveBeenCalledWith({ body: expect.objectContaining({ version: 7 }) });
-      const [firstUpdate] = (paymentSDK.ctPaymentService.updatePayment as jest.Mock).mock.calls[0] as any[];
+      const [firstUpdate] = jest.mocked(paymentSDK.ctPaymentService.updatePayment).mock.calls[0];
       expect(firstUpdate).not.toHaveProperty('transaction');
       expect(firstUpdate.pspReference).toBe(mockBraintreeTransaction.id);
     });
@@ -896,7 +897,7 @@ describe('braintree-payment.service', () => {
           .flat()
           .some((a) => a.action === 'changeTransactionInteractionId'),
       ).toBe(false);
-      const [firstUpdate] = (paymentSDK.ctPaymentService.updatePayment as jest.Mock).mock.calls[0] as any[];
+      const [firstUpdate] = jest.mocked(paymentSDK.ctPaymentService.updatePayment).mock.calls[0];
       expect(firstUpdate).not.toHaveProperty('transaction');
     });
   });
@@ -1151,7 +1152,7 @@ describe('braintree-payment.service', () => {
           ],
         };
 
-        const result = await braintreePaymentService.reversePayment({ payment } as any);
+        const result = await braintreePaymentService.reversePayment({ payment });
 
         expect(refundSpy).toHaveBeenCalledWith({
           payment,
@@ -1161,6 +1162,49 @@ describe('braintree-payment.service', () => {
         expect(result).toBe(received);
         expect(CommonConnect.getTransaction).not.toHaveBeenCalled();
         expect(voidSpy).not.toHaveBeenCalled();
+      });
+
+      test('counts a still-Pending CT refund: refunds only what Braintree has left', async () => {
+        const charge = transaction({ id: 'charge-1', type: 'Charge', interactionId: 'txn-1' });
+        const payment = {
+          ...mockGetPaymentResult,
+          transactions: [
+            authorization,
+            charge,
+            transaction({
+              id: 'refund-1',
+              type: 'Refund',
+              state: 'Pending',
+              amount: { ...charge.amount, centAmount: 30000 },
+            }),
+          ],
+        };
+
+        await braintreePaymentService.reversePayment({ payment });
+
+        expect(refundSpy).toHaveBeenCalledWith({
+          payment,
+          transactionId: 'txn-1',
+          amount: { ...charge.amount, centAmount: 90000 },
+        });
+        expect(CommonConnect.getTransaction).not.toHaveBeenCalled();
+      });
+
+      test('throws, without a second refund, when a still-Pending CT refund already covered the Charge', async () => {
+        const payment = {
+          ...mockGetPaymentResult,
+          transactions: [
+            authorization,
+            transaction({ id: 'charge-1', type: 'Charge', interactionId: 'txn-1' }),
+            transaction({ id: 'refund-1', type: 'Refund', state: 'Pending' }),
+          ],
+        };
+
+        await expect(braintreePaymentService.reversePayment({ payment })).rejects.toThrow(
+          'has already been fully refunded',
+        );
+        expect(refundSpy).not.toHaveBeenCalled();
+        expect(CommonConnect.getTransaction).not.toHaveBeenCalled();
       });
 
       test('throws when the captured Charge is already fully refunded', async () => {
@@ -1173,7 +1217,7 @@ describe('braintree-payment.service', () => {
           ],
         };
 
-        await expect(braintreePaymentService.reversePayment({ payment } as any)).rejects.toThrow(
+        await expect(braintreePaymentService.reversePayment({ payment })).rejects.toThrow(
           'has already been fully refunded',
         );
         expect(CommonConnect.getTransaction).not.toHaveBeenCalled();
@@ -1210,7 +1254,7 @@ describe('braintree-payment.service', () => {
             ],
           };
 
-          await braintreePaymentService.reversePayment({ payment } as any);
+          await braintreePaymentService.reversePayment({ payment });
 
           expect(CommonConnect.getTransaction).toHaveBeenCalledWith('txn-1');
           expect(refundSpy).toHaveBeenCalledWith({
@@ -1233,7 +1277,7 @@ describe('braintree-payment.service', () => {
           transactions: [authorization, transaction({ id: 'r1', type: 'Refund', state: 'Pending' })],
         };
 
-        await expect(braintreePaymentService.reversePayment({ payment } as any)).rejects.toThrow(
+        await expect(braintreePaymentService.reversePayment({ payment })).rejects.toThrow(
           'has already been fully refunded',
         );
         expect(refundSpy).not.toHaveBeenCalled();
@@ -1243,7 +1287,7 @@ describe('braintree-payment.service', () => {
         (CommonConnect.getTransaction as jest.Mock).mockResolvedValue({ ...mockBraintreeTransaction, status } as never);
         const payment = { ...mockGetPaymentResult, transactions: [authorization] };
 
-        await braintreePaymentService.reversePayment({ payment } as any);
+        await braintreePaymentService.reversePayment({ payment });
 
         expect(voidSpy).toHaveBeenCalledWith({ payment });
         expect(refundSpy).not.toHaveBeenCalled();
@@ -1256,7 +1300,7 @@ describe('braintree-payment.service', () => {
         } as never);
         const payment = { ...mockGetPaymentResult, transactions: [authorization] };
 
-        await expect(braintreePaymentService.reversePayment({ payment } as any)).rejects.toThrow(
+        await expect(braintreePaymentService.reversePayment({ payment })).rejects.toThrow(
           'Braintree transaction status: voided',
         );
         expect(refundSpy).not.toHaveBeenCalled();
@@ -1266,7 +1310,7 @@ describe('braintree-payment.service', () => {
       test('only a placeholder Authorization: throws without calling Braintree', async () => {
         const payment = { ...mockGetPaymentResultWithoutTransactions, transactions: [achPlaceholder] };
 
-        await expect(braintreePaymentService.reversePayment({ payment } as any)).rejects.toThrow(ErrorInvalidOperation);
+        await expect(braintreePaymentService.reversePayment({ payment })).rejects.toThrow(ErrorInvalidOperation);
         expect(CommonConnect.getTransaction).not.toHaveBeenCalled();
       });
 
@@ -1274,7 +1318,7 @@ describe('braintree-payment.service', () => {
         (CommonConnect.getTransaction as jest.Mock).mockRejectedValue(new Error('notFoundError') as never);
         const payment = { ...mockGetPaymentResult, transactions: [authorization] };
 
-        await expect(braintreePaymentService.reversePayment({ payment } as any)).rejects.toThrow(ErrorGeneral);
+        await expect(braintreePaymentService.reversePayment({ payment })).rejects.toThrow(ErrorGeneral);
       });
     });
   });

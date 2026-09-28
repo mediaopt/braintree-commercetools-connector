@@ -23,11 +23,21 @@ export const withoutPlaceholders = (payment: Payment): Payment => ({
 });
 
 /**
+ * Total cent amount already refunded on the payment. Braintree refunds stay Pending on commercetools until they
+ * settle (submitted_for_settlement maps to Pending), so Pending refunds count as refunded too — otherwise a
+ * reverse after an unsettled refund would request more than Braintree has left to refund.
+ */
+export const sumRefundedCentAmount = (payment: Payment): number =>
+  payment.transactions
+    .filter((t) => t.type === 'Refund' && (t.state === 'Success' || t.state === 'Pending'))
+    .reduce((sum, t) => sum + t.amount.centAmount, 0);
+
+/**
  * Resolves the payment's captured (settled) Charge together with how much of it hasn't been refunded yet
- * (its amount minus any successful Refunds already applied). Returns undefined when the payment
- * hasn't been captured at all. Throws when more than one captured Charge exists — a Braintree refund
+ * (its amount minus the Success/Pending Refunds already applied, see sumRefundedCentAmount). Returns undefined
+ * when the payment hasn't been captured at all. Throws when more than one captured Charge exists — a Braintree refund
  * targets one specific transaction, so reversing just one of several would misreport the payment as
- * fully reversed. Used by reversePayment's void-vs-refund routing (abstract-payment.service.ts).
+ * fully reversed. Used by reversePayment's void-vs-refund routing (braintree-payment.service.ts).
  */
 export const findCapturedChargeBalance = (
   payment: Payment,
@@ -42,11 +52,8 @@ export const findCapturedChargeBalance = (
     );
   }
   const [transaction] = chargeTransactions;
-  const refundedCentAmount = payment.transactions
-    .filter((t) => t.type === 'Refund' && t.state === 'Success')
-    .reduce((sum, t) => sum + t.amount.centAmount, 0);
   return {
     transaction,
-    remainingAmount: transaction.amount.centAmount - refundedCentAmount,
+    remainingAmount: transaction.amount.centAmount - sumRefundedCentAmount(payment),
   };
 };

@@ -105,6 +105,7 @@ import {
   isPlaceholderInteractionId,
   withoutPlaceholders,
   findCapturedChargeBalance,
+  sumRefundedCentAmount,
 } from '../utils/transaction.utils';
 import { BraintreeCustomerService } from './braintree-customer.service';
 
@@ -1207,11 +1208,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         braintreeTransaction.amount,
         ctPayment.amountPlanned.fractionDigits,
       );
-      // Braintree refunds stay Pending on commercetools until they settle, so those count as refunded too
-      const refundedCentAmount = ctPayment.transactions
-        .filter((t) => t.type === 'Refund' && (t.state === 'Success' || t.state === 'Pending'))
-        .reduce((sum, t) => sum + t.amount.centAmount, 0);
-      const remainingAmount = capturedCentAmount - refundedCentAmount;
+      const remainingAmount = capturedCentAmount - sumRefundedCentAmount(ctPayment);
       if (remainingAmount <= 0) {
         throw new ErrorInvalidOperation(`Payment ${ctPayment.id} has already been fully refunded`);
       }
