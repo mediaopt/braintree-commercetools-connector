@@ -50,8 +50,11 @@ const relevantTotalCentAmount = ({ lineItemMode, taxedPrice, totalPrice, price, 
 
 //tax and discount are not mapped separately to avoid rounding issues
 export const mapCTLineItemToBraintreeLineItem = (ctLineItem: LineItem, cartLocale?: string): BraintreeLineItem => {
+  // currency and fractionDigits must match the money the cent amount comes from: totalPrice/taxedPrice are always cent
+  // precision, while price.value can be high precision (its fractionDigits > the currency's) with a centAmount in cents
+  const { taxedPrice, totalPrice, price } = ctLineItem;
   const totalItemPrice = mapCommercetoolsMoneyToBraintreeMoney({
-    ...ctLineItem.price.value,
+    ...(totalPrice ?? taxedPrice?.totalGross ?? price.value),
     centAmount: relevantTotalCentAmount(ctLineItem),
   });
   const localizedName =

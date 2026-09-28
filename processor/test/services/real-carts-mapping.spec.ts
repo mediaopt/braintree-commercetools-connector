@@ -1,5 +1,5 @@
 import { describe, test, expect, afterEach, jest, beforeEach } from '@jest/globals';
-import { Cart } from '@commercetools/connect-payments-sdk';
+import { Cart, LineItem } from '@commercetools/connect-payments-sdk';
 
 jest.mock('common-connect/dist', () => ({
   ...(jest.requireActual('common-connect/dist') as object),
@@ -13,6 +13,7 @@ import { BraintreePaymentServiceOptions } from '../../src/services/types/braintr
 import * as FastifyContext from '../../src/libs/fastify/context/context';
 import { mockGetPaymentResult } from '../utils/mock-payment-results';
 import { realCarts } from '../utils/mock-real-carts';
+import { mapCTLineItemToBraintreeLineItem } from '../../src/utils/lineItem.utils';
 
 const toCents = (amount: string) => Math.round(Number(amount) * 100);
 // what the charged amount resolves to: gross when commercetools provides it, totalPrice otherwise
@@ -68,5 +69,35 @@ describe('real carts: mapped Braintree line items balance the charged amount', (
       cart.lineItems.length + (cart.shippingInfo ? 1 : 0) + (cart.discountOnTotalPrice ? 1 : 0),
     );
     expect(balance).toBe(expectedTotal(cart));
+  });
+});
+
+describe('mapCTLineItemToBraintreeLineItem with a high precision price', () => {
+  // commercetools keeps centAmount in cents for high precision money; only fractionDigits (and preciseAmount) differ
+  const highPrecisionPrice = {
+    type: 'highPrecision',
+    currencyCode: 'EUR',
+    centAmount: 19999,
+    preciseAmount: 19999000,
+    fractionDigits: 5,
+  };
+  const lineItem = {
+    productId: 'product-high-precision',
+    name: { en: 'High precision item' },
+    variant: { id: 1 },
+    quantity: 1,
+    lineItemMode: 'Standard',
+    price: { value: highPrecisionPrice },
+    totalPrice: { type: 'centPrecision', currencyCode: 'EUR', centAmount: 19999, fractionDigits: 2 },
+    taxedPrice: {
+      totalNet: { type: 'centPrecision', currencyCode: 'EUR', centAmount: 16806, fractionDigits: 2 },
+      totalGross: { type: 'centPrecision', currencyCode: 'EUR', centAmount: 19999, fractionDigits: 2 },
+      totalTax: { type: 'centPrecision', currencyCode: 'EUR', centAmount: 3193, fractionDigits: 2 },
+      taxPortions: [],
+    },
+  } as unknown as LineItem;
+
+  test('uses the cent precision of totalPrice, not the fractionDigits of the price', () => {
+    expect(mapCTLineItemToBraintreeLineItem(lineItem).totalAmount).toBe('199.99');
   });
 });
