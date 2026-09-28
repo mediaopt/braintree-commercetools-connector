@@ -186,7 +186,7 @@ async function loadMethods({ includeDropins }) {
             },
             initialAmount: {
               centAmount: 2000,
-              currencyCode: "EUR",
+              currencyCode: "USD",//must match the currently deployed Braintree/PayPal account currency
             },
           }
         : {}),

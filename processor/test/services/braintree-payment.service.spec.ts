@@ -134,7 +134,7 @@ describe('braintree-payment.service', () => {
       expect(result.amountBreakdown.shippingDiscount).toBe('0.00');
     });
 
-    test('external tax cart: taxTotal reflects taxedPrice.totalTax, itemTotal derived correctly', async () => {
+    test('external tax cart: taxTotal is 0.00 because tax is embedded in gross line items, itemTotal derived correctly', async () => {
       const cart = mockCartWithExternalTax();
       const paymentAmount: CentPrecisionMoney = {
         type: 'centPrecision',
@@ -153,9 +153,47 @@ describe('braintree-payment.service', () => {
       expect(result.braintreeAmount).toBe('200.00');
       expect(result.amountBreakdown.shipping).toBe('10.00'); // $10.00 shippingInfo
       expect(result.amountBreakdown.discount).toBe('5.00'); // $5.00 discount
-      expect(result.amountBreakdown.taxTotal).toBe('20.00'); // $20.00 from taxedPrice.totalTax
-      // itemTotal = 200.00 - 10.00 + 5.00 - 20.00
-      expect(result.amountBreakdown.itemTotal).toBe('175.00');
+      expect(result.amountBreakdown.taxTotal).toBe('0.00'); // tax is part of the gross line items
+      // itemTotal = 200.00 - 10.00 + 5.00
+      expect(result.amountBreakdown.itemTotal).toBe('195.00');
+    });
+
+    test('discount and shipping use gross amounts when commercetools provides them', async () => {
+      const baseCart = mockCartWithExternalTax();
+      const cart: Cart = {
+        ...baseCart,
+        shippingInfo: {
+          ...baseCart.shippingInfo!,
+          taxedPrice: {
+            totalNet: { type: 'centPrecision', currencyCode: 'USD', centAmount: 1000, fractionDigits: 2 },
+            totalGross: { type: 'centPrecision', currencyCode: 'USD', centAmount: 1200, fractionDigits: 2 }, // $12.00
+            totalTax: { type: 'centPrecision', currencyCode: 'USD', centAmount: 200, fractionDigits: 2 },
+            taxPortions: [],
+          },
+        },
+        discountOnTotalPrice: {
+          ...baseCart.discountOnTotalPrice!,
+          discountedGrossAmount: { type: 'centPrecision', currencyCode: 'USD', centAmount: 600, fractionDigits: 2 }, // $6.00
+        },
+      };
+      const paymentAmount: CentPrecisionMoney = {
+        type: 'centPrecision',
+        currencyCode: 'USD',
+        centAmount: 20000,
+        fractionDigits: 2,
+      };
+
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cart.id);
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart);
+      jest.spyOn(paymentSDK.ctCartService, 'getPaymentAmount').mockResolvedValue(paymentAmount);
+      mockClient(cart);
+
+      const result = await braintreePaymentService.updateCartShipping({ newShippingMethodId: 'method-2' });
+
+      expect(result.amountBreakdown.shipping).toBe('12.00');
+      expect(result.amountBreakdown.discount).toBe('6.00');
+      // itemTotal = 200.00 - 12.00 + 6.00
+      expect(result.amountBreakdown.itemTotal).toBe('194.00');
     });
 
     test('cart without shippingInfo: shipping is 0.00', async () => {
@@ -470,8 +508,8 @@ describe('braintree-payment.service', () => {
       jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cart.id);
       jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart);
 
-      // extraShippingCost present → amountPlanned is refreshed to the cart's totalPrice ($1500.00).
-      // lineItems (1550.00) + shippingAmount (20.00) - amount (1500.00) = 70.00.
+      // extraShippingCost present → amountPlanned is refreshed to the cart's totalPrice ($1500.00, no taxedPrice).
+      // lineItems (1550.00) + shippingAmount (20.00) - amount (1500.00) = 70.00, sent to PayPal as a DISCOUNT line item.
       await braintreePaymentService.transactionSale({
         ...baseRequest,
         paymentMethodType: PaymentMethodType.PAYPAL,
@@ -482,7 +520,41 @@ describe('braintree-payment.service', () => {
         },
       });
       expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
-        expect.objectContaining({ discountAmount: '70.00', shippingAmount: '20.00', amount: '1500.00' }),
+        expect.objectContaining({
+          discountAmount: '0.00',
+          shippingAmount: '20.00',
+          amount: '1500.00',
+          lineItems: expect.arrayContaining([
+            expect.objectContaining({ productCode: 'DISCOUNT', kind: 'credit', totalAmount: '70.00' }),
+          ]),
+        }),
+      );
+    });
+
+    test('express/extraShippingCost flow charges the cart gross when tax is not included in price', async () => {
+      const cart: Cart = {
+        ...mockGetCartResult(), // totalPrice: $1500.00 (net)
+        taxedPrice: {
+          totalNet: { type: 'centPrecision', currencyCode: 'USD', centAmount: 150000, fractionDigits: 2 },
+          totalGross: { type: 'centPrecision', currencyCode: 'USD', centAmount: 180000, fractionDigits: 2 },
+          totalTax: { type: 'centPrecision', currencyCode: 'USD', centAmount: 30000, fractionDigits: 2 },
+          taxPortions: [],
+        },
+      };
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cart.id);
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart);
+
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.PAYPAL,
+        paymentMethodNonce: 'fake-paypal-billing-agreement-nonce',
+        braintreePaymentDetails: {
+          braintreeLineItems: [lineItem('1780.00', 'Item A')],
+          extraShippingCost: '20.00',
+        },
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: '1800.00', discountAmount: '0.00', shippingAmount: '20.00' }),
       );
     });
   });

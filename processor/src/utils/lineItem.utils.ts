@@ -37,9 +37,23 @@ export const lineItemPlaceholders = {
   unitOfMeasure: 'unit' as const,
 };
 
+// Gross is preferred so tax not included in price (includedInPrice: false) is still covered. commercetools may
+// return a 0 gross (e.g. external tax not yet set), then totalPrice holds the amount; if neither is provided,
+// the (discounted) unit price times quantity is used.
+const relevantTotalCentAmount = ({ lineItemMode, taxedPrice, totalPrice, price, quantity }: LineItem) => {
+  if (lineItemMode === 'GiftLineItem') return 0;
+  return (
+    (taxedPrice?.totalGross?.centAmount || totalPrice?.centAmount) ??
+    (price.discounted?.value ?? price.value).centAmount * quantity
+  );
+};
+
 //tax and discount are not mapped separately to avoid rounding issues
 export const mapCTLineItemToBraintreeLineItem = (ctLineItem: LineItem, cartLocale?: string): BraintreeLineItem => {
-  const totalItemPrice = mapCommercetoolsMoneyToBraintreeMoney(ctLineItem.totalPrice);
+  const totalItemPrice = mapCommercetoolsMoneyToBraintreeMoney({
+    ...ctLineItem.price.value,
+    centAmount: relevantTotalCentAmount(ctLineItem),
+  });
   const localizedName =
     (cartLocale && ctLineItem.name[cartLocale]) || Object.values(ctLineItem.name)[0] || ctLineItem.productId;
   const nameWithQuantity = ctLineItem.quantity > 1 ? `${localizedName} (x${ctLineItem.quantity})` : localizedName;
