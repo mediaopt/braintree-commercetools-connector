@@ -7,6 +7,9 @@ import {
   withoutPlaceholders,
   findCapturedChargeBalance,
   sumRefundedCentAmount,
+  findTransactionIdOrUndefined,
+  hasCancelledPlaceholder,
+  remainingRefundableCentAmount,
 } from '../../src/utils/transaction.utils';
 import { mockGetPaymentResultWithoutTransactions } from './mock-payment-results';
 
@@ -104,6 +107,50 @@ describe('transaction.utils', () => {
         transaction({ id: 'c2', type: 'Charge' }),
       ]);
       expect(() => findCapturedChargeBalance(payment)).toThrow(ErrorInvalidOperation);
+    });
+  });
+
+  describe('findTransactionIdOrUndefined', () => {
+    test('returns the latest matching interactionId, ignoring placeholders', () => {
+      const payment = paymentWith([
+        transaction({ id: 'a1', interactionId: 'txn-1' }),
+        transaction({ id: 'a2', interactionId: 'txn-2' }),
+        transaction({ id: 'ph', state: 'Pending', interactionId: buildPlaceholderInteractionId('123456') }),
+      ]);
+      expect(findTransactionIdOrUndefined(payment, 'Authorization')).toBe('txn-2');
+    });
+
+    test('returns undefined instead of throwing when nothing matches', () => {
+      const payment = paymentWith([
+        transaction({ id: 'ph', state: 'Pending', interactionId: buildPlaceholderInteractionId('123456') }),
+      ]);
+      expect(findTransactionIdOrUndefined(payment, 'Authorization')).toBeUndefined();
+      expect(findTransactionIdOrUndefined(paymentWith([]), 'Charge')).toBeUndefined();
+    });
+  });
+
+  describe('hasCancelledPlaceholder', () => {
+    test('true only for a CancelAuthorization carrying the placeholder marker', () => {
+      const marker = buildPlaceholderInteractionId('123456');
+      expect(
+        hasCancelledPlaceholder(paymentWith([transaction({ type: 'CancelAuthorization', interactionId: marker })])),
+      ).toBe(true);
+      expect(hasCancelledPlaceholder(paymentWith([transaction({ state: 'Pending', interactionId: marker })]))).toBe(
+        false,
+      );
+      expect(
+        hasCancelledPlaceholder(paymentWith([transaction({ type: 'CancelAuthorization', interactionId: 'txn-real' })])),
+      ).toBe(false);
+    });
+  });
+
+  describe('remainingRefundableCentAmount', () => {
+    test('subtracts Success and Pending refunds from the captured amount', () => {
+      const payment = paymentWith([
+        transaction({ type: 'Refund', amount: { ...transaction({}).amount, centAmount: 20000 } }),
+        transaction({ type: 'Refund', state: 'Pending', amount: { ...transaction({}).amount, centAmount: 10000 } }),
+      ]);
+      expect(remainingRefundableCentAmount(payment, 120000)).toBe(90000);
     });
   });
 });
