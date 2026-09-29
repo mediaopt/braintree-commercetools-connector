@@ -3,7 +3,6 @@ import {
   healthCheckCommercetoolsPermissions,
   ErrorRequiredField,
   ErrorInvalidOperation,
-  ErrorGeneral,
   Cart,
   Customer,
   Payment,
@@ -366,7 +365,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     };
   }
 
-  // Payment Intents API response — outcome derived from the same CT transaction state written for this Braintree result
+  // Payment Intents API response — outcome derived from the same CT transaction state written for this Braintree result.
+  // Failures never get here: see rejectPaymentIntent / handleBraintreeFailure.
   private toPaymentIntentResponse(response: Transaction): PaymentIntentResponseSchemaDTO {
     const state = mapBraintreeStatusToCommercetoolsTransactionState(response.status);
     const outcome =
@@ -379,14 +379,74 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
-   * Payment Intents rule: an operation that is impossible in the payment's current state (nothing suitable to act on,
-   * already fully refunded, a Braintree status that can't be reversed, ...) is answered with the `rejected`
-   * PaymentIntentOutcome (docs.commercetools.com/checkout/payment-intents-api#paymentintentoutcome),
-   * the connector itself logs it as an error with the payment id, requested operation and reason.
+   * Payment Intents rule: a Payment Intents operation never throws — the API only knows the three
+   * PaymentIntentOutcome values (docs.commercetools.com/checkout/payment-intents-api#paymentintentoutcome), anything
+   * else becomes a 500 the merchant never can interpret. What the merchant does see is the log and the responses recorded on
+   * the payment. An operation that is impossible in the payment's current state (nothing suitable to act on, already
+   * fully refunded, a Braintree status that can't be reversed, ...) is answered with `rejected` and logged as a
+   * warning; `level: 'error'` is for when something threw (see handleBraintreeFailure).
    */
-  private rejectPaymentIntent(paymentId: string, operation: string, reason: string): PaymentIntentResponseSchemaDTO {
-    logger.error(`${operation}: rejected, paymentId: ${paymentId} — ${reason}`);
+  private rejectPaymentIntent(
+    paymentId: string,
+    operation: string,
+    reason: string,
+    level: 'warn' | 'error' = 'warn',
+  ): PaymentIntentResponseSchemaDTO {
+    logger[level](`${operation}: rejected, paymentId: ${paymentId} — ${reason}`);
     return { outcome: PaymentModificationStatus.REJECTED };
+  }
+
+  /**
+   * Records a failed Braintree call on the payment — `{messageName}Response` custom field (same shape as the
+   * extension's handleError) plus request/response pspInteractions, never a transaction. Awaited, never throws.
+   */
+  private async recordBraintreeFailure(
+    ctPayment: Payment,
+    messageName: string,
+    request: string | object,
+    message: string,
+  ): Promise<void> {
+    const failure = { success: false, message };
+    await retryCTSync(
+      () =>
+        this.ctPaymentService
+          .updatePayment({
+            id: ctPayment.id,
+            customFields: handleCustomFieldResponse(messageName, failure),
+            pspInteractions: [
+              handleInterfaceInteraction({ messageName, message: request, messageType: 'ProcessorRequest' }),
+              handleInterfaceInteraction({ messageName, message: failure, messageType: 'Response' }),
+            ],
+          })
+          .then(() => undefined),
+      `${messageName}:failureRecord`,
+      ctPayment.id,
+      '',
+    );
+  }
+
+  /**
+   * A failed Braintree modification call (declined, config missing, timeout, Braintree down, ...) → recorded on the
+   * payment, logged as an error, answered with `rejected` (see rejectPaymentIntent). No follow-up lookup or retry:
+   * the merchant sees `rejected`, checks the payment's logged response and decides what to do next — e.g. retrying
+   * right away is pointless while Braintree is down.
+   */
+  private async handleBraintreeFailure({
+    ctPayment,
+    operation,
+    messageName,
+    request,
+    err,
+  }: {
+    ctPayment: Payment;
+    operation: string;
+    messageName: string;
+    request: string | object;
+    err: unknown;
+  }): Promise<PaymentIntentResponseSchemaDTO> {
+    const message = `Braintree call failed: ${errorMessage(err)}`;
+    await this.recordBraintreeFailure(ctPayment, messageName, request, message);
+    return this.rejectPaymentIntent(ctPayment.id, operation, message, 'error');
   }
 
   /**
@@ -1037,12 +1097,17 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (!relevantTransaction.interactionId)
       return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'Authorization has no interactionId');
     const braintreeAmount = mapCommercetoolsMoneyToBraintreeMoney({ ...ctPayment.amountPlanned, ...amount });
-    let response!: Transaction;
+    let response: Transaction;
     try {
       response = await submitForSettlement(relevantTransaction.interactionId, braintreeAmount);
     } catch (err) {
-      logger.error(`settlement: Braintree call failed, paymentId: ${ctPayment.id} — ${errorMessage(err)}`);
-      throw new ErrorGeneral(`settlement failed for payment ${ctPayment.id} with error ${errorMessage(err)}`);
+      return await this.handleBraintreeFailure({
+        ctPayment,
+        operation: 'settlement',
+        messageName: 'submitForSettlement',
+        request,
+        err,
+      });
     }
     // CT sync — Braintree already settled; awaited (retryCTSync never throws), no notifications fallback
     await retryCTSync(
@@ -1079,12 +1144,17 @@ export class BraintreePaymentService extends AbstractPaymentService {
       return this.rejectPaymentIntent(ctPayment.id, 'refundPayment', 'no transaction suitable for refund');
     }
     const braintreeAmount = mapCommercetoolsMoneyToBraintreeMoney({ ...ctPayment.amountPlanned, ...amount });
-    let response!: Transaction;
+    let response: Transaction;
     try {
       response = await braintreeRefund(relevantTransactionId, braintreeAmount);
     } catch (err) {
-      logger.error(`refundPayment: Braintree call failed, paymentId: ${ctPayment.id} — ${errorMessage(err)}`);
-      throw new ErrorGeneral(`refundPayment failed for payment ${ctPayment.id} with error ${errorMessage(err)}`);
+      return await this.handleBraintreeFailure({
+        ctPayment,
+        operation: 'refundPayment',
+        messageName: 'refund',
+        request: { relevantTransactionId, amount },
+        err,
+      });
     }
     // CT sync — Braintree already refunded; awaited (retryCTSync never throws), no notifications fallback
     const customFields = handleCustomFieldResponse('refund', response);
@@ -1125,7 +1195,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const transaction = ctPayment.transactions.find(
       (transaction) => transaction.interactionId === transactionId && transaction.type === 'Authorization',
     );
-    let response!: Transaction;
+    let response: Transaction;
     try {
       if (transaction?.state === 'Initial') {
         await braintreeDeletePayment(transactionId);
@@ -1137,8 +1207,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
         } as Transaction; //other required by type definition fields are not used in communication with commercetools
       } else response = await braintreeVoidTransaction(transactionId);
     } catch (err) {
-      logger.error(`void: Braintree call failed, paymentId: ${ctPayment.id} — ${errorMessage(err)}`);
-      throw new ErrorGeneral(`void failed for payment ${ctPayment.id} with error ${errorMessage(err)}`);
+      return await this.handleBraintreeFailure({
+        ctPayment,
+        operation: 'void',
+        messageName: 'void',
+        request: { transactionId },
+        err,
+      });
     }
     // CT sync — Braintree already voided; awaited (retryCTSync never throws), no notifications fallback
     const customFields = handleCustomFieldResponse('void', response);
@@ -1254,8 +1329,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
     try {
       braintreeTransaction = await braintreeGetTransaction(transactionId);
     } catch (err) {
-      logger.error(`reversePayment: Braintree call failed, paymentId: ${ctPayment.id} — ${errorMessage(err)}`);
-      throw new ErrorGeneral(`reversePayment failed for payment ${ctPayment.id} with error ${errorMessage(err)}`);
+      return this.rejectPaymentIntent(
+        ctPayment.id,
+        'reversePayment',
+        `Braintree status lookup failed: ${errorMessage(err)}`,
+        'error',
+      );
     }
     const { status } = braintreeTransaction;
     if (status === 'settling' || status === 'settled' || status === 'settlement_confirmed') {
