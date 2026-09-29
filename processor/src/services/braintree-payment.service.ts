@@ -135,6 +135,7 @@ const buildDiscountLineItem = (amount: string) => ({
  *
  * Braintree rejects a breakdown that doesn't fit its line items (ITEM_TOTAL_MISMATCH). No payment method in this
  * connector requires a breakdown (only PayPal Express receives one), so on a mismatch it is omitted.
+ * Missing breakdown doesn't allow to see items list in PayPal window (only subtotla, shipping and total). If you experience this - please open an issue with anonymized cart.
  */
 const lineItemsMatchItemTotal = (lineItems: BraintreeLineItem[], itemTotal: string, cartId: string): boolean => {
   const lineItemTotal = lineItems.reduce((sum, { totalAmount }) => sum + Number(totalAmount), 0).toFixed(2);
