@@ -4,11 +4,10 @@ import { findSuitableTransactionId } from 'common-connect/dist';
 
 const PLACEHOLDER_PREFIX = 'BraintreePlaceholder: ';
 
-// The only case in this codebase where a transaction's interactionId is not a real Braintree transaction
-// id — the ACH micro-deposit placeholder (syncCtPaymentStatus's ensureTransaction, braintree-payment.service.ts)
-// is marked this way, using the commercetools payment id (Braintree hands out no identifier before the real
-// transactionSale happens), so it can never be mistaken for — or accidentally sent to Braintree as — a genuine
-// transaction id. Always find/exclude the placeholder via isPlaceholderInteractionId() below.
+// Marker interactionId of the ACH micro-deposit placeholder (syncCtPaymentStatus's ensureTransaction and
+// cancelPlaceholderPayment, braintree-payment.service.ts), built from the commercetools payment id since Braintree
+// has no transaction yet. It is never a Braintree id, so it must never be sent to Braintree — find/exclude it via
+// isPlaceholderInteractionId() below.
 export const buildPlaceholderInteractionId = (ctPaymentId: string): string => `${PLACEHOLDER_PREFIX}${ctPaymentId}`;
 
 export const isPlaceholderInteractionId = (interactionId?: string): boolean =>
