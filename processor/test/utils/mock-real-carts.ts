@@ -9,7 +9,7 @@ type RealCartTestData = { testDescription: string; cart: Cart };
 // Multi-shipping is not ported. If you are interested in a feature in this connector please open an issue.
 // Note the generator quirks, kept on purpose because they reproduce real CT responses:
 // - a line item given only gross/net/tax has no totalPrice
-// - a line item given only totalPrice has an all-zero taxedPrice (no gross available, e.g. external tax)
+// - a line item given only totalPrice has an all-zero taxedPrice (zero gross, seen with specific project settings)
 
 type PriceGenerationProps = { gross?: number; net?: number; tax?: number };
 type DiscountGenerationProps = { gross?: number; net?: number; amount: number };
@@ -120,12 +120,12 @@ const payPalConnectorCarts: RealCartTestData[] = [
   },
   {
     // quantity > 1 with a 0 unit price (name gets the quantity suffix)
-    testDescription: 'nine zero price items with external tax',
+    testDescription: 'nine zero price items',
     cart: cartFromCartData({ lineItemsData: [{ itemType: 'zeroPriceItem', quantity: 9 }] }),
   },
   {
     // gross is 0, amount is in totalPrice; cart discount without gross amount; no shipping
-    testDescription: 'item with two discounts and gift and item with external tax',
+    testDescription: 'item with two discounts and gift, zero gross taxedPrice',
     cart: cartFromCartData({
       lineItemsData: [
         { itemType: 'taxNotIncludedInBasePrice', quantity: 3, totalPrice: centPrice(55797) },
@@ -183,7 +183,7 @@ const usdTaxed = (net: number, gross: number) => ({
   totalTax: usd(gross - net),
   taxPortions: [],
 });
-const externalTaxNotIncludedCart = {
+const taxNotIncludedInPriceCart = {
   id: 'e668f325-e6b8-487a-bd07-948d6762e81c',
   version: 28,
   locale: undefined,
@@ -299,7 +299,7 @@ export const realCarts: RealCartTestData[] = [
   ...payPalConnectorCarts,
   {
     testDescription: 'tax not included in price, gift, product discount (ticket 38236)',
-    cart: externalTaxNotIncludedCart,
+    cart: taxNotIncludedInPriceCart,
   },
   {
     testDescription: 'unit price level with 0% tax item, gift and total price discount',

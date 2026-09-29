@@ -37,9 +37,11 @@ export const lineItemPlaceholders = {
   unitOfMeasure: 'unit' as const,
 };
 
-// Gross is preferred so tax not included in price (includedInPrice: false) is still covered. commercetools may
-// return a 0 gross (e.g. external tax not yet set), then totalPrice holds the amount; if neither is provided,
-// the (discounted) unit price times quantity is used.
+// Gross is preferred so tax not included in price (includedInPrice: false) is still covered.
+// The fallbacks are for rare responses seen only with specific project settings (some projects created after 2024):
+// a present taxedPrice with a 0 gross (totalPrice then holds the amount) and a line item without totalPrice
+// (then the (discounted) unit price times quantity is used).
+// Note: for a cart with such a 0 gross taxedPrice if you can't create checkout payment as payments SDK's throws "The cart has already been paid in full" please open a commercetools issue.
 const relevantTotalCentAmount = ({ lineItemMode, taxedPrice, totalPrice, price, quantity }: LineItem) => {
   if (lineItemMode === 'GiftLineItem') return 0;
   return (
