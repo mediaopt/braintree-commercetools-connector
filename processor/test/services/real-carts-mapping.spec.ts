@@ -16,7 +16,8 @@ import { realCarts } from '../utils/mock-real-carts';
 import { mapCTLineItemToBraintreeLineItem } from '../../src/utils/lineItem.utils';
 
 const toCents = (amount: string) => Math.round(Number(amount) * 100);
-// what the charged amount resolves to: gross when commercetools provides it, totalPrice otherwise
+// what the charged amount resolves to: gross when commercetools provides it, totalPrice otherwise.
+// || (not ??) mirrors relevantTotalCentAmount in lineItem.utils.ts for the zero gross fixtures (cartPrice: {}).
 const expectedTotal = (cart: Cart) => cart.taxedPrice?.totalGross?.centAmount || cart.totalPrice.centAmount;
 
 describe('real carts: mapped Braintree line items balance the charged amount', () => {
@@ -44,6 +45,8 @@ describe('real carts: mapped Braintree line items balance the charged amount', (
     const amountPlanned = { ...cart.totalPrice, centAmount: expectedTotal(cart) };
     jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cart.id);
     jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart);
+    // mocked on purpose: for the zero gross fixtures the real SDK getPaymentAmount throws "The cart has already been
+    // paid in full" (a commercetools-side behaviour, see lineItem.utils.ts); this spec covers the line item mapping
     jest.spyOn(paymentSDK.ctCartService, 'getPaymentAmount').mockResolvedValue(amountPlanned);
     jest.spyOn(paymentSDK.ctPaymentService, 'createPayment').mockResolvedValue({
       ...mockGetPaymentResult,
@@ -97,7 +100,9 @@ describe('mapCTLineItemToBraintreeLineItem with a high precision price', () => {
     },
   } as unknown as LineItem;
 
-  test('uses the cent precision of totalPrice, not the fractionDigits of the price', () => {
+  // guards the money metadata spread in mapCTLineItemToBraintreeLineItem: spreading price.value first would format
+  // the cent amount with 5 fraction digits (0.19999 instead of 199.99)
+  test('takes currency/fractionDigits from totalPrice, not from a high precision price.value', () => {
     expect(mapCTLineItemToBraintreeLineItem(lineItem).totalAmount).toBe('199.99');
   });
 });

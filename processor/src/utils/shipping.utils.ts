@@ -60,6 +60,9 @@ export type BraintreeShipping = Static<typeof BraintreeShippingSchema>;
  * @param cartShippingId - Current selected shipping method
  * @returns Array of Braintree shipping options with country codes and amounts
  */
+// Amounts are the configured shipping rate price (net when tax is not included in price): commercetools computes the gross
+// only for the shipping method applied to the cart. The selected option gets that gross in the enabler's onShippingChange
+// (updateCartShipping -> shippingAmount), so unselected options become exact once picked.
 export const mapShippingMethodsToBraintreeShippingOptions = (
   shippingMethods: ShippingMethod[],
   currencyCode: string,
