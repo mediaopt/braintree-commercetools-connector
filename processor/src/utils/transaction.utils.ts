@@ -13,6 +13,9 @@ export const buildPlaceholderInteractionId = (ctPaymentId: string): string => `$
 export const isPlaceholderInteractionId = (interactionId?: string): boolean =>
   !!interactionId?.startsWith(PLACEHOLDER_PREFIX);
 
+export const hasPlaceholder = (payment: Payment): boolean =>
+  payment.transactions.some((t) => isPlaceholderInteractionId(t.interactionId));
+
 /**
  * Copy of the payment without placeholder transactions — lets the shared common-connect
  * findSuitableTransactionId (unchanged, also used by braintree-extension) never resolve a placeholder marker.
@@ -60,15 +63,12 @@ export const remainingRefundableCentAmount = (payment: Payment, capturedCentAmou
   capturedCentAmount - sumRefundedCentAmount(payment);
 
 /**
- * Resolves the payment's captured (settled) Charge together with how much of it hasn't been refunded yet
- * (its amount minus the Success/Pending Refunds already applied, see remainingRefundableCentAmount). Returns undefined
- * when the payment hasn't been captured at all. Throws when more than one captured Charge exists — a Braintree refund
+ * Resolves the payment's captured (settled) Charge — how much of it is still refundable is
+ * remainingRefundableCentAmount's job. Returns undefined when the payment hasn't been captured at all. Throws when more than one captured Charge exists — a Braintree refund
  * targets one specific transaction, so reversing just one of several would misreport the payment as
  * fully reversed. Used by reversePayment's void-vs-refund routing (braintree-payment.service.ts).
  */
-export const findCapturedChargeBalance = (
-  payment: Payment,
-): { transaction: Transaction; remainingAmount: number } | undefined => {
+export const findCapturedCharge = (payment: Payment): Transaction | undefined => {
   const chargeTransactions = payment.transactions.filter((t) => t.type === 'Charge' && t.state === 'Success');
   if (chargeTransactions.length === 0) {
     return undefined;
@@ -78,9 +78,5 @@ export const findCapturedChargeBalance = (
       `Payment ${payment.id} has more than one captured Charge — reversePayment doesn't support reversing multiple captures; refund each one individually via refundPayment with its transactionId`,
     );
   }
-  const [transaction] = chargeTransactions;
-  return {
-    transaction,
-    remainingAmount: remainingRefundableCentAmount(payment, transaction.amount.centAmount),
-  };
+  return chargeTransactions[0];
 };

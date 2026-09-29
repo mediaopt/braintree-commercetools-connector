@@ -104,9 +104,6 @@ describe('braintree-payment.service', () => {
     state: 'Pending',
     interactionId: buildPlaceholderInteractionId(mockGetPaymentResult.id),
   });
-  const flushPromises = async () => {
-    for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve));
-  };
   // A failed Braintree call is recorded on the payment — `{messageName}Response` custom field + pspInteractions,
   // never a transaction (handleBraintreeFailure).
   const expectFailureRecorded = (messageName: string, message: string) => {
@@ -878,11 +875,7 @@ describe('braintree-payment.service', () => {
       );
       // No pre-charge placeholder of any kind, via the SDK or raw.
       expect(updateCalls.some((opts) => opts.transaction && !opts.transaction.interactionId)).toBe(false);
-      expect(
-        rawActionCalls()
-          .flat()
-          .some((a) => a.action === 'addTransaction'),
-      ).toBe(false);
+      expect(addedTransactions()).toEqual([]);
     });
 
     test('placeholder cancelled before verification: refused without calling Braintree', async () => {
@@ -1234,17 +1227,14 @@ describe('braintree-payment.service', () => {
     const authorization = transaction({ id: 'auth-1', interactionId: 'txn-1' });
     const received = { outcome: PaymentModificationStatus.RECEIVED };
     let refundSpy: jest.SpiedFunction<typeof braintreePaymentService.refundPayment>;
-    // reverse voids a specific Braintree transaction through the private voidTransaction (not the public void)
-    type WithVoidTransaction = {
-      voidTransaction: (ctPayment: unknown, transactionId: string) => Promise<typeof received>;
-    };
-    let voidSpy: jest.SpiedFunction<WithVoidTransaction['voidTransaction']>;
 
     beforeEach(() => {
       refundSpy = jest.spyOn(braintreePaymentService, 'refundPayment').mockResolvedValue(received);
-      voidSpy = jest
-        .spyOn(braintreePaymentService as unknown as WithVoidTransaction, 'voidTransaction')
-        .mockResolvedValue(received);
+      jest.spyOn(paymentSDK.ctPaymentService, 'updatePayment').mockResolvedValue({} as never);
+      (CommonConnect.voidTransaction as jest.Mock).mockResolvedValue({
+        ...mockBraintreeTransaction,
+        status: 'voided',
+      } as never);
     });
 
     describe('commercetools shows a capture (primary gate, no Braintree call)', () => {
@@ -1264,11 +1254,11 @@ describe('braintree-payment.service', () => {
         expect(refundSpy).toHaveBeenCalledWith({
           payment,
           transactionId: 'txn-1',
-          amount: { ...charge.amount, centAmount: 100000 },
+          amount: { centAmount: 100000, currencyCode: 'GBP' },
         });
         expect(result).toBe(received);
         expect(CommonConnect.getTransaction).not.toHaveBeenCalled();
-        expect(voidSpy).not.toHaveBeenCalled();
+        expect(CommonConnect.voidTransaction).not.toHaveBeenCalled();
       });
 
       test('counts a still-Pending CT refund: refunds only what Braintree has left', async () => {
@@ -1292,7 +1282,7 @@ describe('braintree-payment.service', () => {
         expect(refundSpy).toHaveBeenCalledWith({
           payment,
           transactionId: 'txn-1',
-          amount: { ...charge.amount, centAmount: 90000 },
+          amount: { centAmount: 90000, currencyCode: 'GBP' },
         });
         expect(CommonConnect.getTransaction).not.toHaveBeenCalled();
       });
@@ -1385,7 +1375,7 @@ describe('braintree-payment.service', () => {
             transactionId: 'txn-1',
             amount: { centAmount: 100000, currencyCode: 'GBP' },
           });
-          expect(voidSpy).not.toHaveBeenCalled();
+          expect(CommonConnect.voidTransaction).not.toHaveBeenCalled();
         },
       );
 
@@ -1412,7 +1402,7 @@ describe('braintree-payment.service', () => {
 
         await braintreePaymentService.reversePayment({ payment });
 
-        expect(voidSpy).toHaveBeenCalledWith(payment, 'txn-1');
+        expect(CommonConnect.voidTransaction).toHaveBeenCalledWith('txn-1');
         expect(refundSpy).not.toHaveBeenCalled();
       });
 
@@ -1435,7 +1425,7 @@ describe('braintree-payment.service', () => {
           await braintreePaymentService.reversePayment({ payment });
 
           expect(CommonConnect.getTransaction).toHaveBeenCalledWith('txn-child');
-          expect(voidSpy).toHaveBeenCalledWith(payment, 'txn-child');
+          expect(CommonConnect.voidTransaction).toHaveBeenCalledWith('txn-child');
           expect(refundSpy).not.toHaveBeenCalled();
         });
 
@@ -1455,7 +1445,7 @@ describe('braintree-payment.service', () => {
             transactionId: 'txn-child',
             amount: { centAmount: 120000, currencyCode: 'GBP' },
           });
-          expect(voidSpy).not.toHaveBeenCalled();
+          expect(CommonConnect.voidTransaction).not.toHaveBeenCalled();
         });
       });
 
@@ -1470,7 +1460,7 @@ describe('braintree-payment.service', () => {
 
         expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
         expect(refundSpy).not.toHaveBeenCalled();
-        expect(voidSpy).not.toHaveBeenCalled();
+        expect(CommonConnect.voidTransaction).not.toHaveBeenCalled();
       });
 
       test('only a placeholder Authorization (unverified ACH): cancels it without calling Braintree', async () => {
@@ -1498,7 +1488,7 @@ describe('braintree-payment.service', () => {
 
         expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
         expect(refundSpy).not.toHaveBeenCalled();
-        expect(voidSpy).not.toHaveBeenCalled();
+        expect(CommonConnect.voidTransaction).not.toHaveBeenCalled();
       });
     });
   });
@@ -1557,12 +1547,8 @@ describe('braintree-payment.service', () => {
         braintreeCustomerId: 'bt-cust-123',
       });
 
-      const addTransaction = rawActionCalls()
-        .flat()
-        .find((a) => a.action === 'addTransaction');
-      expect(addTransaction).toEqual({
-        action: 'addTransaction',
-        transaction: {
+      expect(addedTransactions()).toEqual([
+        {
           type: 'Authorization',
           state: 'Pending',
           interactionId: 'BraintreePlaceholder: payment-123',
@@ -1571,7 +1557,7 @@ describe('braintree-payment.service', () => {
             currencyCode: mockGetPaymentResultWithoutTransactions.amountPlanned.currencyCode,
           },
         },
-      });
+      ]);
     });
 
     test('unverified/micro-deposit path: does not add a second placeholder when one already exists', async () => {
@@ -1588,14 +1574,9 @@ describe('braintree-payment.service', () => {
         paymentMethodNonce: 'ach-nonce',
         braintreeCustomerId: 'bt-cust-123',
       });
-      await flushPromises();
 
       expect(rawPaymentPost).toHaveBeenCalled();
-      expect(
-        rawActionCalls()
-          .flat()
-          .some((a) => a.action === 'addTransaction'),
-      ).toBe(false);
+      expect(addedTransactions()).toEqual([]);
     });
 
     test('unverified/micro-deposit path: no placeholder when a real Authorization already exists', async () => {

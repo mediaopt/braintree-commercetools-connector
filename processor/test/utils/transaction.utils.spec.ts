@@ -5,10 +5,11 @@ import {
   buildPlaceholderInteractionId,
   isPlaceholderInteractionId,
   withoutPlaceholders,
-  findCapturedChargeBalance,
+  findCapturedCharge,
   sumRefundedCentAmount,
   findTransactionIdOrUndefined,
   hasCancelledPlaceholder,
+  hasPlaceholder,
   remainingRefundableCentAmount,
 } from '../../src/utils/transaction.utils';
 import { mockGetPaymentResultWithoutTransactions } from './mock-payment-results';
@@ -75,30 +76,17 @@ describe('transaction.utils', () => {
     });
   });
 
-  describe('findCapturedChargeBalance', () => {
+  describe('findCapturedCharge', () => {
     test('returns undefined when there is no successful Charge', () => {
       const payment = paymentWith([transaction({}), transaction({ type: 'Charge', state: 'Pending' })]);
-      expect(findCapturedChargeBalance(payment)).toBeUndefined();
+      expect(findCapturedCharge(payment)).toBeUndefined();
     });
 
-    test('returns the Charge and its amount minus Success and Pending Refunds', () => {
+    test('returns the single successful Charge', () => {
       const charge = transaction({ id: 'charge', type: 'Charge', interactionId: 'txn-test-1' });
-      const payment = paymentWith([
-        charge,
-        transaction({ id: 'r1', type: 'Refund', amount: { ...charge.amount, centAmount: 20000 } }),
-        // Braintree refunds stay Pending until they settle — still already refunded
-        transaction({ id: 'r2', type: 'Refund', state: 'Pending', amount: { ...charge.amount, centAmount: 30000 } }),
-        transaction({ id: 'r3', type: 'Refund', state: 'Failure', amount: { ...charge.amount, centAmount: 50000 } }),
-      ]);
+      const payment = paymentWith([transaction({}), charge, transaction({ id: 'r1', type: 'Refund' })]);
 
-      expect(findCapturedChargeBalance(payment)).toEqual({ transaction: charge, remainingAmount: 70000 });
-    });
-
-    test('remaining amount is 0 when a still-Pending refund covered the whole Charge', () => {
-      const charge = transaction({ id: 'charge', type: 'Charge' });
-      const payment = paymentWith([charge, transaction({ id: 'r1', type: 'Refund', state: 'Pending' })]);
-
-      expect(findCapturedChargeBalance(payment)?.remainingAmount).toBe(0);
+      expect(findCapturedCharge(payment)).toBe(charge);
     });
 
     test('throws when more than one Charge was captured', () => {
@@ -106,7 +94,7 @@ describe('transaction.utils', () => {
         transaction({ id: 'c1', type: 'Charge' }),
         transaction({ id: 'c2', type: 'Charge' }),
       ]);
-      expect(() => findCapturedChargeBalance(payment)).toThrow(ErrorInvalidOperation);
+      expect(() => findCapturedCharge(payment)).toThrow(ErrorInvalidOperation);
     });
   });
 
@@ -129,6 +117,17 @@ describe('transaction.utils', () => {
     });
   });
 
+  describe('hasPlaceholder', () => {
+    test('true only when a transaction carries the placeholder marker', () => {
+      expect(
+        hasPlaceholder(
+          paymentWith([transaction({ state: 'Pending', interactionId: buildPlaceholderInteractionId('1') })]),
+        ),
+      ).toBe(true);
+      expect(hasPlaceholder(paymentWith([transaction({ interactionId: 'txn-real' })]))).toBe(false);
+    });
+  });
+
   describe('hasCancelledPlaceholder', () => {
     test('true only for a CancelAuthorization carrying the placeholder marker', () => {
       const marker = buildPlaceholderInteractionId('123456');
@@ -145,12 +144,21 @@ describe('transaction.utils', () => {
   });
 
   describe('remainingRefundableCentAmount', () => {
-    test('subtracts Success and Pending refunds from the captured amount', () => {
+    const amount = transaction({}).amount;
+
+    test('subtracts Success and Pending refunds, ignores Failure ones', () => {
       const payment = paymentWith([
-        transaction({ type: 'Refund', amount: { ...transaction({}).amount, centAmount: 20000 } }),
-        transaction({ type: 'Refund', state: 'Pending', amount: { ...transaction({}).amount, centAmount: 10000 } }),
+        transaction({ id: 'r1', type: 'Refund', amount: { ...amount, centAmount: 20000 } }),
+        // Braintree refunds stay Pending until they settle — still already refunded
+        transaction({ id: 'r2', type: 'Refund', state: 'Pending', amount: { ...amount, centAmount: 30000 } }),
+        transaction({ id: 'r3', type: 'Refund', state: 'Failure', amount: { ...amount, centAmount: 50000 } }),
       ]);
-      expect(remainingRefundableCentAmount(payment, 120000)).toBe(90000);
+      expect(remainingRefundableCentAmount(payment, 120000)).toBe(70000);
+    });
+
+    test('is 0 when a still-Pending refund covered the whole capture', () => {
+      const payment = paymentWith([transaction({ id: 'r1', type: 'Refund', state: 'Pending' })]);
+      expect(remainingRefundableCentAmount(payment, amount.centAmount)).toBe(0);
     });
   });
 });

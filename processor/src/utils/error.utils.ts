@@ -3,7 +3,7 @@ import { Transaction } from 'braintree';
 
 // Every retryCTSync call is awaited on the response path, so the backoff is part of the response time. Default
 // expectation for commercetools payment connectors is a response within ~3s: 3 attempts sleep 500 + 1000 ms, and the
-// nested statusSync retry (updatePaymentWithTransaction) runs at most once per call, adding the same ≤ 1.5s..
+// nested statusSync retry (updatePaymentWithTransaction) runs at most once per call, adding the same ≤ 1.5s.
 const CT_SYNC_MAX_ATTEMPTS = 3;
 const CT_SYNC_BACKOFF_BASE_MS = 500;
 
