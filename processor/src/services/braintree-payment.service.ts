@@ -231,10 +231,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
    *
    * `ensureTransaction` adds a placeholder transaction (BraintreePlaceholder-marker interactionId, see
    * transaction.utils.ts) that updatePaymentWithTransaction later overwrites in place once the real
-   * Braintree transaction exists. It is idempotent across retries: it only adds the transaction if the
-   * payment doesn't already have a placeholder of the same type (i.e. a prior attempt of this same placeholder). This guards against retryCTSync re-adding it if a prior attempt
-   * succeeded server-side but the client observed a transient failure — addTransaction itself has
-   * no dedup key.
+   * Braintree transaction exists. It only adds the transaction if the payment has no transaction of that type yet —
+   * neither a placeholder from a prior attempt (retryCTSync re-running after a server-side success the client saw as a
+   * transient failure; addTransaction itself has no dedup key) nor a real one already written by transactionSale.
    */
   private async syncCtPaymentStatus({
     ctPaymentId,
@@ -250,14 +249,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
     ensureTransaction?: { type: TransactionType; state: TransactionState };
   }): Promise<void> {
     const payment = await this.ctPaymentService.getPayment({ id: ctPaymentId });
-    const hasPlaceholder =
-      ensureTransaction &&
-      payment.transactions.some(
-        (transaction) =>
-          transaction.type === ensureTransaction.type && isPlaceholderInteractionId(transaction.interactionId),
-      );
+    // Any transaction of that type counts, not just a placeholder: a real one (written by a transactionSale that got
+    // there first) must not get a second, forever-Pending placeholder next to it.
+    const hasTransactionOfType =
+      ensureTransaction && payment.transactions.some((transaction) => transaction.type === ensureTransaction.type);
     const extraActions: PaymentUpdateAction[] =
-      ensureTransaction && !hasPlaceholder
+      ensureTransaction && !hasTransactionOfType
         ? [
             {
               action: 'addTransaction',
@@ -1340,8 +1337,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
    *    Pending via retryCTSync in transactionSale.
    *
    * B. Micro-deposit: verified=false. The bank account is vaulted but verification takes 1–5
-   *    business days. CT payment is synced to Pending here so the merchant's order management
-   *    reflects the intent. The enabler redirects to the result page immediately using the
+   *    business days. CT payment is synced to Pending here (awaited, before responding) so the merchant's
+   *    order management reflects the intent. The enabler redirects to the result page immediately using the
    *    returned merchantReturnUrl.
    *    MERCHANT RESPONSIBILITY: when the customer completes micro-deposit verification, Braintree
    *    sends a webhook. The merchant must listen for it and call transactionSale with the stored
@@ -1381,7 +1378,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
     );
 
     if (!verified) {
-      void retryCTSync(
+      // Awaited — this placeholder is the write that triggers commercetools Checkout's Order creation, so it must
+      // exist before the settlement_pending redirect goes out (retryCTSync never throws).
+      await retryCTSync(
         () =>
           this.syncCtPaymentStatus({
             ctPaymentId,

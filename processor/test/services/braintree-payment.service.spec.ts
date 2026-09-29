@@ -833,12 +833,21 @@ describe('braintree-payment.service', () => {
     test('real transaction available: no placeholder, the real Authorization is written before responding', async () => {
       const payment = { ...mockGetPaymentResult, transactions: [] };
       jest.spyOn(paymentSDK.ctPaymentService, 'getPayment').mockResolvedValue(payment as never);
+      // The first CT write stays pending until released — transactionSale must not resolve before it does.
+      let releaseWrite!: () => void;
+      jest
+        .mocked(paymentSDK.ctPaymentService.updatePayment)
+        .mockImplementationOnce(() => new Promise((resolve) => (releaseWrite = () => resolve({} as never))));
 
-      const result = await sale(payment.id);
+      let settled = false;
+      const salePromise = sale(payment.id).finally(() => (settled = true));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(settled).toBe(false);
+      releaseWrite();
+      const result = await salePromise;
 
       expect(result.success).toBe(true);
       const updateCalls = jest.mocked(paymentSDK.ctPaymentService.updatePayment).mock.calls.map(([opts]) => opts);
-      // The CT write is awaited — already happened by the time transactionSale resolved.
       expect(updateCalls[0]).toEqual(
         expect.objectContaining({
           id: payment.id,
