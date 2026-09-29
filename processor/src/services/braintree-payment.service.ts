@@ -113,12 +113,13 @@ type TransactionWithLocalPayment = Transaction & {
 const OPTIMISTIC_TRANSACTION_TRIGGER_ORDER: TransactionState = 'Initial';
 
 // Single source for the DISCOUNT credit item — transactionSale filters on and rebuilds this exact shape for PayPal.
+const DISCOUNT_PRODUCT_CODE = 'DISCOUNT';
 const buildDiscountLineItem = (amount: string) => ({
   name: 'Discount',
   kind: 'credit' as LineItemKind,
   unitAmount: amount,
   totalAmount: amount,
-  productCode: 'DISCOUNT',
+  productCode: DISCOUNT_PRODUCT_CODE,
   ...lineItemPlaceholders,
 });
 
@@ -621,13 +622,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
         lastPaymentRef ? this.ctPaymentService.getPayment({ id: lastPaymentRef.id }) : Promise.resolve(undefined),
       ]);
 
-      // The expected amount for a new cart is the gross (see relevantCartAmount): cart.totalPrice leaves out tax not included in
-      // price, and the Braintree line items (see mapCTLineItemToBraintreeLineItem) are mapped at gross to balance it.
-      const cartTotal = relevantCartAmount(ctCart);
-      if (amountPlanned.centAmount !== cartTotal.centAmount || amountPlanned.currencyCode !== cartTotal.currencyCode) {
-        logger.warn(`createPayment: payment amount does not match cart total for cart ${ctCart.id}`);
-      }
-
       /* PURE_VAULT_DISABLED start
     this.validateCustomerRequiredData(customer, isPureVault);
      PURE_VAULT_DISABLED end */
@@ -924,7 +918,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
       // Braintree has 35-char limit for line item names — see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
       .map((item) => ({ ...item, name: item.name.substring(0, 35) }))
       // Braintree rejects zero-amount line items for non-PayPal methods; for PayPal, zero amounts are explicitly allowed
-      .filter(({ productCode, unitAmount }) => productCode !== 'DISCOUNT' && (isPayPal || Number(unitAmount) > 0));
+      .filter(
+        ({ productCode, unitAmount }) => productCode !== DISCOUNT_PRODUCT_CODE && (isPayPal || Number(unitAmount) > 0),
+      );
     // discountAmount is derived as the residual needed to balance lineItems (+ shipping, when submitted
     // separately) against the actual charged amount, rather than read from a separately fetched/echoed
     // discount value — this keeps it correct regardless of cart discount type, staleness, or rounding.
