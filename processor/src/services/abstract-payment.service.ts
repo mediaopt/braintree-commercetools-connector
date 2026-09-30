@@ -208,7 +208,7 @@ export abstract class AbstractPaymentService {
         });
       }
       case 'cancelPayment': {
-        return await this.void({ payment: ctPayment });
+        return await this.void({ payment: ctPayment, merchantReference: request.merchantReference });
       }
       case 'refundPayment': {
         return await this.refundPayment({
@@ -218,7 +218,7 @@ export abstract class AbstractPaymentService {
         });
       }
       case 'reversePayment': {
-        return await this.reversePayment({ payment: ctPayment });
+        return await this.reversePayment({ payment: ctPayment, merchantReference: request.merchantReference });
       }
       default: {
         throw new ErrorInvalidOperation(`Operation not supported.`);

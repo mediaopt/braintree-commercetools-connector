@@ -11,6 +11,7 @@ export type ModifyPaymentWithTransactionRequest = {
 
 export type CancelPaymentRequest = {
   payment: Payment;
+  merchantReference?: string;
 };
 
 export type ConfigResponse = ConfigResponseSchemaDTO;
