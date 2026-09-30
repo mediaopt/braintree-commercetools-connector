@@ -206,10 +206,6 @@ export abstract class AbstractPaymentService {
       id: opts.paymentId,
     });
     const request = opts.data.actions[0];
-    // TODO: remove — temporary probe whether commercetools forwards merchantReference to the connector
-    logger.info(
-      `modifyPayment probe: payment ${opts.paymentId}, action ${request.action}, merchantReference: ${'merchantReference' in request ? request.merchantReference : '<absent>'}, transactionId: ${'transactionId' in request ? request.transactionId : '<absent>'}`,
-    );
     logger.info(`Received request to modify payment ${opts.paymentId} with action ${request.action}`);
     switch (request.action) {
       case 'capturePayment': {
