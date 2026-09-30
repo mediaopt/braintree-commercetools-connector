@@ -188,14 +188,7 @@ export abstract class AbstractPaymentService {
    * This method is used to execute Capture/Cancel/Refund payment in external PSPs and update composable commerce.
    * The actual invocation to PSPs should be implemented in subclasses
    *
-   * The names for commecetools and braintree methods are mapped in the following way:
-   *
-   * | commercetools | braintree |
-   * |---------------|-----------|
-   * | capture       | settlement|
-   * | refund        | refund    |
-   * | cancel        | void      |
-   * | reverse       | refund or void (see reversePayment) |
+   * How each action maps to Braintree: see docs/Intents.md
    *
    * @param opts - input for payment modification including payment ID, action and payment amount
    * @returns Promise with success response

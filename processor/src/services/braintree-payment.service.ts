@@ -1091,14 +1091,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
-   * Refund payment
+   * Refund payment — target and pre-check per docs/Intents.md "Refund".
    *
-   * @remarks
-   * Refund braintree payment including partial refund and refund specific transaction
-   *
-   * @param request - contains payment id (required), optional refund amount (braintree money) and optional transaction id.
-   * If amount is provided - refund will be attempted with this amount.
-   * If transaction id is provided - refund will be attempted for this transaction
+   * @param request - payment, refund amount and optional Braintree transaction id of the capture to refund
    * @returns PaymentIntentResponseSchemaDTO
    */
   async refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<PaymentIntentResponseSchemaDTO> {
@@ -1139,6 +1134,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     return this.toPaymentIntentResponse(response);
   }
 
+  // see docs/Intents.md "Cancel"
   async void(request: CancelPaymentRequest): Promise<PaymentIntentResponseSchemaDTO> {
     const { payment: ctPayment } = request;
     const transactionId = findTransactionIdOrUndefined(ctPayment, 'Authorization');
@@ -1238,12 +1234,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     return { outcome: PaymentModificationStatus.APPROVED };
   }
 
-  /**
-   * Reverse payment — refund what has been captured, void what hasn't (commercetools' reversePayment semantics,
-   * docs.commercetools.com/checkout/payment-intents-api). Primary gate is the commercetools capture: free (payment
-   * already fetched), and a capture seen on commercetools is definitely on Braintree too. Only without one is
-   * Braintree asked (see reverseUncapturedPayment).
-   */
+  // see docs/Intents.md "Reverse"
   async reversePayment(request: CancelPaymentRequest): Promise<PaymentIntentResponseSchemaDTO> {
     const { payment: ctPayment } = request;
     let capturedCharge: ReturnType<typeof findCapturedCharge>;

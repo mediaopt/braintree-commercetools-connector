@@ -41,9 +41,6 @@ export const findTransactionIdOrUndefined = (payment: Payment, type: Transaction
 /**
  * True when an unverified ACH payment's placeholder was cancelled (cancelPlaceholderPayment,
  * braintree-payment.service.ts) — such a payment must never be charged afterwards.
- * Intended for flow: ACH verification up to 3 days required -> reverse sent on commercetools side
- * before verification passes: impossible to cancel braintree transaction as it doesn't exist yet
- * -> verification was success and webhook was triggered -> capture called
  */
 export const hasCancelledPlaceholder = (payment: Payment): boolean =>
   payment.transactions.some((t) => t.type === 'CancelAuthorization' && isPlaceholderInteractionId(t.interactionId));
