@@ -1,11 +1,14 @@
 import { describe, test, expect } from '@jest/globals';
-import { ErrorInvalidOperation, Payment } from '@commercetools/connect-payments-sdk';
+import { Payment } from '@commercetools/connect-payments-sdk';
 import { Transaction } from '@commercetools/platform-sdk';
 import {
   buildPlaceholderInteractionId,
   isPlaceholderInteractionId,
   withoutPlaceholders,
-  findCapturedCharge,
+  findActiveCharges,
+  isFailedOrVoided,
+  isPlaceholder,
+  remainingOnOnlyCharge,
   sumRefundedCentAmount,
   findTransactionIdOrUndefined,
   hasCancelledPlaceholder,
@@ -76,25 +79,58 @@ describe('transaction.utils', () => {
     });
   });
 
-  describe('findCapturedCharge', () => {
-    test('returns undefined when there is no successful Charge', () => {
-      const payment = paymentWith([transaction({}), transaction({ type: 'Charge', state: 'Pending' })]);
-      expect(findCapturedCharge(payment)).toBeUndefined();
-    });
-
-    test('returns the single successful Charge', () => {
-      const charge = transaction({ id: 'charge', type: 'Charge', interactionId: 'txn-test-1' });
-      const payment = paymentWith([transaction({}), charge, transaction({ id: 'r1', type: 'Refund' })]);
-
-      expect(findCapturedCharge(payment)).toBe(charge);
-    });
-
-    test('throws when more than one Charge was captured', () => {
+  describe('findActiveCharges', () => {
+    test('returns Charges that have not failed, ignoring placeholders and other types', () => {
+      const pending = transaction({ id: 'c1', type: 'Charge', state: 'Pending', interactionId: 'txn-1' });
+      const settled = transaction({ id: 'c2', type: 'Charge', interactionId: 'txn-2' });
       const payment = paymentWith([
-        transaction({ id: 'c1', type: 'Charge' }),
-        transaction({ id: 'c2', type: 'Charge' }),
+        transaction({ id: 'auth' }),
+        pending,
+        settled,
+        transaction({ id: 'c3', type: 'Charge', state: 'Failure', interactionId: 'txn-3' }),
+        transaction({ id: 'ph', type: 'Charge', state: 'Pending', interactionId: buildPlaceholderInteractionId('1') }),
       ]);
-      expect(() => findCapturedCharge(payment)).toThrow(ErrorInvalidOperation);
+
+      expect(findActiveCharges(payment)).toEqual([pending, settled]);
+    });
+  });
+
+  describe('remainingOnOnlyCharge', () => {
+    const amount = transaction({}).amount;
+    const charge = transaction({ id: 'c1', type: 'Charge', interactionId: 'txn-1' });
+
+    test('what is left on the only capture after Success and Pending refunds', () => {
+      const payment = paymentWith([
+        charge,
+        transaction({ id: 'r1', type: 'Refund', state: 'Pending', amount: { ...amount, centAmount: 20000 } }),
+      ]);
+      expect(remainingOnOnlyCharge(payment, 'txn-1')).toBe(100000);
+    });
+
+    test('undefined when the target is not the only capture, or there are several', () => {
+      expect(remainingOnOnlyCharge(paymentWith([charge]), 'txn-other')).toBeUndefined();
+      const second = transaction({ id: 'c2', type: 'Charge', interactionId: 'txn-2' });
+      expect(remainingOnOnlyCharge(paymentWith([charge, second]), 'txn-1')).toBeUndefined();
+    });
+  });
+
+  describe('isFailedOrVoided', () => {
+    test.each([
+      ['failed Authorization', [transaction({ state: 'Failure', interactionId: 'txn-1' })], true],
+      [
+        'successful CancelAuthorization',
+        [transaction({}), transaction({ type: 'CancelAuthorization', interactionId: 'txn-1' })],
+        true,
+      ],
+      ['successful Authorization', [transaction({ interactionId: 'txn-1' })], false],
+      [
+        'failed CancelAuthorization',
+        [transaction({ type: 'CancelAuthorization', state: 'Failure', interactionId: 'txn-1' })],
+        false,
+      ],
+      ['failed Authorization of another id', [transaction({ state: 'Failure', interactionId: 'txn-2' })], false],
+    ])('%s → %s', (_, transactions, expected) => {
+      expect(isFailedOrVoided(paymentWith(transactions), 'txn-1')).toBe(expected);
     });
   });
 
@@ -125,6 +161,22 @@ describe('transaction.utils', () => {
         ),
       ).toBe(true);
       expect(hasPlaceholder(paymentWith([transaction({ interactionId: 'txn-real' })]))).toBe(false);
+    });
+
+    test('with a type: true only for a placeholder of that type', () => {
+      const marker = buildPlaceholderInteractionId('1');
+      const payment = paymentWith([transaction({ state: 'Pending', interactionId: marker })]);
+      expect(hasPlaceholder(payment, 'Authorization')).toBe(true);
+      expect(hasPlaceholder(payment, 'CancelAuthorization')).toBe(false);
+    });
+  });
+
+  describe('isPlaceholder', () => {
+    test('true for the marker, optionally only of the given type', () => {
+      const placeholder = transaction({ state: 'Pending', interactionId: buildPlaceholderInteractionId('1') });
+      expect(isPlaceholder(placeholder)).toBe(true);
+      expect(isPlaceholder(placeholder, 'CancelAuthorization')).toBe(false);
+      expect(isPlaceholder(transaction({ interactionId: 'txn-real' }))).toBe(false);
     });
   });
 

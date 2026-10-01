@@ -76,6 +76,20 @@ describe('abstract-payment.service (modifyPayment)', () => {
       });
     });
 
+    test.each([
+      ['cancelPayment', 'void'],
+      ['reversePayment', 'reversePayment'],
+    ] as const)('%s passes merchantReference on as the target', async (action, method) => {
+      const spy = jest.spyOn(paymentService, method).mockResolvedValue({ outcome: PaymentModificationStatus.APPROVED });
+
+      await paymentService.modifyPayment({
+        paymentId: mockGetPaymentResult.id,
+        data: { actions: [{ action, merchantReference: 'txn-child' }] },
+      });
+
+      expect(spy).toHaveBeenCalledWith({ payment: mockGetPaymentResult, merchantReference: 'txn-child' });
+    });
+
     test('refundPayment action calls refundPayment with amount and payment', async () => {
       const refundSpy = jest
         .spyOn(paymentService, 'refundPayment')
