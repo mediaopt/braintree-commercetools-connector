@@ -55,6 +55,10 @@ export type BraintreeShipping = Static<typeof BraintreeShippingSchema>;
  * Maps commercetools ShippingMethod to Braintree shipping options
  * Flattens the zone rates and filters for valid shipping options with amounts
  *
+ * Amounts are the configured shipping rate price (net when tax is not included in price): commercetools computes the
+ * gross only for the shipping method applied to the cart. The selected option gets that gross in the enabler's
+ * onShippingChange (updateCartShipping -> shippingAmount), so unselected options become exact once picked.
+ *
  * @param shippingMethods - Array of commercetools ShippingMethod
  * @param currencyCode - Currency code to filter shipping rates
  * @param cartShippingId - Current selected shipping method

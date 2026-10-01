@@ -176,7 +176,8 @@ export const TransactionSaleRequestSchema = Type.Object({
   braintreePaymentDetails: Type.Optional(
     Type.Object({
       braintreeLineItems: Type.Optional(Type.Array(BraintreeLineItemSchema)),
-      extraShippingCost: Type.Optional(Type.String()),
+      // set after an Express shipping change: transactionSale then takes line items and shipping from the refetched cart
+      expressShippingChanged: Type.Optional(Type.Boolean()),
       braintreeShipping: Type.Optional(BraintreeShippingSchema),
     }),
   ),
@@ -215,7 +216,12 @@ export type AmountBreakdown = Static<typeof AmountBreakdownSchema>;
 
 export const UpdateCartShippingResponseSchema = Type.Object({
   braintreeAmount: Type.String(),
-  amountBreakdown: AmountBreakdownSchema,
+  // commercetools amount of the applied shipping (see relevantShippingAmount): the selected shipping option's amount
+  shippingAmount: Type.String(),
+  // spread as-is into the Braintree updatePayment call; omitted when line items and itemTotal can't be balanced
+  braintreeBreakdown: Type.Optional(
+    Type.Object({ lineItems: Type.Array(BraintreeLineItemSchema), amountBreakdown: AmountBreakdownSchema }),
+  ),
 });
 export type UpdateCartShippingResponseSchemaDTO = Static<typeof UpdateCartShippingResponseSchema>;
 
