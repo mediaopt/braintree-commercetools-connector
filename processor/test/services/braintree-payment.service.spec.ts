@@ -39,7 +39,10 @@ import { mockCartForShippingUpdate, mockCartWithExternalTax, mockGetCartResult }
 import * as Config from '../../src/config/config';
 import { BraintreePaymentServiceOptions } from '../../src/services/types/braintree-payment.type';
 import { AbstractPaymentService } from '../../src/services/abstract-payment.service';
-import { BraintreePaymentService } from '../../src/services/braintree-payment.service';
+import {
+  BraintreePaymentService,
+  CONCURRENT_CANCEL_AND_SALE_ISSUE,
+} from '../../src/services/braintree-payment.service';
 import * as FastifyContext from '../../src/libs/fastify/context/context';
 // import * as StatusHandler from '@commercetools/connect-payments-sdk/dist/api/handlers/status.handler';
 //
@@ -925,7 +928,7 @@ describe('braintree-payment.service', () => {
       await sale(snapshot.id);
 
       expect(errorSpy.mock.calls.flat()).toContain(
-        `merchant integration issue: cancel and capture called concurrently on payment ${snapshot.id}, Braintree transaction ${mockBraintreeTransaction.id}`,
+        `${CONCURRENT_CANCEL_AND_SALE_ISSUE} on payment ${snapshot.id}, Braintree transaction ${mockBraintreeTransaction.id}`,
       );
       expect(rawActions('changeTransactionInteractionId')).not.toHaveLength(0);
     });
@@ -1256,11 +1259,11 @@ describe('braintree-payment.service', () => {
         .mockResolvedValue({ ...payment, transactions: [{ ...achPlaceholder, interactionId: 'txn-sale' }] } as never);
       const errorSpy = jest.spyOn(CommonConnect.logger, 'error');
 
-      await braintreePaymentService.void({ payment });
+      const result = await braintreePaymentService.void({ payment });
 
-      expect(errorSpy.mock.calls.flat()).toContain(
-        `merchant integration issue: cancel and capture called concurrently on payment ${payment.id}`,
-      );
+      // no Braintree call to decline: approved once the marker is written (docs/Intents.md)
+      expect(result).toEqual({ outcome: PaymentModificationStatus.APPROVED });
+      expect(errorSpy.mock.calls.flat()).toContain(`${CONCURRENT_CANCEL_AND_SALE_ISSUE} on payment ${payment.id}`);
     });
 
     test.each([
@@ -1342,11 +1345,20 @@ describe('braintree-payment.service', () => {
     test('Pending capture (partial-settlement child): asks Braintree about the child and voids the child', async () => {
       braintreeStatus('submitted_for_settlement');
       const payment = { ...mockGetPaymentResult, transactions: [authorization, pendingChild] };
+      jest.spyOn(paymentSDK.ctPaymentService, 'getPayment').mockResolvedValue(payment as never);
+      (CommonConnect.voidTransaction as jest.Mock).mockResolvedValue({
+        ...mockBraintreeTransaction,
+        id: 'txn-child',
+        status: 'voided',
+      } as never);
 
       await braintreePaymentService.reversePayment({ payment });
 
       expect(CommonConnect.getTransaction).toHaveBeenCalledWith('txn-child');
       expect(CommonConnect.voidTransaction).toHaveBeenCalledWith('txn-child');
+      expect(rawActions('changeTransactionState')).toEqual([
+        { action: 'changeTransactionState', transactionId: 'charge-2', state: 'Failure' },
+      ]);
     });
 
     test('Pending capture already settled on Braintree: refunds the child, not the parent', async () => {
