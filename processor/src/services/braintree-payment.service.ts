@@ -113,6 +113,10 @@ import {
 } from '../utils/transaction.utils';
 import { BraintreeCustomerService } from './braintree-customer.service';
 
+// docs/Intents.md "ACH micro-deposit verification"
+export const CONCURRENT_CANCEL_AND_SALE_ISSUE =
+  'merchant integration issue: ct cancel and capture (Braintree transaction.sale) called concurrently';
+
 // localPayment is an undocumented field Braintree adds to Transaction for local payment methods
 // See: https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side/javascript/v3
 type TransactionWithLocalPayment = Transaction & {
@@ -211,7 +215,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const payment = await this.ctPaymentService.getPayment({ id: ctPayment.id });
     if (payment.transactions.some(isOwnPlaceholder) && hasCancelledPlaceholder(payment)) {
       logger.error(
-        `merchant integration issue: cancel and capture called concurrently on payment ${ctPayment.id}, Braintree transaction ${response.id}`,
+        `${CONCURRENT_CANCEL_AND_SALE_ISSUE} on payment ${ctPayment.id}, Braintree transaction ${response.id}`,
       );
     }
     const actions = payment.transactions.flatMap((t): PaymentUpdateAction[] => {
@@ -1230,7 +1234,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         if (hasCancelledPlaceholder(payment)) return;
         const placeholder = payment.transactions.find((t) => isPlaceholder(t, 'Authorization'));
         if (!placeholder) {
-          logger.error(`merchant integration issue: cancel and capture called concurrently on payment ${ctPayment.id}`);
+          logger.error(`${CONCURRENT_CANCEL_AND_SALE_ISSUE} on payment ${ctPayment.id}`);
         }
         const amount = placeholder?.amount ?? payment.amountPlanned;
         await paymentSDK.ctAPI.client

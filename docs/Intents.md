@@ -133,5 +133,15 @@ Authorization instead.
 - If the marker can't be written, the answer is rejected.
 - The processor's `transactionSale` refuses a payment carrying the marker, so the cancelled Order can't be charged
   once the micro-deposits are verified.
-- Cancel and capture called at the same time is a merchant integration issue. Both may go through; the connector
-  logs it with `logger.error`.
+- Calling the operations that correspond to the commercetools Payment Intents cancel/reverse and capture at the same
+  time is a merchant integration issue. On an unverified ACH payment the capture side is the post-verification
+  `transactionSale`; a Payment Intents capture is rejected here, since there's no Braintree transaction to capture.
+  The connector never triggers either call itself: both come from the merchant's integration, so preventing the
+  overlap is the merchant's responsibility.
+  - Each operation goes through when Braintree permits it, and Payment Intents answers approved when Braintree
+    approves it. A cancel of the placeholder makes no Braintree call, so it's approved once the marker is written.
+  - The conflict only shows after that approval. The connector logs it with `logger.error`, together with the
+    commercetools payment id and, on the sale side, the Braintree transaction id, so the merchant can find the
+    payment and resolve it manually.
+  - The connector can't tell which call was triggered by mistake and which one was intended, so it doesn't undo
+    either.
