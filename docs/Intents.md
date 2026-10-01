@@ -63,10 +63,13 @@ The outcome values are defined by commercetools (see the link above). This conne
 - **The operation is impossible in the payment's current state** (nothing suitable to act on, already fully
   refunded, a `transactionId` or `merchantReference` that doesn't belong to the payment, more than one capture to refund or
   reverse without a target, a Braintree status that can't be reversed). The answer is rejected, logged with `logger.warn`.
-- **Already refunded, checked on commercetools only.** Before calling Braintree, refund and reverse are rejected
-  (`logger.warn`) when the payment itself proves they can't succeed. That's only the case when the target is the
-  payment's only Charge and its Success and Pending Refunds already cover it, or, for refund, leave less than the
-  requested amount. With more than one Charge, a Refund can't be attributed to a capture, so Braintree decides.
+- **Checked on commercetools only.** Before calling Braintree, an operation is rejected (`logger.warn`) when the
+  payment itself grants it can't succeed:
+  - refund and reverse: the target is the payment's only Charge and its Success and Pending Refunds already cover
+    it, or, for refund, leave less than the requested amount. With more than one Charge, a Refund can't be
+    attributed to a capture, so Braintree decides.
+  - capture, cancel and reverse: the target Authorization already failed (a declined sale), or the target was
+    already voided.
 - **Otherwise**, the outcome follows the Braintree status of the resulting transaction.
 
 ## Braintree parent and child transactions
@@ -125,8 +128,8 @@ This flow applies only to ACH with micro-deposit verification (see Braintree's
 completes, Braintree has no transaction, only the vaulted bank account, and the payment carries a placeholder
 Authorization instead.
 
-- Cancel and reverse write a cancel marker on commercetools (a CancelAuthorization carrying the placeholder's marker
-  id). There's nothing to void on Braintree.
+- Cancel and reverse without a `merchantReference` write a cancel marker on commercetools (a CancelAuthorization
+  carrying the placeholder's marker id). There's nothing to void on Braintree.
 - If the marker can't be written, the answer is rejected.
 - The processor's `transactionSale` refuses a payment carrying the marker, so the cancelled Order can't be charged
   once the micro-deposits are verified.

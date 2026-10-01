@@ -26,7 +26,7 @@ export const hasPlaceholder = (payment: Payment, type?: TransactionType): boolea
  */
 export const withoutPlaceholders = (payment: Payment): Payment => ({
   ...payment,
-  transactions: payment.transactions.filter((t) => !isPlaceholderInteractionId(t.interactionId)),
+  transactions: payment.transactions.filter((t) => !isPlaceholder(t)),
 });
 
 /**
@@ -46,8 +46,7 @@ export const findTransactionIdOrUndefined = (payment: Payment, type: Transaction
  * True when an unverified ACH payment's placeholder was cancelled (cancelPlaceholderPayment,
  * braintree-payment.service.ts) — such a payment must never be charged afterwards.
  */
-export const hasCancelledPlaceholder = (payment: Payment): boolean =>
-  payment.transactions.some((t) => t.type === 'CancelAuthorization' && isPlaceholderInteractionId(t.interactionId));
+export const hasCancelledPlaceholder = (payment: Payment): boolean => hasPlaceholder(payment, 'CancelAuthorization');
 
 /**
  * Total cent amount already refunded on the payment. Braintree refunds stay Pending on commercetools until they
@@ -73,3 +72,12 @@ export const remainingOnOnlyCharge = (payment: Payment, transactionId: string): 
   if (charges.length !== 1 || charges[0].interactionId !== transactionId) return undefined;
   return remainingRefundableCentAmount(payment, charges[0].amount.centAmount);
 };
+
+// commercetools-only pre-check: the target already failed (declined sale) or was voided — see docs/Intents.md
+export const isFailedOrVoided = (payment: Payment, transactionId: string): boolean =>
+  payment.transactions.some(
+    (t) =>
+      t.interactionId === transactionId &&
+      ((t.type === 'Authorization' && t.state === 'Failure') ||
+        (t.type === 'CancelAuthorization' && t.state === 'Success')),
+  );

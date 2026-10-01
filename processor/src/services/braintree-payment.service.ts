@@ -73,7 +73,6 @@ import {
   voidTransaction as braintreeVoidTransaction,
   deletePayment as braintreeDeletePayment,
   getTransaction as braintreeGetTransaction,
-  getCurrentTimestamp,
   logger,
 } from 'common-connect/dist';
 import {
@@ -103,11 +102,11 @@ import {
 import { toPaymentMethodIconKey } from '../utils/paymentMethodIcon.utils';
 import {
   buildPlaceholderInteractionId,
-  isPlaceholderInteractionId,
   findActiveCharges,
   findTransactionIdOrUndefined,
   hasCancelledPlaceholder,
   hasPlaceholder,
+  isFailedOrVoided,
   isPlaceholder,
   remainingOnOnlyCharge,
   withoutPlaceholders,
@@ -162,7 +161,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     });
     // Braintree's real status can naturally map to something other than the CT Checkout override
     // (e.g. autocapture -> Charge). Record that too (same interactionId) so CT's amountPaid and
-    // refundPayment's findSuitableTransactionId(..., 'Charge') fallback see Braintree's actual state,
+    // findActiveCharges (refund/reverse targets) see Braintree's actual state,
     // not just the Authorization entry above. Skipped for failed sales — a single Authorization/Failure
     // record is enough; there's no additional progression to reflect.
     if (
@@ -1069,6 +1068,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const transactionId = findTransactionIdOrUndefined(ctPayment, 'Authorization');
     if (!transactionId)
       return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'no transaction suitable for settlement');
+    if (isFailedOrVoided(ctPayment, transactionId))
+      return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'the transaction already failed or was voided');
     const authorization = ctPayment.transactions.find(
       (t) => t.type === 'Authorization' && t.interactionId === transactionId,
     );
@@ -1115,7 +1116,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
    */
   async refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<PaymentIntentResponseSchemaDTO> {
     const { payment: ctPayment, amount } = request;
-    const target = this.resolveTarget(ctPayment, 'refundPayment', request.transactionId);
+    const target = this.resolveTarget(ctPayment, 'refundPayment', request.transactionId, 'capture');
     if ('rejected' in target) return target.rejected;
     const { transactionId } = target;
     if (!transactionId) return this.rejectPaymentIntent(ctPayment.id, 'refundPayment', 'no capture to refund');
@@ -1169,13 +1170,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
   // see docs/Intents.md "Cancel"
   async void(request: CancelPaymentRequest): Promise<PaymentIntentResponseSchemaDTO> {
     const { payment: ctPayment, merchantReference } = request;
-    if (merchantReference) {
-      const target = this.resolveTarget(ctPayment, 'void', merchantReference);
-      if ('rejected' in target) return target.rejected;
-      return this.voidTransaction(ctPayment, merchantReference, 'void');
-    }
-    const transactionId = findTransactionIdOrUndefined(ctPayment, 'Authorization');
+    const target = this.resolveTarget(ctPayment, 'void', merchantReference, 'authorization');
+    if ('rejected' in target) return target.rejected;
+    const { transactionId } = target;
     if (!transactionId) return this.cancelPlaceholderOrReject(ctPayment, 'void');
+    if (isFailedOrVoided(ctPayment, transactionId))
+      return this.rejectPaymentIntent(ctPayment.id, 'void', 'the transaction already failed or was voided');
     return this.voidTransaction(ctPayment, transactionId, 'void');
   }
 
@@ -1185,20 +1185,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
     transactionId: string,
     operation: string,
   ): Promise<PaymentIntentResponseSchemaDTO> {
-    const transaction = ctPayment.transactions.find(
-      (transaction) => transaction.interactionId === transactionId && transaction.type === 'Authorization',
-    );
     let response: Transaction;
     try {
-      if (transaction?.state === 'Initial') {
-        await braintreeDeletePayment(transactionId);
-        response = {
-          amount: mapCommercetoolsMoneyToBraintreeMoney(transaction.amount),
-          status: 'voided',
-          id: transactionId,
-          updatedAt: getCurrentTimestamp(),
-        } as Transaction; //other required by type definition fields are not used in communication with commercetools
-      } else response = await braintreeVoidTransaction(transactionId);
+      response = await braintreeVoidTransaction(transactionId);
     } catch (err) {
       return await this.handleBraintreeFailure({
         ctPayment,
@@ -1239,10 +1228,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
       async () => {
         const payment = await this.ctPaymentService.getPayment({ id: ctPayment.id });
         if (hasCancelledPlaceholder(payment)) return;
-        if (!hasPlaceholder(payment, 'Authorization')) {
+        const placeholder = payment.transactions.find((t) => isPlaceholder(t, 'Authorization'));
+        if (!placeholder) {
           logger.error(`merchant integration issue: cancel and capture called concurrently on payment ${ctPayment.id}`);
         }
-        const placeholder = payment.transactions.find((t) => isPlaceholderInteractionId(t.interactionId));
         const amount = placeholder?.amount ?? payment.amountPlanned;
         await paymentSDK.ctAPI.client
           .payments()
@@ -1285,23 +1274,26 @@ export class BraintreePaymentService extends AbstractPaymentService {
   // see docs/Intents.md "Reverse"
   async reversePayment(request: CancelPaymentRequest): Promise<PaymentIntentResponseSchemaDTO> {
     const { payment: ctPayment, merchantReference } = request;
-    const target = this.resolveTarget(ctPayment, 'reversePayment', merchantReference);
+    const target = this.resolveTarget(ctPayment, 'reversePayment', merchantReference, 'captureOrAuthorization');
     if ('rejected' in target) return target.rejected;
-    const transactionId = target.transactionId ?? findTransactionIdOrUndefined(ctPayment, 'Authorization');
+    const { transactionId } = target;
     if (!transactionId) return this.cancelPlaceholderOrReject(ctPayment, 'reversePayment');
     const remaining = remainingOnOnlyCharge(ctPayment, transactionId);
     if (remaining !== undefined && remaining <= 0)
       return this.rejectPaymentIntent(ctPayment.id, 'reversePayment', 'already fully refunded');
+    if (isFailedOrVoided(ctPayment, transactionId))
+      return this.rejectPaymentIntent(ctPayment.id, 'reversePayment', 'the transaction already failed or was voided');
     let braintreeTransaction: Transaction;
     try {
       braintreeTransaction = await braintreeGetTransaction(transactionId);
     } catch (err) {
-      return this.rejectPaymentIntent(
-        ctPayment.id,
-        'reversePayment',
-        `Braintree status lookup failed: ${errorMessage(err)}`,
-        'error',
-      );
+      return this.handleBraintreeFailure({
+        ctPayment,
+        operation: 'reversePayment',
+        messageName: 'findTransaction',
+        request: { transactionId },
+        err,
+      });
     }
     const { status } = braintreeTransaction;
     if (status === 'settling' || status === 'settled' || status === 'settlement_confirmed') {
@@ -1321,19 +1313,24 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * No Braintree transaction to act on: an unverified ACH payment (only the placeholder) is cancelled on
    * commercetools, anything else is rejected.
    */
-  private cancelPlaceholderOrReject(ctPayment: Payment, operation: string): Promise<PaymentIntentResponseSchemaDTO> {
+  private async cancelPlaceholderOrReject(
+    ctPayment: Payment,
+    operation: string,
+  ): Promise<PaymentIntentResponseSchemaDTO> {
     if (hasPlaceholder(ctPayment)) return this.cancelPlaceholderPayment(ctPayment, operation);
-    return Promise.resolve(this.rejectPaymentIntent(ctPayment.id, operation, 'no Braintree transaction to act on'));
+    return this.rejectPaymentIntent(ctPayment.id, operation, 'no linked Braintree transaction to act on');
   }
 
   /**
    * Target of refund / cancel / reverse (docs/Intents.md "Call parameters"): a merchant-given id must match a
-   * (non-placeholder) transaction on the payment; without one, the single active capture, if any.
+   * (non-placeholder) transaction on the payment; without one, the operation's default — the single active capture
+   * (refund), the Authorization (cancel), or the single active capture else the Authorization (reverse).
    */
   private resolveTarget(
     ctPayment: Payment,
     operation: string,
     givenId: string | undefined,
+    defaultTarget: 'capture' | 'authorization' | 'captureOrAuthorization',
   ): { transactionId: string | undefined } | { rejected: PaymentIntentResponseSchemaDTO } {
     if (givenId) {
       if (withoutPlaceholders(ctPayment).transactions.some((t) => t.interactionId === givenId))
@@ -1346,6 +1343,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
         ),
       };
     }
+    const authorizationId = findTransactionIdOrUndefined(ctPayment, 'Authorization');
+    if (defaultTarget === 'authorization') return { transactionId: authorizationId };
     const charges = findActiveCharges(ctPayment);
     if (charges.length > 1)
       return {
@@ -1355,7 +1354,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
           'more than one capture — send the Braintree transaction id of the target',
         ),
       };
-    return { transactionId: charges[0]?.interactionId };
+    const chargeId = charges[0]?.interactionId;
+    return { transactionId: defaultTarget === 'capture' ? chargeId : (chargeId ?? authorizationId) };
   }
 
   //this method corresponds to handleStoredPaymentMethod part for create a new stored method
