@@ -1,7 +1,6 @@
 import { describe, test, expect } from '@jest/globals';
-import { relevantCartAmount, relevantDiscountAmount, relevantShippingAmount, toNum } from '../../src/utils/money.utils';
+import { relevantDiscountAmount, relevantShippingAmount, toNum } from '../../src/utils/money.utils';
 import { CentPrecisionMoney, DiscountOnTotalPrice, ShippingInfo, TypedMoney } from '@commercetools/platform-sdk';
-import { Cart } from '@commercetools/connect-payments-sdk';
 
 describe('money.utils', () => {
   describe('toNum', () => {
@@ -29,14 +28,6 @@ describe('money.utils', () => {
   const taxed = (gross: number) => ({ totalNet: usd(0), totalGross: usd(gross), totalTax: usd(0), taxPortions: [] });
 
   const discounted = (centAmount: number) => ({ value: usd(centAmount), includedDiscounts: [] });
-
-  test.each([
-    { description: 'uses the gross when the cart is taxed', taxedPrice: taxed(11900), expected: 11900 },
-    { description: 'falls back to totalPrice without taxedPrice', taxedPrice: undefined, expected: 10000 },
-  ])('relevantCartAmount $description', ({ taxedPrice, expected }) => {
-    const cart = { totalPrice: usd(10000), taxedPrice } as unknown as Cart;
-    expect(relevantCartAmount(cart)).toEqual(usd(expected));
-  });
 
   test.each([
     {

@@ -516,6 +516,12 @@ describe('braintree-payment.service', () => {
       return jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart);
     };
     const staleEnablerLineItem = lineItem('1.00', 'stale createPayment copy');
+    const expressShippingChangedRequest = {
+      ...baseRequest,
+      paymentMethodType: PaymentMethodType.PAYPAL,
+      paymentMethodNonce: 'fake-paypal-billing-agreement-nonce',
+      braintreePaymentDetails: { braintreeLineItems: [staleEnablerLineItem], expressShippingChanged: true },
+    };
 
     test.each([
       {
@@ -557,17 +563,47 @@ describe('braintree-payment.service', () => {
     ])('express shipping change $description', async ({ cart, expected }) => {
       const getCart = mockRefetchedCart(cart());
 
-      await braintreePaymentService.transactionSale({
-        ...baseRequest,
-        paymentMethodType: PaymentMethodType.PAYPAL,
-        paymentMethodNonce: 'fake-paypal-billing-agreement-nonce',
-        braintreePaymentDetails: {
-          braintreeLineItems: [staleEnablerLineItem],
-          expressShippingChanged: true,
-        },
-      });
+      await braintreePaymentService.transactionSale(expressShippingChangedRequest);
       expect(getCart).toHaveBeenCalled();
       expect(CommonConnect.transactionSale).toHaveBeenCalledWith(expect.objectContaining(expected));
+    });
+
+    test('express shipping change charges getPaymentAmount (approved payments subtracted), as updateCartShipping sends', async () => {
+      const cart = expressCart(150000, 0);
+      mockRefetchedCart(cart);
+      const getPaymentAmount = jest.spyOn(paymentSDK.ctCartService, 'getPaymentAmount').mockResolvedValue(usd(120000));
+
+      await braintreePaymentService.transactionSale(expressShippingChangedRequest);
+
+      expect(getPaymentAmount).toHaveBeenCalledWith({ cart });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(expect.objectContaining({ amount: '1200.00' }));
+      // the order-triggering placeholder carries the same amount
+      expect(paymentSDK.ctPaymentService.updatePayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          transaction: expect.objectContaining({
+            type: 'Authorization',
+            amount: { centAmount: 120000, currencyCode: 'USD' },
+          }),
+        }),
+      );
+    });
+
+    test('express shipping change requests the amount while the payment is still loading', async () => {
+      const cart = expressCart(150000, 0);
+      mockRefetchedCart(cart);
+      let resolvePayment!: (payment: never) => void;
+      jest
+        .spyOn(paymentSDK.ctPaymentService, 'getPayment')
+        .mockReturnValue(new Promise((resolve) => (resolvePayment = resolve)));
+      const getPaymentAmount = jest.spyOn(paymentSDK.ctCartService, 'getPaymentAmount').mockResolvedValue(usd(150000));
+
+      const sale = braintreePaymentService.transactionSale(expressShippingChangedRequest);
+      // setImmediate (not nextTick) runs after every pending microtask, so the getCart -> getPaymentAmount chain is done
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(getPaymentAmount).toHaveBeenCalledWith({ cart });
+
+      resolvePayment(mockGetPaymentResult as never);
+      await sale;
     });
 
     test('without an express shipping change, the cart is not refetched and the enabler line items are sent', async () => {
