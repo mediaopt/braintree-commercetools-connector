@@ -226,6 +226,16 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
+   * The Express amount, shared by updateCartShipping and transactionSale so the amount approved is the amount charged.
+   * The exact total (cart gross minus approved payments) is required: the buyer approves the final amount in the
+   * PayPal window ("Pay Now"), otherwise the merchant would have to implement a review page that displays the final
+   * amount for approval.
+   */
+  private async expressCartAmount(cart: Cart): Promise<CentPrecisionMoney> {
+    return { type: 'centPrecision', ...(await this.ctCartService.getPaymentAmount({ cart })) };
+  }
+
+  /**
    * Records a placeholder Authorization transaction before the Braintree sale is attempted (see
    * OPTIMISTIC_TRANSACTION_TRIGGER_ORDER). Awaited, not fire-and-forget, so it's always committed
    * before the real transaction — errors are caught and logged internally, never thrown, so a
@@ -825,12 +835,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
           `Could not set shipping method ${newShippingMethodId} for cart ${ctCart.id}. Cart not found in CoCo.`,
         );
       }
-      // The exact total (cart gross minus approved payments) is required: the buyer approves the final amount in the
-      // PayPal window ("Pay Now"), otherwise the merchant would have to implement a review page that displays the
-      // final amount for approval. Same amount as transactionSale after an Express shipping change. The checkout API
-      // doesn't support updating amountPlanned, so that is postponed to transactionSale to speed up the response.
-      const costWithNewShipping = await this.ctCartService.getPaymentAmount({ cart: updatedCard });
-      const totalNum = toNum(costWithNewShipping as CentPrecisionMoney);
+      // The checkout API doesn't support updating amountPlanned, so that is postponed to transactionSale to speed up
+      // the response.
+      const totalNum = toNum(await this.expressCartAmount(updatedCard));
       const shippingNum = toNum(updatedCard.shippingInfo && relevantShippingAmount(updatedCard.shippingInfo));
       const discountNum = toNum(
         updatedCard.discountOnTotalPrice && relevantDiscountAmount(updatedCard.discountOnTotalPrice),
@@ -896,29 +903,27 @@ export class BraintreePaymentService extends AbstractPaymentService {
       localPaymentId,
       venmoUsername,
     );
-    const [updatedCart, ctPayment] = await Promise.all([
+    const [updatedExpress, ctPayment] = await Promise.all([
       braintreePaymentDetails?.expressShippingChanged
-        ? this.ctCartService.getCart({
-            id: getCartIdFromContext(),
-          })
+        ? this.ctCartService
+            .getCart({ id: getCartIdFromContext() })
+            .then(async (cart) => cart && { cart, amountPlanned: await this.expressCartAmount(cart) })
         : Promise.resolve(undefined),
-      await this.ctPaymentService.getPayment({ id: ctPaymentId }),
+      this.ctPaymentService.getPayment({ id: ctPaymentId }),
     ]);
     if (!ctPayment) {
       throw new ErrorInvalidOperation(`payment is missing for transactionSale payment ${ctPaymentId}}`);
     }
-    if (!updatedCart && braintreePaymentDetails?.expressShippingChanged)
+    if (!updatedExpress && braintreePaymentDetails?.expressShippingChanged)
       throw new ErrorInvalidOperation(`could not find updated cart for transactionsSale payment ${ctPaymentId}`);
-    const relevantPaymentInfo = updatedCart
-      ? {
-          ...ctPayment,
-          amountPlanned: (await this.ctCartService.getPaymentAmount({ cart: updatedCart })) as CentPrecisionMoney,
-        }
+    const updatedCart = updatedExpress?.cart;
+    const relevantPaymentInfo = updatedExpress
+      ? { ...ctPayment, amountPlanned: updatedExpress.amountPlanned }
       : ctPayment;
     await this.recordOptimisticAuthorizationPlaceholder(ctPayment, relevantPaymentInfo.amountPlanned);
     const isPayPal = paymentMethodType === 'PayPal'; // PAYPAL_STORED_DISABLED: || paymentMethodType === 'PayPalStored'
     // After an Express shipping change, amount, line items and shipping come from the refetched cart, not the enabler's
-    // createPayment copies, computed as in updateCartShipping (getPaymentAmount), so they match what it sent to Braintree.
+    // createPayment copies, computed as in updateCartShipping (expressCartAmount), so they match what it sent to Braintree.
     const lineItems = (
       updatedCart
         ? updatedCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, updatedCart.locale))
