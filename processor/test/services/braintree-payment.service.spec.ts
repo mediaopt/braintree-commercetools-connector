@@ -568,14 +568,19 @@ describe('braintree-payment.service', () => {
       expect(CommonConnect.transactionSale).toHaveBeenCalledWith(expect.objectContaining(expected));
     });
 
-    test('express shipping change charges getPaymentAmount (approved payments subtracted), as updateCartShipping sends', async () => {
-      const cart = expressCart(150000, 0);
-      mockRefetchedCart(cart);
-      const getPaymentAmount = jest.spyOn(paymentSDK.ctCartService, 'getPaymentAmount').mockResolvedValue(usd(120000));
+    test('express shipping change charges the cart gross minus approved payments, as updateCartShipping sends', async () => {
+      mockRefetchedCart({
+        ...expressCart(150000, 0),
+        paymentInfo: { payments: [{ typeId: 'payment', id: 'approved-payment' }] },
+      });
+      jest.spyOn(paymentSDK.ctAPI.payment, 'getPaymentById').mockResolvedValue({
+        id: 'approved-payment',
+        amountPlanned: usd(30000),
+        transactions: [{ type: 'Authorization', state: 'Success' }],
+      } as never);
 
       await braintreePaymentService.transactionSale(expressShippingChangedRequest);
 
-      expect(getPaymentAmount).toHaveBeenCalledWith({ cart });
       expect(CommonConnect.transactionSale).toHaveBeenCalledWith(expect.objectContaining({ amount: '1200.00' }));
       // the order-triggering placeholder carries the same amount
       expect(paymentSDK.ctPaymentService.updatePayment).toHaveBeenCalledWith(
