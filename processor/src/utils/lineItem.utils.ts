@@ -38,13 +38,12 @@ export const lineItemPlaceholders = {
 };
 
 // Gross is preferred so tax not included in price (includedInPrice: false) is still covered.
-// The fallbacks are for rare responses seen only with specific project settings (some projects created after 2024):
-// a present taxedPrice with a 0 gross (totalPrice then holds the amount) and a line item without totalPrice
-// (then the (discounted) unit price times quantity is used). In a consistent cart, a line item with a 0 gross also
-// has a 0 totalPrice, so the fallback changes nothing there.
-// Note: such a response also has a 0 gross on the cart itself, so the payments SDK's getPaymentAmount throws
-// "The cart has already been paid in full" and no checkout payment can be created. If you experience this, please
-// open a commercetools issue.
+// Fallbacks, for responses seen only with specific project settings (some projects created after 2024):
+// - an all-zero taxedPrice: totalPrice holds the amount. Seen in a real cart, with the cart's own taxedPrice all
+//   zero too, so the payments SDK's getPaymentAmount currently throws "The cart has already been paid in full" and no
+//   checkout payment can be created (if you experience this, please open a commercetools issue). Kept, as in the
+//   PayPal connector's extension, where it works, so line items stay correct once getPaymentAmount gets the same fallback.
+// - no totalPrice: the (discounted) unit price times quantity.
 const relevantTotalCentAmount = ({ lineItemMode, taxedPrice, totalPrice, price, quantity }: LineItem) => {
   if (lineItemMode === 'GiftLineItem') return 0;
   return (
