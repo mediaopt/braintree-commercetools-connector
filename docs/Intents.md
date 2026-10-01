@@ -45,9 +45,13 @@ Full shape of an action, as sent to the Payment Intents API:
   - otherwise → rejected
   - none given → the default target of the operation (see [Refund](#refund), [Cancel](#cancel), [Reverse](#reverse))
 - `capturePayment` always targets the payment's Authorization.
-- The connector doesn't validate what the merchant sends. Matching `amount` and `currencyCode` to the payment and
-  picking the right transaction is the merchant's responsibility. Merchants who want the connector to handle a full
-  capture or refund automatically can use the `braintree-extension` custom-field requests instead.
+- Using the right Payment Intents action with the right parameters is the merchant's responsibility. The connector
+  doesn't validate what the merchant sends, e.g. whether `amount` and `currencyCode` match the payment. Merchants
+  who want the connector to handle a full capture or refund automatically can use the `braintree-extension`
+  custom-field requests instead.
+- The Braintree transaction id for `transactionId` or `merchantReference` is the `interactionId` of the
+  transaction in the commercetools payment's transactions list. Its full details (the complete Braintree request
+  and response) are in the payment's interface interactions.
 
 ## How this connector answers
 
@@ -126,3 +130,5 @@ Authorization instead.
 - If the marker can't be written, the answer is rejected.
 - The processor's `transactionSale` refuses a payment carrying the marker, so the cancelled Order can't be charged
   once the micro-deposits are verified.
+- Cancel and capture called at the same time is a merchant integration issue. Both may go through; the connector
+  logs it with `logger.error`.

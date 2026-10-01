@@ -1,4 +1,4 @@
-import { ErrorInvalidOperation, Payment } from '@commercetools/connect-payments-sdk';
+import { Payment } from '@commercetools/connect-payments-sdk';
 import { Transaction, TransactionType } from '@commercetools/platform-sdk';
 import { findSuitableTransactionId } from 'common-connect/dist';
 
@@ -13,8 +13,12 @@ export const buildPlaceholderInteractionId = (ctPaymentId: string): string => `$
 export const isPlaceholderInteractionId = (interactionId?: string): boolean =>
   !!interactionId?.startsWith(PLACEHOLDER_PREFIX);
 
-export const hasPlaceholder = (payment: Payment): boolean =>
-  payment.transactions.some((t) => isPlaceholderInteractionId(t.interactionId));
+export const isPlaceholder = (t: Transaction, type?: TransactionType): boolean =>
+  (!type || t.type === type) && isPlaceholderInteractionId(t.interactionId);
+
+// Any placeholder, or only one of the given transaction type
+export const hasPlaceholder = (payment: Payment, type?: TransactionType): boolean =>
+  payment.transactions.some((t) => isPlaceholder(t, type));
 
 /**
  * Copy of the payment without placeholder transactions — lets the shared common-connect
@@ -59,21 +63,13 @@ export const sumRefundedCentAmount = (payment: Payment): number =>
 export const remainingRefundableCentAmount = (payment: Payment, capturedCentAmount: number): number =>
   capturedCentAmount - sumRefundedCentAmount(payment);
 
-/**
- * Resolves the payment's captured (settled) Charge — how much of it is still refundable is
- * remainingRefundableCentAmount's job. Returns undefined when the payment hasn't been captured at all. Throws when more than one captured Charge exists — a Braintree refund
- * targets one specific transaction, so reversing just one of several would misreport the payment as
- * fully reversed. Used by reversePayment's void-vs-refund routing (braintree-payment.service.ts).
- */
-export const findCapturedCharge = (payment: Payment): Transaction | undefined => {
-  const chargeTransactions = payment.transactions.filter((t) => t.type === 'Charge' && t.state === 'Success');
-  if (chargeTransactions.length === 0) {
-    return undefined;
-  }
-  if (chargeTransactions.length > 1) {
-    throw new ErrorInvalidOperation(
-      `Payment ${payment.id} has more than one captured Charge — reversePayment doesn't support reversing multiple captures; refund each one individually via refundPayment with its transactionId`,
-    );
-  }
-  return chargeTransactions[0];
+// Captures still in play: no placeholder, not Failure (e.g. voided) — see docs/Intents.md
+export const findActiveCharges = (payment: Payment): Transaction[] =>
+  withoutPlaceholders(payment).transactions.filter((t) => t.type === 'Charge' && t.state !== 'Failure');
+
+// commercetools-only "already refunded" pre-check, only when the target is the payment's only capture — see docs/Intents.md
+export const remainingOnOnlyCharge = (payment: Payment, transactionId: string): number | undefined => {
+  const charges = findActiveCharges(payment);
+  if (charges.length !== 1 || charges[0].interactionId !== transactionId) return undefined;
+  return remainingRefundableCentAmount(payment, charges[0].amount.centAmount);
 };
