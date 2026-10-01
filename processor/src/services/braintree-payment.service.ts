@@ -195,8 +195,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
-   * Changes transactions already on the CT payment, in one raw CT call — ctPaymentService.updatePayment() can't: it only
-   * merges Initial transactions and never overwrites an interactionId, so it would add duplicates instead.
+   * Changes transactions already on the CT payment, in one raw CT call — ctPaymentService.updatePayment() can't
+   * overwrite an existing interactionId, which the placeholder needs, so it would add a duplicate instead.
    * - placeholder of this type (ACH micro-deposit, see transaction.utils.ts) → the real state and Braintree id
    * - Pending Charge of a voided transaction → Failure, since no settlement webhook will come (docs/Intents.md)
    * Checked on the snapshot first (no round trip in the common case), then on a fresh fetch for the version — so a
