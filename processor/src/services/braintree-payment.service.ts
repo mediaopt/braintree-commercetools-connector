@@ -835,8 +835,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
           `Could not set shipping method ${newShippingMethodId} for cart ${ctCart.id}. Cart not found in CoCo.`,
         );
       }
-      // The checkout API doesn't support updating amountPlanned, so that is postponed to transactionSale to speed up
-      // the response.
+      // amountPlanned stays as createPayment set it (the checkout API doesn't support updating it); transactionSale
+      // recomputes the charged amount from the refetched cart with the same expressCartAmount.
       const totalNum = toNum(await this.expressCartAmount(updatedCard));
       const shippingNum = toNum(updatedCard.shippingInfo && relevantShippingAmount(updatedCard.shippingInfo));
       const discountNum = toNum(
