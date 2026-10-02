@@ -10,10 +10,15 @@ const BRAINTREE_PAYMENT_TYPE: RestrictedFields['type'] = {
   key: getConfig().paymentTypeKey,
 };
 
-export const handleCustomFieldResponse = (messageName: string, message?: string | object): RestrictedFields => {
+export const handleCustomFieldResponse = (
+  messageName: string,
+  message: string | object | undefined,
+  payment: Payment,
+): RestrictedFields => {
   return {
     type: BRAINTREE_PAYMENT_TYPE,
     fields: {
+      ...payment.custom?.fields, // SDK sends setCustomType: overwrites the type and all fields (extension: setCustomField)
       [`${messageName}Response`]: message ? `${JSON.stringify(message)}` : '', //only in extension the request has to be deleted - as if it exists the extension will be re-triggered, processor is triggered when user makes request from enabler or when shop makes request to processor
     },
   };

@@ -426,7 +426,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       async () => {
         await this.ctPaymentService.updatePayment({
           id: ctPayment.id,
-          customFields: handleCustomFieldResponse(messageName, failure),
+          customFields: handleCustomFieldResponse(messageName, failure, ctPayment),
           pspInteractions: buildPspInteractions(messageName, request, failure),
         });
       },
@@ -698,7 +698,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         !tokenRecentlyUpdated
           ? this.ctPaymentService.updatePayment({
               id: ctPayment.id,
-              customFields: handleCustomFieldResponse('getClientToken', clientToken),
+              customFields: handleCustomFieldResponse('getClientToken', clientToken, ctPayment),
 
               pspInteractions: buildPspInteractions(
                 'getClientToken',
@@ -1008,7 +1008,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       },
       { fieldName: 'venmoUsername', enablerValue: venmoUsername, braintreeValue: response.venmoAccount?.username },
     ]);
-    const customFields = handleCustomFieldResponse('transactionSale', response);
+    const customFields = handleCustomFieldResponse('transactionSale', response, ctPayment);
     handleCustomTransactionFields(customFields, response, ctPayment);
     // Fire-and-forget: customer update has no webhook fallback, so retries are handled
     // internally in linkBraintreeCustomerId, but it does not block the transaction response.
@@ -1083,6 +1083,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const braintreeAmount = isFullCapture
       ? undefined
       : mapCommercetoolsMoneyToBraintreeMoney({ ...ctPayment.amountPlanned, ...amount });
+    // what is sent to Braintree; same shape as the extension's submitForSettlement request
+    const braintreeRequest = { transactionId, amount: braintreeAmount };
     let response: Transaction;
     try {
       response = await submitForSettlement(transactionId, braintreeAmount);
@@ -1091,7 +1093,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         ctPayment,
         operation: 'settlement',
         messageName: 'submitForSettlement',
-        request,
+        request: braintreeRequest,
         err,
       });
     }
@@ -1100,7 +1102,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       () =>
         this.updatePaymentWithTransaction({
           messageName: 'submitForSettlement',
-          request: request,
+          request: braintreeRequest,
           ctPayment,
           response,
         }),
@@ -1153,7 +1155,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       });
     }
     // CT sync — Braintree already refunded; awaited (retryCTSync never throws), no notifications fallback
-    const customFields = handleCustomFieldResponse('refund', response);
+    const customFields = handleCustomFieldResponse('refund', response, ctPayment);
     await retryCTSync(
       () =>
         this.updatePaymentWithTransaction({
@@ -1202,7 +1204,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       });
     }
     // CT sync — Braintree already voided; awaited (retryCTSync never throws), no notifications fallback
-    const customFields = handleCustomFieldResponse('void', response);
+    const customFields = handleCustomFieldResponse('void', response, ctPayment);
     await retryCTSync(
       () =>
         this.updatePaymentWithTransaction({
