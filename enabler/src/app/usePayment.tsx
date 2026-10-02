@@ -274,8 +274,10 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       )) as PaymentActionResponseData;
       isLoading(false);
       if (!response?.success) {
-        notify("Error", response.message ?? "An error occurred");
-        return;
+        const errorMessage = response?.message ?? "An error occurred";
+        notify("Error", errorMessage);
+        // Rejects so a Checkout-registered submit() sees the failure (see CreditCardMask).
+        throw new Error(errorMessage);
       }
 
       const { message, success, merchantReturnUrl } = response;

@@ -72,10 +72,13 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     postalCode: ccPostalRef,
   };
 
+  // Resolves only once the whole 3DS + transactionSale flow is done and rejects on every failure:
+  // Checkout only has submit()'s promise to tell a failed payment apart from a successful one,
+  // otherwise it keeps its loader up forever.
   const verifyCardAndHandlePurchase = (
     threeDSecureParameters: ThreeDSecureVerifyOptions,
     shouldVault?: boolean,
-  ) => {
+  ): Promise<void> => {
     const options: {
       deviceData: string;
       storeInVaultOnSuccess?: boolean;
@@ -93,9 +96,8 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     if (paymentInfo.braintreeShipping) {
       options.shipping = paymentInfo.braintreeShipping;
     }
-    threeDS!
-      .verifyCard(threeDSecureParameters)
-      .then(function (response: any) {
+    return threeDS!.verifyCard(threeDSecureParameters).then(
+      function (response: any) {
         if (response.threeDSecureInfo.status !== "authenticate_successful") {
           isLoading(false);
           notify("Error", "Could not authenticate");
@@ -103,31 +105,35 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
             code: "3DS_AUTHENTICATION_FAILED",
             message: `Could not authenticate: ${response.threeDSecureInfo.status}`,
           });
-          return;
+          throw new Error(
+            `Could not authenticate: ${response.threeDSecureInfo.status}`,
+          );
         }
         if (response.threeDSecureInfo.liabilityShifted) {
-          handleTransactionSale(response.nonce, options);
+          return handleTransactionSale(response.nonce, options);
         } else if (response.threeDSecureInfo.liabilityShiftPossible) {
           if (continueOnLiabilityShiftPossible) {
-            handleTransactionSale(response.nonce, options);
-          } else {
-            notify(
-              "Warning",
-              "Failed the 3D Secure verification. Please use a different payment method.",
-            );
+            return handleTransactionSale(response.nonce, options);
           }
+          isLoading(false);
+          notify(
+            "Warning",
+            "Failed the 3D Secure verification. Please use a different payment method.",
+          );
+          throw new Error("3D Secure liability shift not achieved");
         } else {
           if (continueOnNoThreeDS) {
-            handleTransactionSale(response.nonce, options);
-          } else {
-            notify(
-              "Warning",
-              "3D Secure is not available for your card. Please use a different payment method.",
-            );
+            return handleTransactionSale(response.nonce, options);
           }
+          isLoading(false);
+          notify(
+            "Warning",
+            "3D Secure is not available for your card. Please use a different payment method.",
+          );
+          throw new Error("3D Secure not available for this card");
         }
-      })
-      .catch(function (error) {
+      },
+      function (error) {
         isLoading(false);
         if (error?.code.indexOf("THREEDS_LOOKUP") === 0) {
           if (error.code === "THREEDS_LOOKUP_TOKENIZED_CARD_NOT_FOUND_ERROR") {
@@ -147,7 +153,9 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           code: error?.code ?? "THREEDS_VERIFY_FAILED",
           message: error?.message ?? "Something went wrong - try again",
         });
-      });
+        throw error;
+      },
+    );
   };
 
   useEffect(() => {
@@ -335,8 +343,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
                   verifyCardAndHandlePurchase(
                     threeDSecureParameters,
                     shouldVault,
-                  );
-                  resolve();
+                  ).then(resolve, reject);
                 }
                 // PURE_VAULT_DISABLED: } (closing else removed)
               },
