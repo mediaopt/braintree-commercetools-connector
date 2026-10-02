@@ -25,6 +25,7 @@ const PROCESSOR_PAYMENT_API_CALL_NAMES = [
   'submitForSettlement',
   'refund',
   'void',
+  'findTransaction',
 ];
 
 const LOCAL_PAYMENT_METHODS_PAYMENT_ID_FIELD: FieldDefinitionData = {
@@ -47,7 +48,7 @@ const BRAINTREE_ORDER_ID_FIELD: FieldDefinitionData = {
 const buildTypeDraft = (
   key: string,
   { name, resourceTypeIds }: CustomTypeShape,
-  fields: FieldDefinitionData[]
+  fields: FieldDefinitionData[],
 ): TypeDraft => ({
   key,
   name,
@@ -73,9 +74,7 @@ async function ensureProcessorFields(): Promise<void> {
       fields: [
         LOCAL_PAYMENT_METHODS_PAYMENT_ID_FIELD,
         BRAINTREE_ORDER_ID_FIELD,
-        ...PROCESSOR_PAYMENT_API_CALL_NAMES.flatMap((name) =>
-          apiCallNameToFieldData(name, true)
-        ),
+        ...PROCESSOR_PAYMENT_API_CALL_NAMES.flatMap((name) => apiCallNameToFieldData(name, true)),
       ],
     },
     {
@@ -87,10 +86,8 @@ async function ensureProcessorFields(): Promise<void> {
 
   await Promise.all(
     typeSpecs.map(({ typeKey, shape, fields }) =>
-      paymentSDK.ctCustomTypeService.createOrUpdate(
-        buildTypeDraft(typeKey, shape, fields)
-      )
-    )
+      paymentSDK.ctCustomTypeService.createOrUpdate(buildTypeDraft(typeKey, shape, fields)),
+    ),
   );
 }
 

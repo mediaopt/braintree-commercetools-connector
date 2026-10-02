@@ -195,7 +195,7 @@ describe('operation.route', () => {
       const authorizationImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
       fastify = await buildApp(sessionHeaderAuthImpl, jwtAuthImpl, oauth2AuthImpl, authorizationImpl);
 
-      const mockResponse = { success: true, message: 'Payment payment-123 successful' };
+      const mockResponse = { outcome: 'approved' };
 
       (mockPaymentService.modifyPayment as any).mockResolvedValue(mockResponse);
 
@@ -210,6 +210,27 @@ describe('operation.route', () => {
 
       expect(response.statusCode).toBe(200);
       expect(JSON.parse(response.body)).toEqual(mockResponse);
+    });
+
+    test('rejects a legacy success/message body — the Payment Intents response schema is { outcome } only', async () => {
+      const sessionHeaderAuthImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      const jwtAuthImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      const oauth2AuthImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      const authorizationImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      fastify = await buildApp(sessionHeaderAuthImpl, jwtAuthImpl, oauth2AuthImpl, authorizationImpl);
+
+      (mockPaymentService.modifyPayment as any).mockResolvedValue({ success: true, message: 'ok' });
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/payment-intents/payment-123',
+        payload: {
+          actions: [{ action: 'capturePayment', amount: { centAmount: 1000, currencyCode: 'USD' } }],
+        },
+        headers: { authorization: 'Bearer token' },
+      });
+
+      expect(response.statusCode).not.toBe(200);
     });
 
     test('returns non-200 when OAuth2 authentication fails', async () => {
@@ -260,7 +281,7 @@ describe('operation.route', () => {
       const authorizationImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
       fastify = await buildApp(sessionHeaderAuthImpl, jwtAuthImpl, oauth2AuthImpl, authorizationImpl);
 
-      (mockPaymentService.modifyPayment as any).mockResolvedValue({ success: true, message: 'ok' });
+      (mockPaymentService.modifyPayment as any).mockResolvedValue({ outcome: 'received' });
 
       const payload = {
         actions: [{ action: 'capturePayment' as const, amount: { centAmount: 5000, currencyCode: 'EUR' } }],

@@ -1,5 +1,6 @@
 import { CustomFieldsDraft, Payment } from '@commercetools/connect-payments-sdk';
 import { Transaction } from 'braintree';
+import { handleInterfaceInteraction } from 'common-connect/dist';
 import { getConfig } from '../config/config';
 
 type RestrictedFields = Required<CustomFieldsDraft>;
@@ -35,3 +36,9 @@ export const handleCustomTransactionFields = (
     updateActions.fields['BraintreeOrderId'] = response.orderId;
   }
 };
+
+// Request/response interface-interaction pair recorded on the payment for one Braintree call
+export const buildPspInteractions = (messageName: string, request: string | object, response: string | object) => [
+  handleInterfaceInteraction({ messageName, message: request, messageType: 'ProcessorRequest' }),
+  handleInterfaceInteraction({ messageName, message: response, messageType: 'Response' }),
+];
