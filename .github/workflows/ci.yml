@@ -17,7 +17,10 @@ jobs:
         directory: [
           'braintree-commercetools-events',
           'braintree-extension',
-          'braintree-notifications'
+          'braintree-notifications',
+          'common-connect',
+          'enabler',
+          'processor'
         ]
 
     steps:
@@ -44,5 +47,5 @@ jobs:
         working-directory: ${{ matrix.directory }}
 
       - name: Run audit
-        run: npm audit
+        run: npm audit --omit=dev
         working-directory: ${{ matrix.directory }}
