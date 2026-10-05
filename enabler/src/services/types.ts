@@ -20,7 +20,7 @@ export type TransactionSaleOptions = {
   paypalOrderId?: string;
   braintreePaymentDetails?: {
     braintreeLineItems?: BraintreeLineItem[];
-    extraShippingCost?: string;
+    expressShippingChanged?: boolean;
     braintreeShipping?: BraintreeShipping;
   };
   shipping?: BraintreeShipping;

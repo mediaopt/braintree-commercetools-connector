@@ -119,6 +119,12 @@ const shippingInfo: ShippingInfo = {
   shippingMethodState: 'MatchesCart',
 };
 
+// line item whose mapped Braintree amount (see mapCTLineItemToBraintreeLineItem) is the given totalPrice
+export const lineItemWithTotal = (centAmount: number): LineItem => ({
+  ...lineItem,
+  totalPrice: { type: 'centPrecision', currencyCode: 'USD', centAmount, fractionDigits: 2 },
+});
+
 // Cart for updateCartShipping tests — realistic amounts that produce non-trivial itemTotal
 const shippingInfoForUpdate: ShippingInfo = {
   shippingMethodName: 'Standard',
@@ -135,11 +141,12 @@ const shippingInfoForUpdate: ShippingInfo = {
   shippingMethodState: 'MatchesCart',
 };
 
-// totalPrice: $200.00; shippingInfo: $20.00; taxMode Platform → taxTotal "0.00"; itemTotal = 200 - 20 = "180.00"
+// totalPrice: $200.00; shippingInfo: $20.00; taxTotal "0.00"; itemTotal = 200 - 20 = "180.00", matching the line item
 export const mockCartForShippingUpdate = (): Cart => ({
   ...mockGetCartResult(),
   id: 'cart-shipping-update',
   version: 2,
+  lineItems: [lineItemWithTotal(18000)],
   totalPrice: { type: 'centPrecision', currencyCode: 'USD', centAmount: 20000, fractionDigits: 2 },
   taxMode: 'Platform',
   shippingInfo: shippingInfoForUpdate,
@@ -154,12 +161,13 @@ const taxedPriceWithExternalTax: TaxedPrice = {
   taxPortions: [],
 };
 
-// totalPrice: $200.00; shippingInfo: $10.00; discount: $5.00; taxMode ExternalAmount; taxTotal: $20.00
-// itemTotal = 200 - 10 + 5 - 20 = "175.00"
+// totalPrice: $200.00; shippingInfo: $10.00; discount: $5.00; taxMode ExternalAmount; taxTotal "0.00" (tax is in the gross)
+// itemTotal = 200 - 10 + 5 = "195.00", matching the line item
 export const mockCartWithExternalTax = (): Cart => ({
   ...mockGetCartResult(),
   id: 'cart-external-tax',
   version: 2,
+  lineItems: [lineItemWithTotal(19500)],
   totalPrice: { type: 'centPrecision', currencyCode: 'USD', centAmount: 20000, fractionDigits: 2 },
   taxMode: 'ExternalAmount',
   taxedPrice: taxedPriceWithExternalTax,
