@@ -128,9 +128,6 @@ type TransactionWithLocalPayment = Transaction & {
   localPayment?: { paymentId?: string };
 };
 
-// Initial transaction required for checkout API to ensure the proper order creation.
-const OPTIMISTIC_TRANSACTION_TRIGGER_ORDER: TransactionState = 'Initial';
-
 // Single source for the DISCOUNT credit item — transactionSale filters on and rebuilds this exact shape for PayPal.
 const DISCOUNT_PRODUCT_CODE = 'DISCOUNT';
 const buildDiscountLineItem = (amount: string) => ({
@@ -989,9 +986,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
         `transactionSale refused — payment ${ctPaymentId} was cancelled before verification`,
       );
     }
-    if (!updatedCart && braintreePaymentDetails?.extraShippingCost)
+    if (!updatedExpress && braintreePaymentDetails?.expressShippingChanged)
       throw new ErrorInvalidOperation(`could not find updated cart for transactionsSale payment ${ctPaymentId}`);
-    const relevantPaymentInfo = updatedCart ? { ...ctPayment, amountPlanned: updatedCart.totalPrice } : ctPayment;
+    const updatedCart = updatedExpress?.cart;
+    const relevantPaymentInfo = updatedExpress
+      ? { ...ctPayment, amountPlanned: updatedExpress.amountPlanned }
+      : ctPayment;
     const isPayPal = paymentMethodType === 'PayPal'; // PAYPAL_STORED_DISABLED: || paymentMethodType === 'PayPalStored'
     // After an Express shipping change, amount, line items and shipping come from the refetched cart, not the enabler's
     // createPayment copies, computed as in updateCartShipping (expressCartAmount), so they match what it sent to Braintree.

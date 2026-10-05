@@ -34,15 +34,13 @@ import * as CommonConnect from 'common-connect/dist';
 // import { mockGetCartResult } from '../utils/mock-cart-data';
 import { Cart, Customer } from '@commercetools/connect-payments-sdk';
 import { BraintreeCustomerService } from '../../src/services/braintree-customer.service';
-import { CentPrecisionMoney } from '@commercetools/platform-sdk';
+import { CentPrecisionMoney, Transaction } from '@commercetools/platform-sdk';
 import {
   lineItemWithTotal,
   mockCartForShippingUpdate,
   mockCartWithExternalTax,
   mockGetCartResult,
 } from '../utils/mock-cart-data';
-import { CentPrecisionMoney, Transaction } from '@commercetools/platform-sdk';
-import { mockCartForShippingUpdate, mockCartWithExternalTax, mockGetCartResult } from '../utils/mock-cart-data';
 import * as Config from '../../src/config/config';
 import { BraintreePaymentServiceOptions } from '../../src/services/types/braintree-payment.type';
 import { AbstractPaymentService } from '../../src/services/abstract-payment.service';
@@ -665,15 +663,6 @@ describe('braintree-payment.service', () => {
       await braintreePaymentService.transactionSale(expressShippingChangedRequest);
 
       expect(CommonConnect.transactionSale).toHaveBeenCalledWith(expect.objectContaining({ amount: '1200.00' }));
-      // the order-triggering placeholder carries the same amount
-      expect(paymentSDK.ctPaymentService.updatePayment).toHaveBeenCalledWith(
-        expect.objectContaining({
-          transaction: expect.objectContaining({
-            type: 'Authorization',
-            amount: { centAmount: 120000, currencyCode: 'USD' },
-          }),
-        }),
-      );
     });
 
     test('express shipping change requests the amount while the payment is still loading', async () => {

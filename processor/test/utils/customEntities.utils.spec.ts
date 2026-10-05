@@ -8,9 +8,21 @@ import { Transaction } from 'braintree';
 type RestrictedFields = Required<CustomFieldsDraft>;
 
 describe('customEntities.utils', () => {
+  const basePayment: Payment = {
+    id: 'payment-123',
+    version: 1,
+    amountPlanned: { type: 'centPrecision', currencyCode: 'USD', centAmount: 10000, fractionDigits: 2 },
+    paymentMethodInfo: { method: 'CreditCard' },
+    paymentStatus: {},
+    transactions: [],
+    interfaceInteractions: [],
+    createdAt: '2024-01-01T00:00:00Z',
+    lastModifiedAt: '2024-01-01T00:00:00Z',
+  };
+
   describe('handleCustomFieldResponse', () => {
     test('returns response with string message', () => {
-      const result = handleCustomFieldResponse('transactionSale', 'test message');
+      const result = handleCustomFieldResponse('transactionSale', 'test message', basePayment);
       expect(result).toEqual({
         type: {
           typeId: 'type',
@@ -26,22 +38,13 @@ describe('customEntities.utils', () => {
       { description: 'stringifies an object message', message: { id: 'tx-123' }, expected: '{"id":"tx-123"}' },
       { description: 'returns an empty string without message', message: undefined, expected: '' },
     ])('$description', ({ message, expected }) => {
-      expect(handleCustomFieldResponse('transactionSale', message).fields.transactionSaleResponse).toBe(expected);
+      expect(handleCustomFieldResponse('transactionSale', message, basePayment).fields.transactionSaleResponse).toBe(
+        expected,
+      );
     });
   });
 
   describe('handleCustomTransactionFields', () => {
-    const basePayment: Payment = {
-      id: 'payment-123',
-      version: 1,
-      amountPlanned: { type: 'centPrecision', currencyCode: 'USD', centAmount: 10000, fractionDigits: 2 },
-      paymentMethodInfo: { method: 'CreditCard' },
-      paymentStatus: {},
-      transactions: [],
-      interfaceInteractions: [],
-      createdAt: '2024-01-01T00:00:00Z',
-      lastModifiedAt: '2024-01-01T00:00:00Z',
-    };
     const localPayment = { paymentInstrumentType: 'local_payment', localPayment: { paymentId: 'local-pay-456' } };
 
     // The guards check the PAYMENT's existing custom fields, not updateActions — so preconditions live on
