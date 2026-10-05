@@ -81,8 +81,13 @@ import {
   buildPspInteractions,
 } from '../utils/customEntities.utils';
 
-import { LineItemKind, mapCTLineItemToBraintreeLineItem, lineItemPlaceholders } from '../utils/lineItem.utils';
-import { toNum } from '../utils/money.utils';
+import {
+  BraintreeLineItem,
+  LineItemKind,
+  mapCTLineItemToBraintreeLineItem,
+  lineItemPlaceholders,
+} from '../utils/lineItem.utils';
+import { relevantDiscountAmount, relevantShippingAmount, toNum } from '../utils/money.utils';
 import {
   errorMessage,
   getCtErrorKind,
@@ -121,6 +126,44 @@ export const CONCURRENT_CANCEL_AND_SALE_ISSUE =
 // See: https://developer.paypal.com/braintree/docs/guides/local-payment-methods/client-side/javascript/v3
 type TransactionWithLocalPayment = Transaction & {
   localPayment?: { paymentId?: string };
+};
+
+// Initial transaction required for checkout API to ensure the proper order creation.
+const OPTIMISTIC_TRANSACTION_TRIGGER_ORDER: TransactionState = 'Initial';
+
+// Single source for the DISCOUNT credit item — transactionSale filters on and rebuilds this exact shape for PayPal.
+const DISCOUNT_PRODUCT_CODE = 'DISCOUNT';
+const buildDiscountLineItem = (amount: string) => ({
+  name: 'Discount',
+  kind: 'credit' as LineItemKind,
+  unitAmount: amount,
+  totalAmount: amount,
+  productCode: DISCOUNT_PRODUCT_CODE,
+  ...lineItemPlaceholders,
+});
+
+/**
+ * Checks that the line items add up to the itemTotal of the amount breakdown.
+ *
+ * itemTotal is derived from the cart total (total - shipping + discount), while the line items are mapped one by one
+ * (see mapCTLineItemToBraintreeLineItem). The two are computed independently, so they can drift apart because of how
+ * commercetools rounds:
+ * - tax rounding (taxRoundingMode, taxCalculationMode LineItemLevel vs UnitPriceLevel)
+ * - price rounding (priceRoundingMode)
+ * - discount rounding (a cart discount split across line items, discountedGrossAmount vs discountedAmount)
+ *
+ * Braintree rejects a breakdown that doesn't fit its line items (ITEM_TOTAL_MISMATCH). No payment method in this
+ * connector requires a breakdown (only PayPal Express receives one), so on a mismatch it is omitted.
+ * A missing breakdown hides the item list in the PayPal window (only subtotal, shipping and total are shown).
+ * If you experience this, please open an issue with the anonymized cart.
+ */
+const lineItemsMatchItemTotal = (lineItems: BraintreeLineItem[], itemTotal: string, cartId: string): boolean => {
+  const lineItemTotal = lineItems.reduce((sum, { totalAmount }) => sum + Number(totalAmount), 0).toFixed(2);
+  if (lineItemTotal === itemTotal) return true;
+  logger.warn(
+    `updateCartShipping: line items total (${lineItemTotal}) does not match itemTotal (${itemTotal}) for cart ${cartId}, the Braintree payment is updated without breakdown — please open an issue with the anonymized cart (prices, taxes, discounts, rounding settings) so the breakdown can be supported`,
+  );
+  return false;
 };
 
 export class BraintreePaymentService extends AbstractPaymentService {
@@ -192,6 +235,16 @@ export class BraintreePaymentService extends AbstractPaymentService {
       ctPayment.id,
       formatBraintreeSyncContext(response),
     );
+  }
+
+  /**
+   * The Express amount, shared by updateCartShipping and transactionSale so the amount approved is the amount charged.
+   * The exact total (cart gross minus approved payments) is required: the buyer approves the final amount in the
+   * PayPal window ("Pay Now"), otherwise the merchant would have to implement a review page that displays the final
+   * amount for approval.
+   */
+  private async expressCartAmount(cart: Cart): Promise<CentPrecisionMoney> {
+    return { type: 'centPrecision', ...(await this.ctCartService.getPaymentAmount({ cart })) };
   }
 
   /**
@@ -764,18 +817,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
       : ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale));
     if (!isPureVault) {
       if (ctCart.discountOnTotalPrice?.discountedAmount) {
-        const amount = mapCommercetoolsMoneyToBraintreeMoney(ctCart.discountOnTotalPrice.discountedAmount);
-        extendedLineItems.push({
-          name: 'Discount',
-          kind: 'credit' as LineItemKind,
-          unitAmount: amount,
-          totalAmount: amount,
-          productCode: 'DISCOUNT',
-          ...lineItemPlaceholders,
-        });
+        extendedLineItems.push(
+          buildDiscountLineItem(
+            mapCommercetoolsMoneyToBraintreeMoney(relevantDiscountAmount(ctCart.discountOnTotalPrice)),
+          ),
+        );
       }
       if (!isExpress && ctCart.shippingInfo) {
-        const amount = mapCommercetoolsMoneyToBraintreeMoney(ctCart.shippingInfo.price);
+        const amount = mapCommercetoolsMoneyToBraintreeMoney(relevantShippingAmount(ctCart.shippingInfo));
         extendedLineItems.push({
           name: ctCart.shippingInfo.shippingMethodName || 'Shipping',
           kind: 'debit' as LineItemKind,
@@ -855,32 +904,44 @@ export class BraintreePaymentService extends AbstractPaymentService {
           `Could not set shipping method ${newShippingMethodId} for cart ${ctCart.id}. Cart not found in CoCo.`,
         );
       }
-      const costWithNewShipping = await this.ctCartService.getPaymentAmount({ cart: updatedCard }); //as checkout api doesn't support updatePayment amountPlanned - it is postponed to transaction sale in order to speed up the response
-      const totalNum = toNum(costWithNewShipping as CentPrecisionMoney);
-      const shippingNum = toNum(updatedCard.shippingInfo?.price);
-      const discountNum = toNum(updatedCard.discountOnTotalPrice?.discountedAmount);
-      // taxTotal must be mapped separately only for external tax modes (External / ExternalAmount);
-      // for Platform/Disabled the tax is already embedded in line item prices.
-      const isExternalTax = updatedCard.taxMode === 'External' || updatedCard.taxMode === 'ExternalAmount';
-      const taxNum = isExternalTax ? toNum(updatedCard.taxedPrice?.totalTax) : 0;
+      // amountPlanned stays as createPayment set it (the checkout API doesn't support updating it); transactionSale
+      // recomputes the charged amount from the refetched cart with the same expressCartAmount.
+      const totalNum = toNum(await this.expressCartAmount(updatedCard));
+      const shippingNum = toNum(updatedCard.shippingInfo && relevantShippingAmount(updatedCard.shippingInfo));
+      const discountNum = toNum(
+        updatedCard.discountOnTotalPrice && relevantDiscountAmount(updatedCard.discountOnTotalPrice),
+      );
+      // taxTotal is always 0: line items and shipping are mapped at gross (see mapCTLineItemToBraintreeLineItem),
+      // so tax is already embedded in them for every tax mode, including tax not included in price.
 
       // amountBreakdown must satisfy PayPal's validation:
       // itemTotal + taxTotal + shipping + handling + insurance - discount - shippingDiscount = amount
       // itemTotal is derived from braintreeAmount rather than summed from line items to avoid rounding drift.
-      const itemTotal = (totalNum - shippingNum + discountNum - taxNum).toFixed(2);
+      const itemTotal = (totalNum - shippingNum + discountNum).toFixed(2);
+      // Express line items: no shipping line (in the breakdown) and no DISCOUNT credit item (discount is in the breakdown)
+      const braintreeLineItems = updatedCard.lineItems.map((lineItem) =>
+        mapCTLineItemToBraintreeLineItem(lineItem, updatedCard.locale),
+      );
+      const shippingAmount = shippingNum.toFixed(2);
 
       logger.info(`updateCartShipping: success, cartId: ${ctCart.id}`);
       return {
         braintreeAmount: totalNum.toFixed(2),
-        amountBreakdown: {
-          itemTotal,
-          taxTotal: taxNum.toFixed(2),
-          shipping: shippingNum.toFixed(2),
-          discount: discountNum.toFixed(2),
-          handling: '0.00',
-          insurance: '0.00',
-          shippingDiscount: '0.00',
-        },
+        shippingAmount,
+        braintreeBreakdown: lineItemsMatchItemTotal(braintreeLineItems, itemTotal, ctCart.id)
+          ? {
+              lineItems: braintreeLineItems,
+              amountBreakdown: {
+                itemTotal,
+                taxTotal: '0.00',
+                shipping: shippingAmount,
+                discount: discountNum.toFixed(2),
+                handling: '0.00',
+                insurance: '0.00',
+                shippingDiscount: '0.00',
+              },
+            }
+          : undefined,
       };
     } catch (err) {
       logger.error(`updateCartShipping: failed, cartId: ${cartId ?? 'unavailable'} — ${errorMessage(err)}`);
@@ -911,13 +972,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
       localPaymentId,
       venmoUsername,
     );
-    const [updatedCart, ctPayment] = await Promise.all([
-      braintreePaymentDetails?.extraShippingCost
-        ? this.ctCartService.getCart({
-            id: getCartIdFromContext(),
-          })
+    const [updatedExpress, ctPayment] = await Promise.all([
+      braintreePaymentDetails?.expressShippingChanged
+        ? this.ctCartService
+            .getCart({ id: getCartIdFromContext() })
+            .then(async (cart) => cart && { cart, amountPlanned: await this.expressCartAmount(cart) })
         : Promise.resolve(undefined),
-      await this.ctPaymentService.getPayment({ id: ctPaymentId }),
+      this.ctPaymentService.getPayment({ id: ctPaymentId }),
     ]);
     if (!ctPayment) {
       throw new ErrorInvalidOperation(`payment is missing for transactionSale payment ${ctPaymentId}}`);
@@ -932,17 +993,23 @@ export class BraintreePaymentService extends AbstractPaymentService {
       throw new ErrorInvalidOperation(`could not find updated cart for transactionsSale payment ${ctPaymentId}`);
     const relevantPaymentInfo = updatedCart ? { ...ctPayment, amountPlanned: updatedCart.totalPrice } : ctPayment;
     const isPayPal = paymentMethodType === 'PayPal'; // PAYPAL_STORED_DISABLED: || paymentMethodType === 'PayPalStored'
-    const lineItems = (braintreePaymentDetails?.braintreeLineItems ?? [])
+    // After an Express shipping change, amount, line items and shipping come from the refetched cart, not the enabler's
+    // createPayment copies, computed as in updateCartShipping (expressCartAmount), so they match what it sent to Braintree.
+    const lineItems = (
+      updatedCart
+        ? updatedCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, updatedCart.locale))
+        : (braintreePaymentDetails?.braintreeLineItems ?? [])
+    )
       // Braintree has 35-char limit for line item names — see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
       .map((item) => ({ ...item, name: item.name.substring(0, 35) }))
       // Braintree rejects zero-amount line items for non-PayPal methods; for PayPal, zero amounts are explicitly allowed
-      .filter(({ productCode, unitAmount }) => productCode !== 'DISCOUNT' && (isPayPal || Number(unitAmount) > 0));
+      .filter(
+        ({ productCode, unitAmount }) => productCode !== DISCOUNT_PRODUCT_CODE && (isPayPal || Number(unitAmount) > 0),
+      );
     // discountAmount is derived as the residual needed to balance lineItems (+ shipping, when submitted
     // separately) against the actual charged amount, rather than read from a separately fetched/echoed
     // discount value — this keeps it correct regardless of cart discount type, staleness, or rounding.
-    const shippingAmountNum = braintreePaymentDetails?.extraShippingCost
-      ? Number(braintreePaymentDetails.extraShippingCost)
-      : 0;
+    const shippingAmountNum = updatedCart?.shippingInfo ? toNum(relevantShippingAmount(updatedCart.shippingInfo)) : 0;
     const lineItemsTotal = lineItems.reduce((sum, { totalAmount }) => sum + Number(totalAmount), 0);
     const discountResidual = lineItemsTotal + shippingAmountNum - toNum(relevantPaymentInfo.amountPlanned);
     if (discountResidual < -0.01) {
@@ -950,7 +1017,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
         `transactionSale: lineItems total (${lineItemsTotal.toFixed(2)}) plus shipping (${shippingAmountNum.toFixed(2)}) is less than the charged amount (${toNum(relevantPaymentInfo.amountPlanned).toFixed(2)}) for payment ${ctPaymentId} — discountAmount clamped to 0, check for missing external tax/fees`,
       );
     }
-    const discountAmount = Math.max(0, discountResidual).toFixed(relevantPaymentInfo.amountPlanned.fractionDigits);
+    const { fractionDigits } = relevantPaymentInfo.amountPlanned;
+    const residualDiscount = Math.max(0, discountResidual).toFixed(fractionDigits);
+    // PayPal declines a sale whose discount is sent as discountAmount instead of a DISCOUNT credit line item
+    // (the form the PayPal order was created with). The credit item is rebuilt from the residual rather than
+    // echoed from createPayment, since the cart discount can change after a shipping update.
+    const sendDiscountAsLineItem = isPayPal && Number(residualDiscount) > 0;
+    if (sendDiscountAsLineItem) lineItems.push(buildDiscountLineItem(residualDiscount));
+    const discountAmount = sendDiscountAsLineItem ? (0).toFixed(fractionDigits) : residualDiscount;
     // braintreeCustomerId can be missing because the CT custom field was wiped (frequently occurring redeploy issue),
     // not because the customer is new. Check for a pre-existing Braintree customer
     // (ids are equal to the CT customer id by construction) before embedding an inline "create customer"
@@ -968,7 +1042,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         : {}),
       lineItems,
       discountAmount,
-      ...(braintreePaymentDetails?.extraShippingCost
+      ...(braintreePaymentDetails?.expressShippingChanged
         ? {
             shippingAmount: shippingAmountNum.toFixed(ctPayment.amountPlanned.fractionDigits),
           } //will be only submitted in express mode, then shipping was submitted via SDK through update and can be mapped here, otherwise it is included in line items

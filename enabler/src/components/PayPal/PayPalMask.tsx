@@ -99,6 +99,10 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
     braintreeCustomerId: string;
     paymentInfo: PaymentInfo;
   } | null>(null);
+  // Set once onShippingChange updated the cart (also for a 0 cost option: a shipping discount can still change the
+  // cart); sent as expressShippingChanged in handleOnApprove, which makes transactionSale take line items and shipping
+  // from the refetched cart instead of the createPayment copies.
+  const shippingChangedRef = useRef(false);
 
   const {
     handleTransactionSale,
@@ -245,8 +249,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                         // paymentInfo/ctPaymentId — the ambient paymentInfo is only the mount-time
                         // placeholder seeded from initialAmount.
                         const real = deferredResultRef.current?.paymentInfo;
-                        const realShippingOptions =
-                          real?.shippingOptions ?? shippingOptions;
 
                         if (onPaymentSubmit) {
                           await onPaymentSubmit({
@@ -278,11 +280,9 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               real?.braintreeLineItems ??
                               paymentInfo.braintreeLineItems, //discount will be retrieved from the cart at the backend and mapped separately
                             braintreeShipping: payload.shippingAddress,
-                            extraShippingCost: payload.shippingOptionId
-                              ? realShippingOptions?.find(
-                                  ({ id }) => id === payload.shippingOptionId,
-                                )?.amount.value
-                              : undefined, //only will be returned if shipping was changed inside the PayPal express, then it must be used to update the total payment amount
+                            expressShippingChanged:
+                              shippingChangedRef.current ||
+                              Boolean(payload.shippingOptionId), //set only in express mode, where shipping is submitted separately from line items
                           },
                           ctPaymentIdOverride: real?.ctPaymentId,
                         });
@@ -380,16 +380,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           const activateIndex =
                             selectedOptionIndex >= 0 ? selectedOptionIndex : 0;
 
-                          const braintreeShippingOptions =
-                            relevantShippingOptions.map(
-                              ({ id, type, label, amount }, index) => ({
-                                id,
-                                type,
-                                label,
-                                selected: index === activateIndex,
-                                amount,
-                              }),
-                            );
                           const shippingResult = await updateCartShipping(
                             relevantShippingOptions[activateIndex].id,
                             {
@@ -400,20 +390,32 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                             },
                           );
                           setUpdatedTotal(shippingResult.braintreeAmount);
+                          shippingChangedRef.current = true;
+                          // the selected option carries the commercetools gross, which must match the breakdown
+                          const braintreeShippingOptions =
+                            relevantShippingOptions.map(
+                              ({ id, type, label, amount }, index) => ({
+                                id,
+                                type,
+                                label,
+                                selected: index === activateIndex,
+                                amount:
+                                  index === activateIndex
+                                    ? {
+                                        ...amount,
+                                        value: shippingResult.shippingAmount,
+                                      }
+                                    : amount,
+                              }),
+                            );
                           return paypalCheckoutInstance.updatePayment({
                             amount: shippingResult.braintreeAmount,
                             currency: real?.currency ?? paymentInfo.currency,
-                            lineItems: (
-                              real?.braintreeLineItems ??
-                              paymentInfo.braintreeLineItems
-                            )?.filter(
-                              ({ productCode }) => productCode !== "DISCOUNT",
-                            ),
                             paymentId: data.paymentId,
                             shippingOptions: braintreeShippingOptions,
-                            // amountBreakdown is computed by the processor — see updateCartShipping in
-                            // processor/src/services/braintree-payment.service.ts
-                            amountBreakdown: shippingResult.amountBreakdown,
+                            // line items + amountBreakdown are built by the processor (see updateCartShipping in
+                            // processor/src/services/braintree-payment.service.ts) and omitted when they can't be balanced
+                            ...shippingResult.braintreeBreakdown,
                           });
                         },
 
@@ -440,10 +442,12 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           }
                           return paypalCheckoutInstance.createPayment(
                             buildExpressCreatePaymentOptions({
-                              braintreeLineItems: paymentInfo.braintreeLineItems,
+                              braintreeLineItems:
+                                paymentInfo.braintreeLineItems,
                               shippingOptions,
                               countryCode: paymentInfo.countryCode,
-                              amount: updatedTotal ?? paymentInfo.braintreeAmount,
+                              amount:
+                                updatedTotal ?? paymentInfo.braintreeAmount,
                               currency: paymentInfo.currency,
                             }),
                           );
