@@ -132,6 +132,25 @@ describe('braintree-payment.service', () => {
   const cancelOf = (interactionId: string) =>
     transaction({ id: `cancel-${interactionId}`, type: 'CancelAuthorization', interactionId });
   const cancelledPlaceholder = cancelOf(buildPlaceholderInteractionId(mockGetPaymentResult.id));
+  // Custom fields already on the payment. updatePayment's customFields replaces all of them (setCustomType),
+  // so every write has to carry them over.
+  const existingCustom = {
+    type: { typeId: 'type' as const, id: 'braintree-payment-type' },
+    fields: { BraintreeOrderId: 'order-1', refundResponse: 'older refund' },
+  };
+  const writtenCustomFields = () =>
+    jest
+      .mocked(paymentSDK.ctPaymentService.updatePayment)
+      .mock.calls.map(([opts]) => opts.customFields?.fields)
+      .filter(Boolean);
+  // The request recorded as pspInteraction, i.e. what was sent to Braintree
+  const recordedRequest = (messageName: string) => {
+    const interaction = jest
+      .mocked(paymentSDK.ctPaymentService.updatePayment)
+      .mock.calls.flatMap(([opts]) => opts.pspInteractions ?? [])
+      .find((i) => i.fields?.type === `${messageName}ProcessorRequest`);
+    return JSON.parse(interaction?.fields?.data as string);
+  };
 
   // test('getConfig', async () => { //todo - implement proper tests
   //   // Setup mock config for a system using `clientKey`
@@ -885,6 +904,17 @@ describe('braintree-payment.service', () => {
       expect(addedTransactions()).toEqual([]);
     });
 
+    test("keeps the payment's existing custom fields next to transactionSaleResponse", async () => {
+      const payment = { ...mockGetPaymentResult, transactions: [], custom: existingCustom };
+      jest.spyOn(paymentSDK.ctPaymentService, 'getPayment').mockResolvedValue(payment as never);
+
+      await sale(payment.id);
+
+      expect(writtenCustomFields()).toEqual([
+        { ...existingCustom.fields, transactionSaleResponse: JSON.stringify(mockBraintreeTransaction) },
+      ]);
+    });
+
     test('placeholder cancelled before verification: refused without calling Braintree', async () => {
       const payment = { ...mockGetPaymentResult, transactions: [achPlaceholder, cancelledPlaceholder] };
       jest.spyOn(paymentSDK.ctPaymentService, 'getPayment').mockResolvedValue(payment as never);
@@ -1018,6 +1048,17 @@ describe('braintree-payment.service', () => {
       expect(CommonConnect.submitForSettlement).not.toHaveBeenCalled();
     });
 
+    test.each([
+      ['full capture: only the transactionId', 120000, { transactionId: 'interaction-1' }],
+      ['partial capture: the Braintree amount too', 50000, { transactionId: 'interaction-1', amount: '500.00' }],
+    ])('records what was sent to Braintree — %s', async (_, centAmount, expected) => {
+      const payment = { ...mockGetPaymentResult, transactions: [authorization] };
+
+      await braintreePaymentService.settlement({ payment, amount: amountOf(centAmount) });
+
+      expect(recordedRequest('submitForSettlement')).toEqual(expected);
+    });
+
     test('returns approved when Braintree reports the settlement as settled', async () => {
       const payment = { ...mockGetPaymentResult, transactions: [authorization] };
       (CommonConnect.submitForSettlement as jest.Mock).mockResolvedValue({
@@ -1038,6 +1079,24 @@ describe('braintree-payment.service', () => {
 
       expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
       expectFailureRecorded('submitForSettlement', 'Braintree call failed: Braintree error');
+    });
+
+    test("Braintree call fails: the sent request is recorded and the payment's existing custom fields are kept", async () => {
+      const payment = { ...mockGetPaymentResult, transactions: [authorization], custom: existingCustom };
+      (CommonConnect.submitForSettlement as jest.Mock).mockRejectedValue(new Error('Braintree error') as never);
+
+      await braintreePaymentService.settlement({ payment, amount: amountOf(50000) });
+
+      expect(recordedRequest('submitForSettlement')).toEqual({ transactionId: 'interaction-1', amount: '500.00' });
+      expect(writtenCustomFields()).toEqual([
+        {
+          ...existingCustom.fields,
+          submitForSettlementResponse: JSON.stringify({
+            success: false,
+            message: 'Braintree call failed: Braintree error',
+          }),
+        },
+      ]);
     });
   });
 
@@ -1151,6 +1210,19 @@ describe('braintree-payment.service', () => {
 
       expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
       expectFailureRecorded('refund', 'Braintree call failed: Braintree error');
+    });
+
+    test("keeps the payment's existing custom fields and overwrites an older refundResponse", async () => {
+      const payment = { ...mockGetPaymentResult, transactions: [charge], custom: existingCustom };
+
+      await braintreePaymentService.refundPayment({ payment, amount: amountOf(50000) });
+
+      expect(writtenCustomFields()).toEqual([
+        {
+          BraintreeOrderId: 'order-1',
+          refundResponse: JSON.stringify({ ...mockBraintreeTransaction, id: 'refund-1', type: 'credit' }),
+        },
+      ]);
     });
   });
 
@@ -1290,6 +1362,19 @@ describe('braintree-payment.service', () => {
 
       expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
       expectFailureRecorded('void', 'Braintree call failed: Braintree error');
+    });
+
+    test("keeps the payment's existing custom fields next to voidResponse", async () => {
+      const payment = { ...mockGetPaymentResult, transactions: [authorization], custom: existingCustom };
+
+      await braintreePaymentService.void({ payment });
+
+      expect(writtenCustomFields()).toEqual([
+        {
+          ...existingCustom.fields,
+          voidResponse: JSON.stringify({ ...mockBraintreeTransaction, id: 'txn-auth', status: 'voided' }),
+        },
+      ]);
     });
   });
 
@@ -1857,6 +1942,7 @@ describe('braintree-payment.service', () => {
         amountPlanned,
         transactions: [],
         interfaceInteractions: [],
+        custom: existingCustom,
       };
       const cart = {
         ...baseCart(),
@@ -1879,6 +1965,9 @@ describe('braintree-payment.service', () => {
 
       expect(createPaymentSpy).not.toHaveBeenCalled();
       expect(result.payment.ctPaymentId).toBe('existing-payment-id');
+      expect(writtenCustomFields()).toEqual([
+        { ...existingCustom.fields, getClientTokenResponse: JSON.stringify('reused-client-token') },
+      ]);
     });
 
     test('skips re-persisting client token when recently updated', async () => {
