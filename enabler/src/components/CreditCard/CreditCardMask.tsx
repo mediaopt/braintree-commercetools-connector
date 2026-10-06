@@ -19,6 +19,30 @@ import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
 
 type CreditCardMaskProps = GeneralPayButtonProps & GeneralCreditCardProps;
 
+export const SONGBIRD_WAIT_MS = 3000;
+const SONGBIRD_POLL_MS = 200;
+
+// threeDSecure.create resolves without waiting for Cardinal's Songbird script, and the SDK swallows
+// a failed load, so verifyCard would hang on a challenge. Songbird defines window.Cardinal, so wait
+// for it (it may still be loading on a slow connection) and reject when it never shows up.
+export const ensureSongbirdLoaded = async (): Promise<void> => {
+  for (
+    let waited = 0;
+    !(window as { Cardinal?: unknown }).Cardinal;
+    waited += SONGBIRD_POLL_MS
+  ) {
+    if (waited >= SONGBIRD_WAIT_MS) {
+      throw Object.assign(
+        new Error(
+          "Cardinal's Songbird.js (3D Secure) was not loaded: blocked by the page's Content Security Policy, a browser extension or the network. See the README's Credit Card section.",
+        ),
+        { code: "THREEDS_SONGBIRD_NOT_LOADED" },
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, SONGBIRD_POLL_MS));
+  }
+};
+
 export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   showPostalCode,
   threeDSAdditionalInformation,
@@ -96,7 +120,10 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     if (paymentInfo.braintreeShipping) {
       options.shipping = paymentInfo.braintreeShipping;
     }
-    return threeDS!.verifyCard(threeDSecureParameters).then(
+    const verified = ensureSongbirdLoaded().then(() =>
+      threeDS!.verifyCard(threeDSecureParameters),
+    );
+    return verified.then(
       function (response: any) {
         if (response.threeDSecureInfo.status !== "authenticate_successful") {
           isLoading(false);
