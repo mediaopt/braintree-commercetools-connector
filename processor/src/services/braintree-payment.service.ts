@@ -1143,7 +1143,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
   // see docs/Intents.md "Capture"; see also extension module submitForSettlement
   public async settlement(request: ModifyPaymentWithTransactionRequest): Promise<PaymentIntentResponseSchemaDTO> {
     const { payment: ctPayment, amount, merchantReference } = request;
-    // the Authorization given as merchantReference, otherwise the last one
+    // the Authorization given as merchantReference, otherwise the last one. merchantReference is used as a Braintree id
+    // because capturePayment has no transactionId — see docs/Intents.md "Call parameters"
+    // (https://docs.commercetools.com/checkout/payment-intents-api)
     const transactionId = merchantReference ?? findTransactionIdOrUndefined(ctPayment, 'Authorization');
     if (!transactionId)
       return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'no transaction suitable for settlement');
@@ -1415,6 +1417,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * Target of refund / cancel / reverse (docs/Intents.md "Call parameters"): a merchant-given id must match a
    * (non-placeholder) transaction on the payment; without one, the operation's default — the single active capture
    * (refund), the Authorization (cancel), or the single active capture else the Authorization (reverse).
+   * Cancel and reverse have no transactionId in the Payment Intents API
+   * (https://docs.commercetools.com/checkout/payment-intents-api), so merchantReference is their only way to name a
+   * target; an id that matches nothing is rejected rather than ignored, so a mistyped id can't act on the default target.
    */
   private resolveTarget(
     ctPayment: Payment,

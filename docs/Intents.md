@@ -43,6 +43,9 @@ Full shape of an action, as sent to the Payment Intents API:
 - `capturePayment` targets an Authorization: the one whose Braintree transaction id is given as `merchantReference`,
   otherwise the payment's last Authorization. A `merchantReference` that isn't an Authorization of the payment →
   rejected.
+- `merchantReference` is read as a Braintree transaction id, not as your own reference (e.g. an order or invoice
+  number): it's the only field the Payment Intents API offers for naming a target on capture, cancel and reverse.
+  Don't send your own references in it: a value that matches no transaction on the payment is rejected.
 - For refund, cancel and reverse, a `transactionId` or `merchantReference` is resolved as follows:
   - it matches a transaction on the payment, of any type → that transaction is the target. Whether the operation
     applies to it is Braintree's decision, as in `braintree-extension`; e.g. cancel or reverse with a refund's id voids
