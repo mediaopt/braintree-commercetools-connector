@@ -697,7 +697,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
           isExpress ? this.getShippingMethods(ctCart.id) : Promise.resolve([]),
           this.ctCartService.getPaymentAmount({ cart: ctCart }), // PURE_VAULT_DISABLED: isPureVault ? ctCart.totalPrice :
           lastPaymentRef ? this.ctPaymentService.getPayment({ id: lastPaymentRef.id }) : Promise.resolve(undefined),
-          getBraintreePaymentTypeId(),
+          getBraintreePaymentTypeId().catch((err) => {
+            logger.error(
+              `createPayment: could not look up the Braintree payment type, not reusing the cart's last payment — ${errorMessage(err)}`,
+            );
+            return undefined;
+          }),
         ]);
 
       /* PURE_VAULT_DISABLED start
@@ -709,7 +714,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
       const { payment: reusedPayment, tokenRecentlyUpdated } = this.existingPaymentAndToken(
         // only this connector's payment is reused — the cart may hold other connectors' payments (e.g. gift cards)
-        existingPayment && isBraintreePayment(existingPayment, braintreePaymentTypeId) ? existingPayment : undefined,
+        existingPayment && braintreePaymentTypeId && isBraintreePayment(existingPayment, braintreePaymentTypeId)
+          ? existingPayment
+          : undefined,
         amountPlanned,
       );
 
