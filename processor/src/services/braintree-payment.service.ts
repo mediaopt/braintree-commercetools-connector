@@ -345,6 +345,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * Braintree transaction exists. It only adds the transaction if the payment has no transaction of that type yet —
    * neither a placeholder from a prior attempt (retryCTSync re-running after a server-side success the client saw as a
    * transient failure; addTransaction itself has no dedup key) nor a real one already written by transactionSale.
+   * Any state counts, since the checkout connector never leaves a failed Authorization on a payment: a declined sale makes the
+   * shared transactionSale throw (Braintree success: false) before anything is written to commercetools.
    */
   private async syncCtPaymentStatus({
     ctPaymentId,
