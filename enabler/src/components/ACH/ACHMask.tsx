@@ -17,7 +17,11 @@ import { usePayment } from "../../app/usePayment";
 import { useNotifications } from "../../app/useNotifications";
 import { useLoader } from "../../app/useLoader";
 
-import { GeneralPayButtonProps, GeneralACHProps } from "../../types";
+import {
+  GeneralPayButtonProps,
+  GeneralACHProps,
+  GenericError,
+} from "../../types";
 
 import { HOSTED_FIELDS_LABEL, HOSTED_FIELDS } from "../../styles";
 
@@ -181,6 +185,17 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     new Promise((resolve, reject) => {
       if (!clientToken) return reject(new Error("No client token"));
 
+      const fail = (
+        toast: string,
+        error: GenericError,
+        cause: unknown = new Error(error.message),
+      ) => {
+        notify("Error", toast);
+        onError?.(error);
+        isLoading(false);
+        reject(cause);
+      };
+
       if (formButtonDisabled) {
         notify("Error", "Please fill in all required fields");
         return reject(new Error("empty fields"));
@@ -216,10 +231,11 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
         },
         function (clientErr, clientInstance) {
           if (clientErr) {
-            notify("Error", `Error creating client ${clientErr.message}`);
-            onError?.({ code: clientErr.code, message: clientErr.message });
-            isLoading(false);
-            return reject(clientErr);
+            return fail(
+              `Error creating client ${clientErr.message}`,
+              { code: clientErr.code, message: clientErr.message },
+              clientErr,
+            );
           }
 
           usBankAccount.create(
@@ -228,18 +244,15 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
             },
             function (usBankAccountErr, usBankAccountInstance) {
               if (usBankAccountErr || !usBankAccountInstance) {
-                notify(
-                  "Error",
-                  "There was an error creating the USBankAccount instance.",
-                );
-                onError?.({
-                  code: usBankAccountErr?.code ?? "US_BANK_ACCOUNT_CREATE_FAILED",
-                  message:
-                    usBankAccountErr?.message ??
-                    "There was an error creating the USBankAccount instance.",
-                });
-                isLoading(false);
-                return reject(
+                const toast =
+                  "There was an error creating the USBankAccount instance.";
+                return fail(
+                  toast,
+                  {
+                    code:
+                      usBankAccountErr?.code ?? "US_BANK_ACCOUNT_CREATE_FAILED",
+                    message: usBankAccountErr?.message ?? toast,
+                  },
                   usBankAccountErr ??
                     new Error("USBankAccount instance not created"),
                 );
@@ -269,16 +282,11 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                   tokenizedPayload?: any,
                 ) {
                   if (tokenizeErr) {
-                    notify(
-                      "Error",
+                    return fail(
                       `There was an error tokenizing the bank details, ${tokenizeErr}`,
+                      { code: tokenizeErr.code, message: tokenizeErr.message },
+                      tokenizeErr,
                     );
-                    onError?.({
-                      code: tokenizeErr.code,
-                      message: tokenizeErr.message,
-                    });
-                    isLoading(false);
-                    return reject(tokenizeErr);
                   }
 
                   const vaultResponse = await processorRequest<
@@ -299,16 +307,12 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                   } = vaultResponse || {};
 
                   if (!vaultToken) {
-                    const message =
-                      vaultErrorMessage ??
+                    const toast =
                       "There is an error in vaulting the bank account.";
-                    notify(
-                      "Error",
-                      "There is an error in vaulting the bank account.",
-                    );
-                    onError?.({ code: "ACH_VAULT_FAILED", message });
-                    isLoading(false);
-                    return reject(new Error(message));
+                    return fail(toast, {
+                      code: "ACH_VAULT_FAILED",
+                      message: vaultErrorMessage ?? toast,
+                    });
                   }
 
                   if (verified) {

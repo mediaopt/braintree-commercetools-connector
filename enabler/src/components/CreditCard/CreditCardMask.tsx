@@ -126,15 +126,11 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     return verified.then(
       function (response: any) {
         if (response.threeDSecureInfo.status !== "authenticate_successful") {
+          const message = `Could not authenticate: ${response.threeDSecureInfo.status}`;
           isLoading(false);
           notify("Error", "Could not authenticate");
-          onError?.({
-            code: "3DS_AUTHENTICATION_FAILED",
-            message: `Could not authenticate: ${response.threeDSecureInfo.status}`,
-          });
-          throw new Error(
-            `Could not authenticate: ${response.threeDSecureInfo.status}`,
-          );
+          onError?.({ code: "3DS_AUTHENTICATION_FAILED", message });
+          throw new Error(message);
         }
         if (response.threeDSecureInfo.liabilityShifted) {
           return handleTransactionSale(response.nonce, options);
@@ -378,7 +374,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           });
 
         onRegisterSubmit?.((storePaymentDetails) =>
-        submitPayment(
+          submitPayment(
             (storePaymentDetails ?? false) ||
               ccVaultCheckbox.current?.checked === true,
           ),
