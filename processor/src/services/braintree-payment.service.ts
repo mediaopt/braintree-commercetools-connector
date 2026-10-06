@@ -278,8 +278,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
           // Braintree's real status can naturally map to something other than the CT Checkout override
           // (e.g. autocapture -> Charge). Record that too (same interactionId) so CT's amountPaid and
           // findActiveCharges (refund/reverse targets) see Braintree's actual state,
-          // not just the Authorization entry above. Skipped for failed sales — a single Authorization/Failure
-          // record is enough; there's no additional progression to reflect.
+          // not just the Authorization entry above. The Failure check is defensive only: a declined sale throws in
+          // common-connect's transactionSale before anything is written, so no Failure reaches here.
           ...(transactionTypeOverride &&
           mappedTransaction.type !== transactionTypeOverride &&
           mappedTransaction.state !== 'Failure'
