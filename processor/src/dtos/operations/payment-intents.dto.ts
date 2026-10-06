@@ -11,7 +11,7 @@ export const ActionCapturePaymentSchema = Type.Composite([
   }),
   Type.Object({
     amount: AmountSchema,
-    transactionId: Type.Optional(Type.String()),
+    merchantReference: Type.Optional(Type.String()),
   }),
 ]);
 

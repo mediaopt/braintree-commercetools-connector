@@ -87230,7 +87230,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"capturePayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"merchantReference\": \"this-connector-doesn't-use-it\"\n        }\n    ]\n}",
+									"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"capturePayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            }\n        }\n    ]\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -87248,7 +87248,7 @@
 										"{{payment-id}}"
 									]
 								},
-								"description": "Follows the commercetools [Payment Intents API](https://docs.commercetools.com/checkout/payment-intents-api): requests and responses match its documentation.\n\nThis connector carries out each relevant action on the Braintree [transaction](https://developer.paypal.com/braintree/docs/reference/response/transaction/node) and syncs the result onto the commercetools payment.\n\nHow actions and statuses map between the two: `docs/Intents.md` in the connector repository.\n\n**Using this collection**\n- Host: `{{checkout-host}}` is the commercetools Checkout host (e.g. `https://checkout.<region>.commercetools.com`, not `{{host}}`), which forwards the request to the connector's `POST /operations/payment-intents/:id` route. For local tests, send the same request and token to the processor directly: `<processor URL>/operations/payment-intents/{{payment-id}}`.\n- Permissions required for the commercetools API client: [Scope](https://docs.commercetools.com/checkout/payment-intents-api#scope).\n- To target a specific transaction with an action that doesn't support `transactionId`, pass the target Braintree transaction id as `merchantReference`."
+								"description": "Follows the commercetools [Payment Intents API](https://docs.commercetools.com/checkout/payment-intents-api): requests and responses match its documentation.\n\nThis connector carries out each relevant action on the Braintree [transaction](https://developer.paypal.com/braintree/docs/reference/response/transaction/node) and syncs the result onto the commercetools payment.\n\nHow actions and statuses map between the two: `docs/Intents.md` in the connector repository.\n\n**Using this collection**\n- Host: `{{checkout-host}}` is the commercetools Checkout host (e.g. `https://checkout.<region>.commercetools.com`, not `{{host}}`), which forwards the request to the connector's `POST /operations/payment-intents/:id` route. For local tests, send the same request and token to the processor directly: `<processor URL>/operations/payment-intents/{{payment-id}}`.\n- Permissions required for the commercetools API client: [Scope](https://docs.commercetools.com/checkout/payment-intents-api#scope).\n- To target a specific transaction with an action that doesn't support `transactionId`, pass the target Braintree transaction id as `merchantReference`.\n- `capturePayment` targets the Authorization whose Braintree transaction id is given as `merchantReference`, otherwise the payment's last Authorization; a `merchantReference` that isn't an Authorization of the payment is rejected."
 							},
 							"response": [
 								{

@@ -213,6 +213,7 @@ export abstract class AbstractPaymentService {
         return await this.settlement({
           payment: ctPayment,
           amount: request.amount,
+          merchantReference: request.merchantReference,
         });
       }
       case 'cancelPayment': {

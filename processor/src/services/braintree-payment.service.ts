@@ -1195,18 +1195,33 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
   // see docs/Intents.md "Capture"; see also extension module submitForSettlement
   public async settlement(request: ModifyPaymentWithTransactionRequest): Promise<PaymentIntentResponseSchemaDTO> {
-    const { payment: ctPayment, amount } = request;
-    const transactionId = findTransactionIdOrUndefined(ctPayment, 'Authorization');
+    const { payment: ctPayment, amount, merchantReference } = request;
+    // the Authorization given as merchantReference, otherwise the last one
+    const transactionId = merchantReference ?? findTransactionIdOrUndefined(ctPayment, 'Authorization');
     if (!transactionId)
       return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'no transaction suitable for settlement');
-    if (isFailedOrVoided(ctPayment, transactionId))
-      return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'the transaction already failed or was voided');
-    const authorization = ctPayment.transactions.find(
+    const authorization = withoutPlaceholders(ctPayment).transactions.find(
       (t) => t.type === 'Authorization' && t.interactionId === transactionId,
     );
+    if (!authorization)
+      return this.rejectPaymentIntent(
+        ctPayment.id,
+        'settlement',
+        `transaction ${transactionId} isn't an Authorization of the payment`,
+      );
+    if (isFailedOrVoided(ctPayment, transactionId))
+      return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'the transaction already failed or was voided');
+    // Full capture = the first capture of this Authorization, for its whole amount. Decided from the transactions only:
+    // a full capture's Charge carries the Authorization's id, a partial capture's Charge its child's id, which can't
+    // be attributed to an Authorization on commercetools — so any partial capture on the payment means partial.
+    const authorizationIds = new Set(
+      ctPayment.transactions.filter((t) => t.type === 'Authorization').map((t) => t.interactionId),
+    );
+    const charges = ctPayment.transactions.filter((t) => t.type === 'Charge');
     const isFullCapture =
-      !ctPayment.transactions.some((t) => t.type === 'Charge') &&
-      authorization?.amount.centAmount === amount.centAmount;
+      authorization.amount.centAmount === amount.centAmount &&
+      !charges.some((t) => t.interactionId === transactionId) &&
+      !charges.some((t) => !authorizationIds.has(t.interactionId));
     const braintreeAmount = isFullCapture
       ? undefined
       : mapCommercetoolsMoneyToBraintreeMoney({ ...ctPayment.amountPlanned, ...amount });
