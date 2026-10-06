@@ -26,9 +26,9 @@ export const handleCustomFieldResponse = (
 /**
  * One setCustomField per field, as braintree-extension writes them (buildCustomFieldAction). The SDK's
  * updatePayment({ customFields }) can't be used after createPayment: it sends setCustomType, which overwrites the
- * type and every field. Send these in a raw call built from a fresh fetch, so a retry never writes stale fields.
+ * type and every field.
  */
-export const buildSetCustomFieldActions = (fields: PaymentFields): PaymentUpdateAction[] =>
+const buildSetCustomFieldActions = (fields: PaymentFields): PaymentUpdateAction[] =>
   Object.entries(fields).map(([name, value]) => ({ action: 'setCustomField', name, value }));
 
 // createPayment only: establishes the Braintree type (setCustomType), keeping the fields a reused payment already has
@@ -43,12 +43,9 @@ const typeIds = new Map<string, Promise<string>>();
 export const getTypeId = (key: string): Promise<string> => {
   let typeId = typeIds.get(key);
   if (!typeId) {
-    typeId = paymentSDK.ctAPI.client
-      .types()
-      .withKey({ key })
-      .get()
-      .execute()
-      .then(({ body }) => body.id)
+    typeId = paymentSDK.ctCustomTypeService
+      .getByKey({ key })
+      .then(({ id }) => id)
       .catch((err) => {
         typeIds.delete(key);
         throw err;
@@ -64,10 +61,10 @@ export const getBraintreePaymentTypeId = (): Promise<string> => getTypeId(getCon
 export const isBraintreePayment = (payment: Payment, braintreePaymentTypeId: string): boolean =>
   payment.custom?.type.id === braintreePaymentTypeId;
 
-export const NOT_BRAINTREE_PAYMENT = (paymentId: string) => `payment ${paymentId} is not Braintree checkout payment`;
+export const notBraintreePayment = (paymentId: string) => `payment ${paymentId} is not Braintree checkout payment`;
 
 export const notBraintreePaymentMessage = (paymentId: string) =>
-  `${NOT_BRAINTREE_PAYMENT(paymentId)}. If you are sure that this is a Braintree checkout payment with missing type definition, you can set the required type (${getConfig().paymentTypeKey}) by a raw commercetools call. The checkout flow of this connector only defines one payment type and applies it on payment creation so it is your responsibility to find out which of your processes have overwritten the type.`;
+  `${notBraintreePayment(paymentId)}. If you are sure that this is a Braintree checkout payment with missing type definition, you can set the required type (${getConfig().paymentTypeKey}) by a raw commercetools call. The checkout flow of this connector only defines one payment type and applies it on payment creation so it is your responsibility to find out which of your processes have overwritten the type.`;
 
 //see also handleTransactionResponse from extensions module
 export const handleCustomTransactionFields = (
@@ -91,4 +88,17 @@ export const handleCustomTransactionFields = (
 export const buildPspInteractions = (messageName: string, request: string | object, response: string | object) => [
   handleInterfaceInteraction({ messageName, message: request, messageType: 'ProcessorRequest' }),
   handleInterfaceInteraction({ messageName, message: response, messageType: 'Response' }),
+];
+
+// What a Braintree call records on the payment: {messageName}Response (+ extra fields) and the interaction pair
+export const buildResponseActions = (
+  messageName: string,
+  request: string | object,
+  response: string | object,
+  extraFields: PaymentFields = {},
+): PaymentUpdateAction[] => [
+  ...buildSetCustomFieldActions({ ...handleCustomFieldResponse(messageName, response), ...extraFields }),
+  ...buildPspInteractions(messageName, request, response).map(
+    (interaction): PaymentUpdateAction => ({ action: 'addInterfaceInteraction', ...interaction }),
+  ),
 ];

@@ -1,14 +1,41 @@
 import { Payment } from '@commercetools/connect-payments-sdk';
-import { PaymentUpdateAction, Transaction, TransactionState, TransactionType } from '@commercetools/platform-sdk';
+import { PaymentUpdateAction, Transaction, TransactionType } from '@commercetools/platform-sdk';
 import { findSuitableTransactionId } from 'common-connect/dist';
 
 const PLACEHOLDER_PREFIX = 'BraintreePlaceholder: ';
 
-// Marker interactionId of the ACH micro-deposit placeholder (syncCtPaymentStatus's ensureTransaction and
+// Marker interactionId of the ACH micro-deposit placeholder (addPlaceholderActions below and
 // cancelPlaceholderPayment, braintree-payment.service.ts), built from the commercetools payment id since Braintree
 // has no transaction yet. It is never a Braintree id, so it must never be sent to Braintree — find/exclude it via
 // isPlaceholderInteractionId() below.
 export const buildPlaceholderInteractionId = (ctPaymentId: string): string => `${PLACEHOLDER_PREFIX}${ctPaymentId}`;
+
+/**
+ * Adds the ACH micro-deposit placeholder: an Authorization with the marker interactionId, which
+ * updatePaymentWithTransaction (braintree-payment.service.ts) later overwrites in place once the real Braintree
+ * transaction exists. Pending, never Initial: commercetools Checkout triggers Order creation from a non-Initial
+ * transaction.
+ *
+ * Only added if the payment has no Authorization yet — neither a placeholder from a prior attempt (a retry after a
+ * server-side success the client saw as a transient failure; addTransaction itself has no dedup key) nor a real one
+ * already written by transactionSale. Any state counts, since this connector never leaves a failed Authorization on a
+ * payment: a declined sale makes the shared transactionSale throw (Braintree success: false) before anything is
+ * written to commercetools.
+ */
+export const addPlaceholderActions = (payment: Payment): PaymentUpdateAction[] =>
+  payment.transactions.some((t) => t.type === 'Authorization')
+    ? []
+    : [
+        {
+          action: 'addTransaction',
+          transaction: {
+            type: 'Authorization',
+            state: 'Pending',
+            interactionId: buildPlaceholderInteractionId(payment.id),
+            amount: { centAmount: payment.amountPlanned.centAmount, currencyCode: payment.amountPlanned.currencyCode },
+          },
+        },
+      ];
 
 export const isPlaceholderInteractionId = (interactionId?: string): boolean =>
   !!interactionId?.startsWith(PLACEHOLDER_PREFIX);
@@ -81,51 +108,3 @@ export const isFailedOrVoided = (payment: Payment, transactionId: string): boole
       ((t.type === 'Authorization' && t.state === 'Failure') ||
         (t.type === 'CancelAuthorization' && t.state === 'Success')),
   );
-
-const ALLOWED_STATE_CHANGES: Record<TransactionState, TransactionState[]> = {
-  Initial: ['Pending', 'Success', 'Failure'],
-  Pending: ['Success', 'Failure'],
-  Failure: ['Success'],
-  Success: ['Failure'],
-};
-
-/**
- * What ctPaymentService.updatePayment({ transaction }) sends (connect-payments-sdk consolidateTransactionChanges), for
- * the transactions this processor records — always with a Braintree interactionId — so it can go into one raw CT call:
- * the transaction of that type and interactionId gets the new state when the SDK allows the change, otherwise
- * it's added (timestamp = now, as the SDK does).
- */
-export const buildTransactionActions = (
-  payment: Payment,
-  transaction: {
-    type: TransactionType;
-    amount: { centAmount: number; currencyCode: string };
-    interactionId?: string;
-    state: TransactionState;
-  },
-): PaymentUpdateAction[] => {
-  const matching = payment.transactions.filter(
-    (t) => t.type === transaction.type && !!transaction.interactionId && t.interactionId === transaction.interactionId,
-  );
-  if (matching.length > 1)
-    throw new Error(
-      `Multiple matching transactions found for payment ${payment.id}: ${transaction.type} ${transaction.interactionId}`,
-    );
-  const [existing] = matching;
-  if (!existing)
-    return [
-      {
-        action: 'addTransaction',
-        transaction: {
-          type: transaction.type,
-          amount: { centAmount: transaction.amount.centAmount, currencyCode: transaction.amount.currencyCode },
-          interactionId: transaction.interactionId,
-          state: transaction.state,
-          timestamp: new Date().toISOString(),
-        },
-      },
-    ];
-  return existing.state !== transaction.state && ALLOWED_STATE_CHANGES[existing.state].includes(transaction.state)
-    ? [{ action: 'changeTransactionState', transactionId: existing.id, state: transaction.state }]
-    : [];
-};
