@@ -100,6 +100,14 @@ On commercetools, the Authorization transaction carries the parent's id and each
 - The first capture of an Authorization's full amount uses `submitForSettlement`. No child is created, so the
   Authorization keeps a single Braintree transaction.
 - Any other capture uses `submitForPartialSettlement`, which creates a child.
+- `submitForPartialSettlement` requires partial settlement to be enabled for your Braintree merchant account, see
+  Braintree's
+  [Submit for partial settlement](https://developer.paypal.com/braintree/docs/reference/request/transaction/submit-for-partial-settlement/node).
+  Without it, Braintree refuses every capture except the first capture of an Authorization's full amount, and the
+  answer is rejected. Contact Braintree to enable it, or capture the full authorized amount.
+- The Payment Intents API requires an `amount` on every capture. A first capture of the Authorization's full amount
+  is still sent to Braintree without an amount (`submitForSettlement`), so it works without partial settlement — the
+  same as a `braintree-extension` capture request without an amount.
 - Whether an Authorization was captured before is decided from the payment's transactions: a full capture's Charge
   carries the Authorization's id, while a partial capture's Charge carries its child's id, which can't be attributed
   to an Authorization. So once any Authorization of the payment was captured partially, every later capture uses
