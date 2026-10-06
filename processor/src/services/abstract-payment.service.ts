@@ -201,24 +201,23 @@ export abstract class AbstractPaymentService {
    */
 
   public async modifyPayment(opts: ModifyPayment): Promise<PaymentIntentResponseSchemaDTO> {
-    let typeLookupError: string | undefined;
-    const [ctPayment, braintreePaymentTypeId] = await Promise.all([
+    const [ctPayment, typeLookup] = await Promise.all([
       this.ctPaymentService.getPayment({ id: opts.paymentId }),
-      getBraintreePaymentTypeId().catch((err) => {
-        typeLookupError = errorMessage(err);
-        return undefined;
-      }),
+      getBraintreePaymentTypeId().then(
+        (id) => ({ id }),
+        (err) => ({ error: errorMessage(err) }),
+      ),
     ]);
     const request = opts.data.actions[0];
     logger.info(`Received request to modify payment ${opts.paymentId} with action ${request.action}`);
-    if (!braintreePaymentTypeId)
+    if ('error' in typeLookup)
       return this.rejectPaymentIntent(
         ctPayment.id,
         request.action,
-        `could not look up the Braintree payment type: ${typeLookupError}`,
+        `could not look up the Braintree payment type: ${typeLookup.error}`,
         'error',
       );
-    if (!isBraintreePayment(ctPayment, braintreePaymentTypeId))
+    if (!isBraintreePayment(ctPayment, typeLookup.id))
       return this.rejectPaymentIntent(ctPayment.id, request.action, notBraintreePaymentMessage(ctPayment.id), 'error');
     switch (request.action) {
       case 'capturePayment': {
