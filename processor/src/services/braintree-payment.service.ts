@@ -66,6 +66,7 @@ import {
   mapRequestToBraintreeTransactionSale,
   transactionSale,
   mapBraintreeTransactionToCommercetoolsTransaction,
+  mapBraintreeVoidToCommercetoolsTransaction,
   mapBraintreeStatusToCommercetoolsTransactionState,
   submitForSettlement,
   getPaymentMethodHint,
@@ -182,6 +183,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     response,
     customFields,
     transactionTypeOverride,
+    recordedTransaction,
   }: {
     messageName: string;
     request: string | object;
@@ -189,8 +191,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
     response: Transaction;
     customFields?: CustomFieldsDraft;
     transactionTypeOverride?: TransactionType;
+    // recorded instead of the mapped one (void, see voidTransaction)
+    recordedTransaction?: ReturnType<typeof mapBraintreeTransactionToCommercetoolsTransaction>;
   }): Promise<void> {
-    const mappedTransaction = mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response);
+    const mappedTransaction =
+      recordedTransaction ?? mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response);
     const transaction = transactionTypeOverride
       ? { ...mappedTransaction, type: transactionTypeOverride }
       : mappedTransaction;
@@ -248,7 +253,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * Changes transactions already on the CT payment, in one raw CT call — ctPaymentService.updatePayment() can't
    * overwrite an existing interactionId, which the placeholder needs, so it would add a duplicate instead.
    * - placeholder of this type (ACH micro-deposit, see transaction.utils.ts) → the real state and Braintree id
-   * - Pending Charge of a voided transaction → Failure, since no settlement webhook will come (docs/Intents.md)
+   * - Pending Charge or Refund of a voided transaction → Failure, since no settlement webhook will come and a voided
+   *   refund never reached the customer (docs/Intents.md)
    * Checked on the snapshot first (no round trip in the common case), then on a fresh fetch for the version — so a
    * retryCTSync re-run finds nothing left to change and never repeats it.
    */
@@ -258,9 +264,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
     transaction: { type: TransactionType; state: TransactionState },
   ): Promise<void> {
     const isOwnPlaceholder = (t: Payment['transactions'][number]) => isPlaceholder(t, transaction.type);
-    const isVoidedCharge = (t: Payment['transactions'][number]) =>
-      response.status === 'voided' && t.type === 'Charge' && t.state === 'Pending' && t.interactionId === response.id;
-    if (!ctPayment.transactions.some((t) => isOwnPlaceholder(t) || isVoidedCharge(t))) return;
+    const isVoidedPending = (t: Payment['transactions'][number]) =>
+      response.status === 'voided' &&
+      (t.type === 'Charge' || t.type === 'Refund') &&
+      t.state === 'Pending' &&
+      t.interactionId === response.id;
+    if (!ctPayment.transactions.some((t) => isOwnPlaceholder(t) || isVoidedPending(t))) return;
 
     const payment = await this.ctPaymentService.getPayment({ id: ctPayment.id });
     if (payment.transactions.some(isOwnPlaceholder) && hasCancelledPlaceholder(payment)) {
@@ -274,7 +283,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           { action: 'changeTransactionState', transactionId: t.id, state: transaction.state },
           { action: 'changeTransactionInteractionId', transactionId: t.id, interactionId: response.id },
         ];
-      if (isVoidedCharge(t)) return [{ action: 'changeTransactionState', transactionId: t.id, state: 'Failure' }];
+      if (isVoidedPending(t)) return [{ action: 'changeTransactionState', transactionId: t.id, state: 'Failure' }];
       return [];
     });
     if (!actions.length) return;
@@ -1287,6 +1296,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
           ctPayment,
           response,
           customFields,
+          // backward compatibility with braintree-extension: a void is always recorded as a new CancelAuthorization also for a refund
+          recordedTransaction: mapBraintreeVoidToCommercetoolsTransaction(response, ctPayment.amountPlanned),
         }),
       operation,
       ctPayment.id,

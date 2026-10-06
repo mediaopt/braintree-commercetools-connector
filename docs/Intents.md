@@ -41,7 +41,9 @@ Full shape of an action, as sent to the Payment Intents API:
 - `cancelPayment` and `reversePayment` have no `transactionId`. To target a specific Braintree transaction (e.g. one
   of several partial captures), pass its Braintree transaction id as `merchantReference`.
 - A `transactionId` or `merchantReference` is resolved as follows:
-  - it matches a transaction on the payment → that transaction is the target
+  - it matches a transaction on the payment, of any type → that transaction is the target. Whether the operation
+    applies to it is Braintree's decision, as in `braintree-extension`; e.g. cancel or reverse with a refund's id voids
+    that refund while it's unsettled
   - otherwise → rejected
   - none given → the default target of the operation (see [Refund](#refund), [Cancel](#cancel), [Reverse](#reverse))
 - `capturePayment` always targets the payment's Authorization.
@@ -116,8 +118,10 @@ On commercetools, the Authorization transaction carries the parent's id and each
 
 ### After a void
 
-- If the voided transaction has a Pending Charge on commercetools, that Charge is moved to Failure, since no
-  settlement webhook will ever arrive for it.
+- The void is recorded as a new CancelAuthorization carrying the voided transaction's id, as in
+  `braintree-extension`, also when a refund was voided.
+- If the voided transaction has a Pending Charge or Refund on commercetools, it is moved to Failure, since no
+  settlement webhook will ever arrive for it (a voided refund never reached the customer).
 
 ### Payment status fields
 
