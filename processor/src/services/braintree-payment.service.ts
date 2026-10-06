@@ -6,7 +6,6 @@ import {
   Cart,
   Customer,
   Payment,
-  CustomFieldsDraft,
   Money,
 } from '@commercetools/connect-payments-sdk';
 
@@ -80,6 +79,12 @@ import {
   handleCustomTransactionFields,
   handleCustomFieldResponse,
   buildPspInteractions,
+  buildSetCustomFieldActions,
+  withBraintreeType,
+  getBraintreePaymentTypeId,
+  isBraintreePayment,
+  notBraintreePaymentMessage,
+  NOT_BRAINTREE_PAYMENT,
 } from '../utils/customEntities.utils';
 
 import {
@@ -114,6 +119,7 @@ import {
   hasPlaceholder,
   isFailedOrVoided,
   isPlaceholder,
+  buildTransactionActions,
   remainingOnOnlyCharge,
   withoutPlaceholders,
 } from '../utils/transaction.utils';
@@ -173,69 +179,114 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
-   * Helper method to ensure that all relevant fields will be included for update payment state with transaction involved
+   * Writes a CT payment update with retries (retryCTSync, never throws), one raw CT call per attempt: the first
+   * attempt builds the actions from the caller's payment (no fetch), a retry re-fetches. A stale snapshot can't write
+   * wrong actions: CT rejects its version (409) and the retry rebuilds them from the current payment.
+   * Returns the updated payment, or the given one if every attempt failed.
    */
+  private async syncPayment(
+    ctPayment: Payment,
+    buildActions: (payment: Payment) => PaymentUpdateAction[],
+    methodName: string,
+    syncContext: string,
+    maxAttempts?: number,
+  ): Promise<Payment> {
+    let snapshot: Payment | undefined = ctPayment;
+    let updated = ctPayment;
+    await retryCTSync(
+      async () => {
+        const payment = snapshot ?? (await this.ctPaymentService.getPayment({ id: ctPayment.id }));
+        snapshot = undefined;
+        const actions = buildActions(payment);
+        if (!actions.length) return;
+        updated = (
+          await paymentSDK.ctAPI.client
+            .payments()
+            .withId({ ID: ctPayment.id })
+            .post({ body: { version: payment.version, actions } })
+            .execute()
+        ).body as Payment;
+      },
+      methodName,
+      ctPayment.id,
+      syncContext,
+      maxAttempts,
+    );
+    return updated;
+  }
 
+  /**
+   * Records a Braintree operation that produced a transaction, in one raw CT call (see syncPayment) — what
+   * braintree-extension's payment.service records: the transaction, the interface interactions, its
+   * updatePaymentFields (status code/text, method) and {messageName}Response.
+   */
   private async updatePaymentWithTransaction({
     messageName,
     request,
     ctPayment,
     response,
-    customFields,
+    customFields = {},
     transactionTypeOverride,
     recordedTransaction,
+    methodName,
+    syncContext = formatBraintreeSyncContext(response),
+    maxAttempts,
   }: {
     messageName: string;
     request: string | object;
     ctPayment: Payment;
     response: Transaction;
-    customFields?: CustomFieldsDraft;
+    // {messageName}Response etc., written with setCustomField (see buildSetCustomFieldActions)
+    customFields?: Record<string, string>;
     transactionTypeOverride?: TransactionType;
     // recorded instead of the mapped one (void, see voidTransaction)
     recordedTransaction?: ReturnType<typeof mapBraintreeTransactionToCommercetoolsTransaction>;
+    // retryCTSync log name and context
+    methodName: string;
+    syncContext?: string;
+    maxAttempts?: number;
   }): Promise<void> {
-    const mappedTransaction =
-      recordedTransaction ?? mapBraintreeTransactionToCommercetoolsTransaction(ctPayment, response);
-    const transaction = transactionTypeOverride
-      ? { ...mappedTransaction, type: transactionTypeOverride }
-      : mappedTransaction;
-    const hadPlaceholder = hasPlaceholder(ctPayment, transaction.type);
-    await this.updateCtPaymentTransactions(ctPayment, response, transaction);
-    await this.ctPaymentService.updatePayment({
-      id: ctPayment.id,
-      customFields,
-      pspInteractions: buildPspInteractions(messageName, request, response),
-      ...(hadPlaceholder ? {} : { transaction }),
-      pspReference: response.id,
-    });
-    // Braintree's real status can naturally map to something other than the CT Checkout override
-    // (e.g. autocapture -> Charge). Record that too (same interactionId) so CT's amountPaid and
-    // findActiveCharges (refund/reverse targets) see Braintree's actual state,
-    // not just the Authorization entry above. Skipped for failed sales — a single Authorization/Failure
-    // record is enough; there's no additional progression to reflect.
-    if (
-      transactionTypeOverride &&
-      mappedTransaction.type !== transactionTypeOverride &&
-      mappedTransaction.state !== 'Failure'
-    ) {
-      await this.ctPaymentService.updatePayment({ id: ctPayment.id, transaction: mappedTransaction });
-    }
-    // Backward compat with extension's updatePaymentFields (common-connect/src/utils/response.utils.ts):
-    // setStatusInterfaceCode, setStatusInterfaceText, setMethodInfoMethod are not supported by the CT
-    // Checkout SDK and must be applied via a raw CT API call. Own retryCTSync block so a failure here
-    // does not cause the first update above to be re-attempted by the outer retryCTSync.
     const paymentMethodHint = getPaymentMethodHint(response);
-    await retryCTSync(
-      () =>
-        this.syncCtPaymentStatus({
-          ctPaymentId: ctPayment.id,
-          interfaceCode: response.status,
-          interfaceText: response.status,
-          method: `${response.paymentInstrumentType}${paymentMethodHint ? ` (${paymentMethodHint})` : ''}`,
-        }),
-      `${messageName}:statusSync`,
-      ctPayment.id,
-      formatBraintreeSyncContext(response),
+    await this.syncPayment(
+      ctPayment,
+      (payment) => {
+        const mappedTransaction =
+          recordedTransaction ?? mapBraintreeTransactionToCommercetoolsTransaction(payment, response);
+        const transaction = transactionTypeOverride
+          ? { ...mappedTransaction, type: transactionTypeOverride }
+          : mappedTransaction;
+        return [
+          ...this.existingTransactionActions(payment, response, transaction),
+          // the placeholder of this type was just overwritten with this transaction
+          ...(hasPlaceholder(payment, transaction.type) ? [] : buildTransactionActions(payment, transaction)),
+          // Braintree's real status can naturally map to something other than the CT Checkout override
+          // (e.g. autocapture -> Charge). Record that too (same interactionId) so CT's amountPaid and
+          // findActiveCharges (refund/reverse targets) see Braintree's actual state,
+          // not just the Authorization entry above. Skipped for failed sales — a single Authorization/Failure
+          // record is enough; there's no additional progression to reflect.
+          ...(transactionTypeOverride &&
+          mappedTransaction.type !== transactionTypeOverride &&
+          mappedTransaction.state !== 'Failure'
+            ? buildTransactionActions(payment, mappedTransaction)
+            : []),
+          // the SDK's pspReference
+          ...(payment.interfaceId ? [] : [{ action: 'setInterfaceId' as const, interfaceId: response.id }]),
+          ...buildPspInteractions(messageName, request, response).map(
+            (interaction): PaymentUpdateAction => ({ action: 'addInterfaceInteraction', ...interaction }),
+          ),
+          // Backward compat with extension's updatePaymentFields (common-connect/src/utils/response.utils.ts)
+          { action: 'setStatusInterfaceCode', interfaceCode: response.status },
+          { action: 'setStatusInterfaceText', interfaceText: response.status },
+          {
+            action: 'setMethodInfoMethod',
+            method: `${response.paymentInstrumentType}${paymentMethodHint ? ` (${paymentMethodHint})` : ''}`,
+          },
+          ...buildSetCustomFieldActions(customFields),
+        ];
+      },
+      methodName,
+      syncContext,
+      maxAttempts,
     );
   }
 
@@ -250,34 +301,29 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
-   * Changes transactions already on the CT payment, in one raw CT call — ctPaymentService.updatePayment() can't
-   * overwrite an existing interactionId, which the placeholder needs, so it would add a duplicate instead.
+   * Changes transactions already on the CT payment — ctPaymentService.updatePayment() can't overwrite an existing
+   * interactionId, which the placeholder needs, so it would add a duplicate instead.
    * - placeholder of this type (ACH micro-deposit, see transaction.utils.ts) → the real state and Braintree id
    * - Pending Charge or Refund of a voided transaction → Failure, since no settlement webhook will come and a voided
    *   refund never reached the customer (docs/Intents.md)
-   * Checked on the snapshot first (no round trip in the common case), then on a fresh fetch for the version — so a
-   * retryCTSync re-run finds nothing left to change and never repeats it.
    */
-  private async updateCtPaymentTransactions(
-    ctPayment: Payment,
+  private existingTransactionActions(
+    payment: Payment,
     response: Transaction,
     transaction: { type: TransactionType; state: TransactionState },
-  ): Promise<void> {
+  ): PaymentUpdateAction[] {
     const isOwnPlaceholder = (t: Payment['transactions'][number]) => isPlaceholder(t, transaction.type);
     const isVoidedPending = (t: Payment['transactions'][number]) =>
       response.status === 'voided' &&
       (t.type === 'Charge' || t.type === 'Refund') &&
       t.state === 'Pending' &&
       t.interactionId === response.id;
-    if (!ctPayment.transactions.some((t) => isOwnPlaceholder(t) || isVoidedPending(t))) return;
-
-    const payment = await this.ctPaymentService.getPayment({ id: ctPayment.id });
     if (payment.transactions.some(isOwnPlaceholder) && hasCancelledPlaceholder(payment)) {
       logger.error(
-        `${CONCURRENT_CANCEL_AND_SALE_ISSUE} on payment ${ctPayment.id}, Braintree transaction ${response.id}`,
+        `${CONCURRENT_CANCEL_AND_SALE_ISSUE} on payment ${payment.id}, Braintree transaction ${response.id}`,
       );
     }
-    const actions = payment.transactions.flatMap((t): PaymentUpdateAction[] => {
+    return payment.transactions.flatMap((t): PaymentUpdateAction[] => {
       if (isOwnPlaceholder(t))
         return [
           { action: 'changeTransactionState', transactionId: t.id, state: transaction.state },
@@ -286,12 +332,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
       if (isVoidedPending(t)) return [{ action: 'changeTransactionState', transactionId: t.id, state: 'Failure' }];
       return [];
     });
-    if (!actions.length) return;
-    await paymentSDK.ctAPI.client
-      .payments()
-      .withId({ ID: ctPayment.id })
-      .post({ body: { version: payment.version, actions } })
-      .execute();
   }
 
   /**
@@ -449,20 +489,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
-   * Rejected answer for an operation impossible in the payment's current state (warn) or after a failure (error) —
-   * see docs/Intents.md "How this connector answers".
-   */
-  private rejectPaymentIntent(
-    paymentId: string,
-    operation: string,
-    reason: string,
-    level: 'warn' | 'error' = 'warn',
-  ): PaymentIntentResponseSchemaDTO {
-    logger[level](`${operation}: rejected, paymentId: ${paymentId} — ${reason}`);
-    return { outcome: PaymentModificationStatus.REJECTED };
-  }
-
-  /**
    * Failed Braintree call → recorded on the payment ({messageName}Response + pspInteractions), logged as error,
    * rejected — see docs/Intents.md "How this connector answers".
    */
@@ -481,19 +507,30 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }): Promise<PaymentIntentResponseSchemaDTO> {
     const message = `Braintree call failed: ${errorMessage(err)}`;
     const failure = { success: false, message };
-    await retryCTSync(
-      async () => {
-        await this.ctPaymentService.updatePayment({
-          id: ctPayment.id,
-          customFields: handleCustomFieldResponse(messageName, failure, ctPayment),
-          pspInteractions: buildPspInteractions(messageName, request, failure),
-        });
-      },
-      `${messageName}:failureRecord`,
-      ctPayment.id,
-      '',
-    );
+    await this.recordResponse(ctPayment, messageName, request, failure, `${messageName}:failureRecord`, '');
     return this.rejectPaymentIntent(ctPayment.id, operation, message, 'error');
+  }
+
+  /**
+   * Records a Braintree call that leaves no transaction on the payment ({messageName}Response + pspInteractions), in
+   * one raw CT call (see syncPayment). Returns the updated payment, so a caller writing again starts from the current
+   * version.
+   */
+  private recordResponse(
+    ctPayment: Payment,
+    messageName: string,
+    request: string | object,
+    response: string | object,
+    methodName: string,
+    syncContext: string,
+  ): Promise<Payment> {
+    const actions: PaymentUpdateAction[] = [
+      ...buildSetCustomFieldActions(handleCustomFieldResponse(messageName, response)),
+      ...buildPspInteractions(messageName, request, response).map(
+        (interaction): PaymentUpdateAction => ({ action: 'addInterfaceInteraction', ...interaction }),
+      ),
+    ];
+    return this.syncPayment(ctPayment, () => actions, methodName, syncContext);
   }
 
   /**
@@ -709,12 +746,16 @@ export class BraintreePaymentService extends AbstractPaymentService {
         : undefined;
 
       // Execute all optional data fetching in parallel
-      const [customer, shippingMethodsResult, amountPlanned, existingPayment] = await Promise.all([
-        ctCart.customerId ? this.braintreeCustomerService.getCtCustomer(ctCart.customerId) : Promise.resolve(undefined),
-        isExpress ? this.getShippingMethods(ctCart.id) : Promise.resolve([]),
-        this.ctCartService.getPaymentAmount({ cart: ctCart }), // PURE_VAULT_DISABLED: isPureVault ? ctCart.totalPrice :
-        lastPaymentRef ? this.ctPaymentService.getPayment({ id: lastPaymentRef.id }) : Promise.resolve(undefined),
-      ]);
+      const [customer, shippingMethodsResult, amountPlanned, existingPayment, braintreePaymentTypeId] =
+        await Promise.all([
+          ctCart.customerId
+            ? this.braintreeCustomerService.getCtCustomer(ctCart.customerId)
+            : Promise.resolve(undefined),
+          isExpress ? this.getShippingMethods(ctCart.id) : Promise.resolve([]),
+          this.ctCartService.getPaymentAmount({ cart: ctCart }), // PURE_VAULT_DISABLED: isPureVault ? ctCart.totalPrice :
+          lastPaymentRef ? this.ctPaymentService.getPayment({ id: lastPaymentRef.id }) : Promise.resolve(undefined),
+          getBraintreePaymentTypeId(),
+        ]);
 
       /* PURE_VAULT_DISABLED start
     this.validateCustomerRequiredData(customer, isPureVault);
@@ -724,7 +765,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
       const shippingMethods = shippingMethodsResult || [];
 
       const { payment: reusedPayment, tokenRecentlyUpdated } = this.existingPaymentAndToken(
-        existingPayment,
+        // only this connector's payment is reused — the cart may hold other connectors' payments (e.g. gift cards)
+        existingPayment && isBraintreePayment(existingPayment, braintreePaymentTypeId) ? existingPayment : undefined,
         amountPlanned,
       );
 
@@ -757,7 +799,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         !tokenRecentlyUpdated
           ? this.ctPaymentService.updatePayment({
               id: ctPayment.id,
-              customFields: handleCustomFieldResponse('getClientToken', clientToken, ctPayment),
+              customFields: withBraintreeType(handleCustomFieldResponse('getClientToken', clientToken), ctPayment),
 
               pspInteractions: buildPspInteractions(
                 'getClientToken',
@@ -978,16 +1020,21 @@ export class BraintreePaymentService extends AbstractPaymentService {
       localPaymentId,
       venmoUsername,
     );
-    const [updatedExpress, ctPayment] = await Promise.all([
+    const [updatedExpress, ctPayment, braintreePaymentTypeId] = await Promise.all([
       braintreePaymentDetails?.expressShippingChanged
         ? this.ctCartService
             .getCart({ id: getCartIdFromContext() })
             .then(async (cart) => cart && { cart, amountPlanned: await this.expressCartAmount(cart) })
         : Promise.resolve(undefined),
       this.ctPaymentService.getPayment({ id: ctPaymentId }),
+      getBraintreePaymentTypeId(),
     ]);
     if (!ctPayment) {
       throw new ErrorInvalidOperation(`payment is missing for transactionSale payment ${ctPaymentId}}`);
+    }
+    if (!isBraintreePayment(ctPayment, braintreePaymentTypeId)) {
+      logger.error(`transactionSale: ${notBraintreePaymentMessage(ctPaymentId)}`);
+      throw new ErrorInvalidOperation(NOT_BRAINTREE_PAYMENT(ctPaymentId));
     }
     // Unverified ACH payment whose Order was cancelled before the micro-deposits were verified (cancelPlaceholderPayment)
     if (hasCancelledPlaceholder(ctPayment)) {
@@ -1091,7 +1138,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       },
       { fieldName: 'venmoUsername', enablerValue: venmoUsername, braintreeValue: response.venmoAccount?.username },
     ]);
-    const customFields = handleCustomFieldResponse('transactionSale', response, ctPayment);
+    const customFields = handleCustomFieldResponse('transactionSale', response);
     handleCustomTransactionFields(customFields, response, ctPayment);
     // Fire-and-forget: customer update has no webhook fallback, so retries are handled
     // internally in linkBraintreeCustomerId, but it does not block the transaction response.
@@ -1119,29 +1166,24 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // so a CT failure still returns the Braintree result. Local payments have a notifications fallback
     // (local_payment_completed webhook, see notifications.controller.ts → handleLocalPaymentCompleted), so 1 attempt
     // is sufficient; non-local methods get full retry with backoff, no notifications fallback
-    const ctSyncFn = () =>
-      this.updatePaymentWithTransaction({
-        messageName: 'transactionSale',
-        request: transactionRequest,
-        ctPayment,
-        response,
-        customFields,
-        // CT Checkout creates the order when it sees an Authorization type transaction on the payment.
-        // The Adyen reference connector hardcodes this for the same reason.
-        // settlement/refundPayment/void call updatePaymentWithTransaction without this override
-        // and correctly produce Charge/Refund/CancelAuthorization types respectively.
-        transactionTypeOverride: 'Authorization',
-      });
-    await retryCTSync(
-      ctSyncFn,
-      'transactionSale',
-      ctPaymentId,
-      formatBraintreeSyncContext(response, [paypalOrderId && `paypalOrderId: ${paypalOrderId}`]),
+    await this.updatePaymentWithTransaction({
+      messageName: 'transactionSale',
+      request: transactionRequest,
+      ctPayment,
+      response,
+      customFields,
+      // CT Checkout creates the order when it sees an Authorization type transaction on the payment.
+      // The Adyen reference connector hardcodes this for the same reason.
+      // settlement/refundPayment/void call updatePaymentWithTransaction without this override
+      // and correctly produce Charge/Refund/CancelAuthorization types respectively.
+      transactionTypeOverride: 'Authorization',
+      methodName: 'transactionSale',
+      syncContext: formatBraintreeSyncContext(response, [paypalOrderId && `paypalOrderId: ${paypalOrderId}`]),
       // Local payments have a webhook fallback (local_payment_completed → handleLocalPaymentCompleted
       // in braintree-notifications), so 1 attempt is sufficient — the webhook handles recovery if
       // CT sync fails here. Non-local payments have no fallback, so full retries apply.
-      localPaymentId ? 1 : undefined,
-    );
+      maxAttempts: localPaymentId ? 1 : undefined,
+    });
     if (response.paymentInstrumentType === 'venmo_account' && !venmoUsername) {
       log.warn(`transactionSale: Venmo username missing in request for payment ${ctPayment.id}`);
     }
@@ -1181,18 +1223,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
       });
     }
     // CT sync — Braintree already settled; awaited (retryCTSync never throws), no notifications fallback
-    await retryCTSync(
-      () =>
-        this.updatePaymentWithTransaction({
-          messageName: 'submitForSettlement',
-          request: braintreeRequest,
-          ctPayment,
-          response,
-        }),
-      'settlement',
-      ctPayment.id,
-      formatBraintreeSyncContext(response),
-    );
+    await this.updatePaymentWithTransaction({
+      messageName: 'submitForSettlement',
+      request: braintreeRequest,
+      ctPayment,
+      response,
+      customFields: handleCustomFieldResponse('submitForSettlement', response),
+      methodName: 'settlement',
+    });
     logger.info(`settlement: success, paymentId: ${ctPayment.id}`);
     return this.toPaymentIntentResponse(response);
   }
@@ -1238,20 +1276,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
       });
     }
     // CT sync — Braintree already refunded; awaited (retryCTSync never throws), no notifications fallback
-    const customFields = handleCustomFieldResponse('refund', response, ctPayment);
-    await retryCTSync(
-      () =>
-        this.updatePaymentWithTransaction({
-          messageName: 'refund',
-          request: { relevantTransactionId, amount },
-          ctPayment,
-          response,
-          customFields,
-        }),
-      operation,
-      ctPayment.id,
-      formatBraintreeSyncContext(response),
-    );
+    await this.updatePaymentWithTransaction({
+      messageName: 'refund',
+      request: { relevantTransactionId, amount },
+      ctPayment,
+      response,
+      customFields: handleCustomFieldResponse('refund', response),
+      methodName: operation,
+    });
     logger.info(`${operation}: refund success, paymentId: ${ctPayment.id}`);
     return this.toPaymentIntentResponse(response);
   }
@@ -1287,22 +1319,18 @@ export class BraintreePaymentService extends AbstractPaymentService {
       });
     }
     // CT sync — Braintree already voided; awaited (retryCTSync never throws), no notifications fallback
-    const customFields = handleCustomFieldResponse('void', response, ctPayment);
-    await retryCTSync(
-      () =>
-        this.updatePaymentWithTransaction({
-          messageName: 'void',
-          request: { transactionId },
-          ctPayment,
-          response,
-          customFields,
-          // backward compatibility with braintree-extension: a void is always recorded as a new CancelAuthorization also for a refund
-          recordedTransaction: mapBraintreeVoidToCommercetoolsTransaction(response, ctPayment.amountPlanned),
-        }),
-      operation,
-      ctPayment.id,
-      formatBraintreeSyncContext(response),
-    );
+    await this.updatePaymentWithTransaction({
+      messageName: 'void',
+      request: { transactionId },
+      ctPayment,
+      response,
+      customFields: handleCustomFieldResponse('void', response),
+      // backward compatibility with braintree-extension: a void is always recorded as a new CancelAuthorization, also
+      // for a voided refund — mapBraintreeTransactionToCommercetoolsTransaction would instead mark the existing Refund
+      // as Success, i.e. as money returned to the customer, though Braintree cancelled that refund
+      recordedTransaction: mapBraintreeVoidToCommercetoolsTransaction(response, ctPayment.amountPlanned),
+      methodName: operation,
+    });
     logger.info(`${operation}: void success, paymentId: ${ctPayment.id}`);
     return this.toPaymentIntentResponse(response);
   }
@@ -1386,12 +1414,22 @@ export class BraintreePaymentService extends AbstractPaymentService {
         err,
       });
     }
+    // recorded as on failure, and as braintree-extension records its findTransaction lookup; the void/refund below
+    // continues from the payment it returns (current version)
+    const recordedPayment = await this.recordResponse(
+      ctPayment,
+      'findTransaction',
+      { transactionId },
+      braintreeTransaction,
+      'findTransaction:record',
+      formatBraintreeSyncContext(braintreeTransaction),
+    );
     const { status } = braintreeTransaction;
     if (status === 'settling' || status === 'settled' || status === 'settlement_confirmed') {
-      return this.refundTransaction(ctPayment, transactionId, undefined, 'reversePayment');
+      return this.refundTransaction(recordedPayment, transactionId, undefined, 'reversePayment');
     }
     if (status === 'authorized' || status === 'submitted_for_settlement' || status === 'settlement_pending') {
-      return this.voidTransaction(ctPayment, transactionId, 'reversePayment');
+      return this.voidTransaction(recordedPayment, transactionId, 'reversePayment');
     }
     return this.rejectPaymentIntent(
       ctPayment.id,

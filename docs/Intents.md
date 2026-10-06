@@ -65,6 +65,12 @@ The outcome values are defined by commercetools (see the link above). This conne
   `findTransactionResponse`) plus pspInteractions, best effort: if that commercetools write fails, the answer is
   still rejected and only the log remains. The Braintree call isn't retried, and there's no follow-up lookup on
   Braintree.
+- **The payment doesn't carry the Braintree payment custom type**, which this connector sets when it creates a
+  payment: either another system created the payment, or its type was overwritten later. The answer is rejected and
+  logged with `logger.error`. If you are sure it's a Braintree checkout payment with a missing type, set that type
+  with a raw commercetools call, (see `braintree-extension`). The checkout flow only sets one type for payment and
+  it is the Braintree type on creation. So if this type is overwritten by some other part of your system it is your
+  responsibility to prevent the override in the future.
 - **The operation is impossible in the payment's current state** (nothing suitable to act on, already fully
   refunded, a `transactionId` or `merchantReference` that doesn't belong to the payment, more than one capture to refund or
   reverse without a target, a Braintree status that can't be reversed). The answer is rejected, logged with `logger.warn`.

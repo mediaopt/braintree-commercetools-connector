@@ -1,5 +1,5 @@
 import { Payment } from '@commercetools/connect-payments-sdk';
-import { Transaction, TransactionType } from '@commercetools/platform-sdk';
+import { PaymentUpdateAction, Transaction, TransactionState, TransactionType } from '@commercetools/platform-sdk';
 import { findSuitableTransactionId } from 'common-connect/dist';
 
 const PLACEHOLDER_PREFIX = 'BraintreePlaceholder: ';
@@ -81,3 +81,51 @@ export const isFailedOrVoided = (payment: Payment, transactionId: string): boole
       ((t.type === 'Authorization' && t.state === 'Failure') ||
         (t.type === 'CancelAuthorization' && t.state === 'Success')),
   );
+
+const ALLOWED_STATE_CHANGES: Record<TransactionState, TransactionState[]> = {
+  Initial: ['Pending', 'Success', 'Failure'],
+  Pending: ['Success', 'Failure'],
+  Failure: ['Success'],
+  Success: ['Failure'],
+};
+
+/**
+ * What ctPaymentService.updatePayment({ transaction }) sends (connect-payments-sdk consolidateTransactionChanges), for
+ * the transactions this processor records — always with a Braintree interactionId — so it can go into one raw CT call:
+ * the transaction of that type and interactionId gets the new state when the SDK allows the change, otherwise
+ * it's added (timestamp = now, as the SDK does).
+ */
+export const buildTransactionActions = (
+  payment: Payment,
+  transaction: {
+    type: TransactionType;
+    amount: { centAmount: number; currencyCode: string };
+    interactionId?: string;
+    state: TransactionState;
+  },
+): PaymentUpdateAction[] => {
+  const matching = payment.transactions.filter(
+    (t) => t.type === transaction.type && !!transaction.interactionId && t.interactionId === transaction.interactionId,
+  );
+  if (matching.length > 1)
+    throw new Error(
+      `Multiple matching transactions found for payment ${payment.id}: ${transaction.type} ${transaction.interactionId}`,
+    );
+  const [existing] = matching;
+  if (!existing)
+    return [
+      {
+        action: 'addTransaction',
+        transaction: {
+          type: transaction.type,
+          amount: { centAmount: transaction.amount.centAmount, currencyCode: transaction.amount.currencyCode },
+          interactionId: transaction.interactionId,
+          state: transaction.state,
+          timestamp: new Date().toISOString(),
+        },
+      },
+    ];
+  return existing.state !== transaction.state && ALLOWED_STATE_CHANGES[existing.state].includes(transaction.state)
+    ? [{ action: 'changeTransactionState', transactionId: existing.id, state: transaction.state }]
+    : [];
+};

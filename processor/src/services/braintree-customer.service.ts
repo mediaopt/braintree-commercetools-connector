@@ -1,12 +1,7 @@
 /**
  * See also braintree-extension customer service.
  */
-import {
-  Customer,
-  CustomerSetCustomFieldAction,
-  CustomerUpdateAction,
-  ErrorInvalidOperation,
-} from '@commercetools/connect-payments-sdk';
+import { Customer, CustomerUpdateAction, ErrorInvalidOperation } from '@commercetools/connect-payments-sdk';
 
 import {
   createCustomer,
@@ -28,6 +23,7 @@ PURE_VAULT_DISABLED end */
 import { log } from '../libs/logger';
 
 import { getConfig } from '../config/config';
+import { getTypeId } from '../utils/customEntities.utils';
 
 import { DefaultCommercetoolsAPI } from '@commercetools/connect-payments-sdk/dist/commercetools/api/root-api';
 
@@ -90,15 +86,33 @@ export class BraintreeCustomerService {
   public async linkBraintreeCustomerId(ctCustomerId: string, braintreeCustomerId: string): Promise<void> {
     const MAX_RETRIES = 3;
     const RETRY_DELAY_MS = 1000; //timing selected based on permitted time for resolve for payment connector operations
+    const { customerTypeKey } = getConfig();
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      const ctCustomer = await this.getCtCustomer(ctCustomerId);
+      const [ctCustomer, customerTypeId] = await Promise.all([
+        this.getCtCustomer(ctCustomerId),
+        getTypeId(customerTypeKey).catch((err) => {
+          log.warn(`linkBraintreeCustomerId: could not resolve the customer type ${customerTypeKey}`, { error: err });
+          return undefined;
+        }),
+      ]);
       if (!ctCustomer || ctCustomer.custom?.fields?.braintreeCustomerId) return;
-      const action: CustomerSetCustomFieldAction = {
-        action: 'setCustomField',
-        name: 'braintreeCustomerId',
-        value: braintreeCustomerId,
-      };
-      const result = await this.updateCtCustomer(ctCustomer.id, ctCustomer.version, [action]);
+      // Never replace a merchant's own customer type — braintree-extension doesn't act on such a customer either;
+      // the self-heal lookup (findExistingBraintreeCustomerId) still finds the Braintree customer (same id)
+      if (customerTypeId && ctCustomer.custom && ctCustomer.custom.type.id !== customerTypeId) {
+        log.warn(
+          `linkBraintreeCustomerId: customer ${ctCustomerId} has another custom type, braintreeCustomerId not stored`,
+        );
+        return;
+      }
+      // No custom type yet (e.g. braintree-extension not installed): set the Braintree customer type
+      const action: CustomerUpdateAction = ctCustomer.custom
+        ? { action: 'setCustomField', name: 'braintreeCustomerId', value: braintreeCustomerId }
+        : {
+            action: 'setCustomType',
+            type: { typeId: 'type', key: customerTypeKey },
+            fields: { braintreeCustomerId },
+          };
+      const result = customerTypeId && (await this.updateCtCustomer(ctCustomer.id, ctCustomer.version, [action]));
       if (result) return;
       log.warn(`linkBraintreeCustomerId: attempt ${attempt}/${MAX_RETRIES} failed for customer ${ctCustomerId}`);
       if (attempt < MAX_RETRIES) await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));

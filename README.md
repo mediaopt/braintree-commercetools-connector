@@ -208,7 +208,13 @@ correspondingly.
 
 - `cd common-connect`
 - run `npm install` to install the dependencies
-- run `build` to install the dependencies
+- run `npm run build` to build the package
+- `cd ../processor`
+- run `npm install` and `npm run build`
+- run `npm run connector:post-deploy` to register the commercetools custom fields the processor writes. commercetools
+  Connect runs it on every deployment; locally, run it after the first setup and after every update. The processor
+  records a payment update in one commercetools call, so if a field added by an update (e.g. `findTransactionResponse`)
+  is missing, commercetools rejects the whole update, including the transaction.
 - `cd ..`
 - run `docker compose up` to start the local JWT mock server, enabler and processor.
 
