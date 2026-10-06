@@ -20,6 +20,7 @@ import {
 } from "../services/types";
 
 import {
+  BraintreeLineItem,
   CreatePaymentResponse,
   ExpressClientTokenResponse,
   PaymentInfo,
@@ -60,16 +61,23 @@ type PaymentContextT = {
   paymentInfo: PaymentInfo;
   vaultedPaymentMethods: StoredPaymentMethod[];
   handleGetVaultedPaymentMethods: () => Promise<StoredPaymentMethod[]>;
-  // return shape mirrors UpdateCartShippingResponseSchemaDTO in processor/src/dtos/braintree-payment.dto.ts
   updateCartShipping: (
     newShippingMethodId: string,
     address?: ChangeShippingRequest["address"],
-  ) => Promise<{
-    braintreeAmount: string;
-    amountBreakdown: PayPalCheckoutUpdatePaymentOptions["amountBreakdown"]; //the actually required fields are handled at the processor side
-  }>;
+  ) => Promise<UpdateCartShippingResult>;
   braintreeCustomerId: string;
   requestHeader: RequestHeader;
+};
+
+// mirrors UpdateCartShippingResponseSchemaDTO in processor/src/dtos/braintree-payment.dto.ts — all amounts are computed
+// by the processor and forwarded to Braintree as they are
+type UpdateCartShippingResult = {
+  braintreeAmount: string;
+  shippingAmount: string;
+  braintreeBreakdown?: {
+    lineItems: BraintreeLineItem[];
+    amountBreakdown: PayPalCheckoutUpdatePaymentOptions["amountBreakdown"];
+  };
 };
 
 const PaymentInfoInitialObject: PaymentInfo = {
@@ -84,7 +92,9 @@ const PaymentContext = createContext<PaymentContextT>({
   handleTransactionSale: () => Promise.resolve(),
   //PURE_VAULT_DISABLED handlePureVault: () => Promise.resolve(),
   createExpressPayment: () =>
-    Promise.reject(new Error("createExpressPayment called outside PaymentProvider")),
+    Promise.reject(
+      new Error("createExpressPayment called outside PaymentProvider"),
+    ),
   paymentInfo: PaymentInfoInitialObject,
   vaultedPaymentMethods: [],
   handleGetVaultedPaymentMethods: () =>
@@ -92,15 +102,7 @@ const PaymentContext = createContext<PaymentContextT>({
   updateCartShipping: () =>
     Promise.resolve({
       braintreeAmount: "",
-      amountBreakdown: {
-        itemTotal: "0.00",
-        taxTotal: "0.00",
-        shipping: "0.00",
-        discount: "0.00",
-        handling: "0.00",
-        insurance: "0.00",
-        shippingDiscount: "0.00",
-      },
+      shippingAmount: "0.00",
     }),
   braintreeCustomerId: "",
   requestHeader: {},
@@ -261,7 +263,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
             paymentInfo.braintreeLineItems,
           braintreeShipping:
             incomingDetails?.braintreeShipping ?? paymentInfo.braintreeShipping,
-          extraShippingCost: incomingDetails?.extraShippingCost,
+          expressShippingChanged: incomingDetails?.expressShippingChanged,
         },
         ...rest,
       };
@@ -333,11 +335,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         requestHeader,
         updateCartShippingUrl,
         { newShippingMethodId, address },
-        // response shape mirrors UpdateCartShippingResponseSchemaDTO in processor/src/dtos/braintree-payment.dto.ts
-      )) as {
-        braintreeAmount: string;
-        amountBreakdown: PayPalCheckoutUpdatePaymentOptions["amountBreakdown"];
-      };
+      )) as UpdateCartShippingResult;
     };
 
     return {

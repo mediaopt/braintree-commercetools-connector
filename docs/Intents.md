@@ -30,21 +30,25 @@ Full shape of an action, as sent to the Payment Intents API:
     "centAmount": 10000,
     "currencyCode": "EUR"
   },
-  "merchantReference": "example-reference"
+  "merchantReference": "<Braintree transaction id>"
 }
 ```
 
 - `amount` is required by, and supported only for, `capturePayment` and `refundPayment`. If you need an amount for
   other actions, request amount support from commercetools first, then please open an issue in this repository.
 - `transactionId` is optional and used only by `refundPayment`. It's the Braintree transaction id of the capture to
-  refund.
+  refund. `refundPayment` doesn't use `merchantReference`.
 - `cancelPayment` and `reversePayment` have no `transactionId`. To target a specific Braintree transaction (e.g. one
   of several partial captures), pass its Braintree transaction id as `merchantReference`.
-- A `transactionId` or `merchantReference` is resolved as follows:
-  - it matches a transaction on the payment → that transaction is the target
+- `capturePayment` targets an Authorization: the one whose Braintree transaction id is given as `merchantReference`,
+  otherwise the payment's last Authorization. A `merchantReference` that isn't an Authorization of the payment →
+  rejected.
+- For refund, cancel and reverse, a `transactionId` or `merchantReference` is resolved as follows:
+  - it matches a transaction on the payment, of any type → that transaction is the target. Whether the operation
+    applies to it is Braintree's decision, as in `braintree-extension`; e.g. cancel or reverse with a refund's id voids
+    that refund while it's unsettled
   - otherwise → rejected
   - none given → the default target of the operation (see [Refund](#refund), [Cancel](#cancel), [Reverse](#reverse))
-- `capturePayment` always targets the payment's Authorization.
 - Using the right Payment Intents action with the right parameters is the merchant's responsibility. The connector
   doesn't validate what the merchant sends, e.g. whether `amount` and `currencyCode` match the payment. Merchants
   who want the connector to handle a full capture or refund automatically can use the `braintree-extension`
@@ -63,9 +67,16 @@ The outcome values are defined by commercetools (see the link above). This conne
   `findTransactionResponse`) plus pspInteractions, best effort: if that commercetools write fails, the answer is
   still rejected and only the log remains. The Braintree call isn't retried, and there's no follow-up lookup on
   Braintree.
+- **The payment doesn't carry the Braintree payment custom type**, which this connector sets when it creates a
+  payment: either another system created the payment, or its type was overwritten later. The answer is rejected and
+  logged with `logger.error`. If you are sure it's a Braintree checkout payment with a missing type, set that type
+  with a raw commercetools call, (see `braintree-extension`). The checkout flow only sets one type for payment and
+  it is the Braintree type on creation. So if this type is overwritten by some other part of your system it is your
+  responsibility to prevent the override in the future.
 - **The operation is impossible in the payment's current state** (nothing suitable to act on, already fully
-  refunded, a `transactionId` or `merchantReference` that doesn't belong to the payment, more than one capture to refund or
-  reverse without a target, a Braintree status that can't be reversed). The answer is rejected, logged with `logger.warn`.
+  refunded, a `transactionId` or `merchantReference` that doesn't belong to the payment, a capture `merchantReference`
+  that isn't an Authorization of the payment, more than one capture to refund or reverse without a target, a Braintree status that
+  can't be reversed). The answer is rejected, logged with `logger.warn`.
 - **Checked on commercetools only.** Before calling Braintree, an operation is rejected (`logger.warn`) when the
   payment itself grants it can't succeed:
   - refund and reverse: the target is the payment's only Charge and its Success and Pending Refunds already cover
@@ -86,9 +97,24 @@ On commercetools, the Authorization transaction carries the parent's id and each
 
 ### Capture
 
-- The first capture of the full authorized amount uses `submitForSettlement`. No child is created, so the payment
-  keeps a single Braintree transaction.
+- The first capture of an Authorization's full amount uses `submitForSettlement`. No child is created, so the
+  Authorization keeps a single Braintree transaction.
 - Any other capture uses `submitForPartialSettlement`, which creates a child.
+- `submitForPartialSettlement` requires partial settlement to be enabled for your Braintree merchant account, see
+  Braintree's
+  [Submit for partial settlement](https://developer.paypal.com/braintree/docs/reference/request/transaction/submit-for-partial-settlement/node).
+  Without it, Braintree refuses every capture except the first capture of an Authorization's full amount, and the
+  answer is rejected. Contact Braintree to enable it, or capture the full authorized amount.
+- The Payment Intents API requires an `amount` on every capture. A first capture of the Authorization's full amount
+  is still sent to Braintree without an amount (`submitForSettlement`), so it works without partial settlement — the
+  same as a `braintree-extension` capture request without an amount.
+- Whether an Authorization was captured before is decided from the payment's transactions: a full capture's Charge
+  carries the Authorization's id, while a partial capture's Charge carries its child's id, which can't be attributed
+  to an Authorization. So once any Authorization of the payment was captured partially, every later capture uses
+  `submitForPartialSettlement`. This only matters for a payment with several Authorizations (e.g. after a repeated
+  sale on the same payment).
+- Issues caused by modifying the payment outside the commercetools Checkout ecosystem can be solved in the Braintree
+  control panel.
 
 ### Refund
 
@@ -116,8 +142,10 @@ On commercetools, the Authorization transaction carries the parent's id and each
 
 ### After a void
 
-- If the voided transaction has a Pending Charge on commercetools, that Charge is moved to Failure, since no
-  settlement webhook will ever arrive for it.
+- The void is recorded as a new CancelAuthorization carrying the voided transaction's id, as in
+  `braintree-extension`, also when a refund was voided.
+- If the voided transaction has a Pending Charge or Refund on commercetools, it is moved to Failure, since no
+  settlement webhook will ever arrive for it (a voided refund never reached the customer).
 
 ### Payment status fields
 

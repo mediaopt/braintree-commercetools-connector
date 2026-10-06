@@ -1,14 +1,41 @@
 import { Payment } from '@commercetools/connect-payments-sdk';
-import { Transaction, TransactionType } from '@commercetools/platform-sdk';
+import { PaymentUpdateAction, Transaction, TransactionType } from '@commercetools/platform-sdk';
 import { findSuitableTransactionId } from 'common-connect/dist';
 
 const PLACEHOLDER_PREFIX = 'BraintreePlaceholder: ';
 
-// Marker interactionId of the ACH micro-deposit placeholder (syncCtPaymentStatus's ensureTransaction and
+// Marker interactionId of the ACH micro-deposit placeholder (addPlaceholderActions below and
 // cancelPlaceholderPayment, braintree-payment.service.ts), built from the commercetools payment id since Braintree
 // has no transaction yet. It is never a Braintree id, so it must never be sent to Braintree — find/exclude it via
 // isPlaceholderInteractionId() below.
 export const buildPlaceholderInteractionId = (ctPaymentId: string): string => `${PLACEHOLDER_PREFIX}${ctPaymentId}`;
+
+/**
+ * Adds the ACH micro-deposit placeholder: an Authorization with the marker interactionId, which
+ * updatePaymentWithTransaction (braintree-payment.service.ts) later overwrites in place once the real Braintree
+ * transaction exists. Pending, never Initial: commercetools Checkout triggers Order creation from a non-Initial
+ * transaction.
+ *
+ * Only added if the payment has no Authorization yet — neither a placeholder from a prior attempt (a retry after a
+ * server-side success the client saw as a transient failure; addTransaction itself has no dedup key) nor a real one
+ * already written by transactionSale. Any state counts, since this connector never leaves a failed Authorization on a
+ * payment: a declined sale makes the shared transactionSale throw (Braintree success: false) before anything is
+ * written to commercetools.
+ */
+export const addPlaceholderActions = (payment: Payment): PaymentUpdateAction[] =>
+  payment.transactions.some((t) => t.type === 'Authorization')
+    ? []
+    : [
+        {
+          action: 'addTransaction',
+          transaction: {
+            type: 'Authorization',
+            state: 'Pending',
+            interactionId: buildPlaceholderInteractionId(payment.id),
+            amount: { centAmount: payment.amountPlanned.centAmount, currencyCode: payment.amountPlanned.currencyCode },
+          },
+        },
+      ];
 
 export const isPlaceholderInteractionId = (interactionId?: string): boolean =>
   !!interactionId?.startsWith(PLACEHOLDER_PREFIX);

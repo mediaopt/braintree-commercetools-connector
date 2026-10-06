@@ -1,4 +1,5 @@
 import { Payment, Transaction } from '@commercetools/connect-payments-sdk';
+import { braintreePaymentCustom } from './mock-custom-types';
 
 const mockChargePaymentTransaction: Transaction = {
   id: 'dummy-transaction-id',
@@ -30,6 +31,8 @@ export const mockGetPaymentResult: Payment = {
   paymentStatus: { interfaceText: 'Paid' },
   transactions: [mockChargePaymentTransaction],
   interfaceInteractions: [],
+  // createPayment sets the Braintree type; operations refuse a payment without it
+  custom: braintreePaymentCustom(),
   createdAt: '2024-02-13T00:00:00.000Z',
   lastModifiedAt: '2024-02-13T00:00:00.000Z',
 };
@@ -51,6 +54,8 @@ export const mockGetPaymentResultWithoutTransactions: Payment = {
   paymentStatus: { interfaceText: 'Paid' },
   transactions: [],
   interfaceInteractions: [],
+  // createPayment sets the Braintree type; operations refuse a payment without it
+  custom: braintreePaymentCustom(),
   createdAt: '2024-02-13T00:00:00.000Z',
   lastModifiedAt: '2024-02-13T00:00:00.000Z',
 };

@@ -6,7 +6,8 @@ import { Money, Payment } from '@commercetools/connect-payments-sdk';
 export type ModifyPaymentWithTransactionRequest = {
   amount: Money;
   payment: Payment;
-  transactionId?: string;
+  transactionId?: string; // refund
+  merchantReference?: string; // capture
 };
 
 export type CancelPaymentRequest = {

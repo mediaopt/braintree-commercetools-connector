@@ -9,6 +9,7 @@ import {
   mapRequestToBraintreeTransactionSale,
   mapBraintreeTransactionToCommercetoolsTransaction,
   mapCTCustomerToNewBraintreeCustomer,
+  mapBraintreeVoidToCommercetoolsTransaction,
 } from "../index";
 
 type MoneyTestData = {
@@ -229,6 +230,26 @@ describe("mapBraintreeTransactionToCommercetoolsTransaction", () => {
       state: "Success",
       timestamp: "2024-06-01T00:00:00Z",
       amount: { centAmount: 1000, currencyCode: "EUR" },
+    });
+  });
+});
+
+// the CancelAuthorization braintree-extension's voidTransaction records — also for a voided refund (credit)
+describe("mapBraintreeVoidToCommercetoolsTransaction", () => {
+  test.each(["sale", "credit"])("a voided %s becomes a new CancelAuthorization with its id", (type) => {
+    const response: any = {
+      type,
+      status: "voided",
+      id: "txn-1",
+      amount: "10.00",
+      updatedAt: "2024-06-01T00:00:00Z",
+    };
+    expect(mapBraintreeVoidToCommercetoolsTransaction(response, { fractionDigits: 2, currencyCode: "EUR" })).toEqual({
+      type: "CancelAuthorization",
+      amount: { centAmount: 1000, currencyCode: "EUR" },
+      interactionId: "txn-1",
+      timestamp: "2024-06-01T00:00:00Z",
+      state: "Success",
     });
   });
 });

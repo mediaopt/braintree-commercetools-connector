@@ -5,6 +5,10 @@ import { ErrorInvalidOperation } from '@commercetools/connect-payments-sdk';
 import { mockGetPaymentResult } from '../utils/mock-payment-results';
 import { CentPrecisionMoney } from '@commercetools/platform-sdk';
 import { PaymentModificationStatus } from '../../src/dtos/operations/payment-intents.dto';
+import { logger } from 'common-connect/dist';
+import { mockCustomTypeLookup } from '../utils/mock-custom-type-lookup';
+import { nonBraintreeCustomCases } from '../utils/mock-custom-types';
+import { notBraintreePayment } from '../../src/utils/customEntities.utils';
 
 jest.mock('common-connect/dist', () => ({
   ...(jest.requireActual('common-connect/dist') as object),
@@ -23,6 +27,7 @@ describe('abstract-payment.service (modifyPayment)', () => {
   beforeEach(() => {
     jest.setTimeout(10000);
     jest.resetAllMocks();
+    mockCustomTypeLookup();
   });
 
   afterEach(() => {
@@ -58,6 +63,44 @@ describe('abstract-payment.service (modifyPayment)', () => {
         amount,
       });
     });
+
+    test('capturePayment passes merchantReference on as the target Authorization', async () => {
+      const settlementSpy = jest
+        .spyOn(paymentService, 'settlement')
+        .mockResolvedValue({ outcome: PaymentModificationStatus.APPROVED });
+
+      await paymentService.modifyPayment({
+        paymentId: mockGetPaymentResult.id,
+        data: { actions: [{ action: 'capturePayment', amount, merchantReference: 'txn-auth' }] },
+      });
+
+      expect(settlementSpy).toHaveBeenCalledWith({
+        payment: mockGetPaymentResult,
+        amount,
+        merchantReference: 'txn-auth',
+      });
+    });
+
+    // checked before the action switch, so nothing reaches Braintree
+    test.each(nonBraintreeCustomCases)(
+      'payment with $description: rejected and logged as error, no operation runs',
+      async ({ custom }) => {
+        jest
+          .spyOn(paymentSDK.ctPaymentService, 'getPayment')
+          .mockResolvedValue({ ...mockGetPaymentResult, custom } as never);
+        const settlementSpy = jest.spyOn(paymentService, 'settlement');
+        const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => logger);
+
+        const result = await paymentService.modifyPayment({
+          paymentId: mockGetPaymentResult.id,
+          data: { actions: [{ action: 'capturePayment', amount }] },
+        });
+
+        expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
+        expect(settlementSpy).not.toHaveBeenCalled();
+        expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining(notBraintreePayment(mockGetPaymentResult.id)));
+      },
+    );
 
     test('cancelPayment action calls void with payment', async () => {
       const voidSpy = jest

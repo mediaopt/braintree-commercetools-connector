@@ -37,9 +37,30 @@ export const lineItemPlaceholders = {
   unitOfMeasure: 'unit' as const,
 };
 
+// Gross is preferred so tax not included in price (includedInPrice: false) is still covered.
+// Fallbacks, for responses seen only with specific project settings (some projects created after 2024):
+// - an all-zero taxedPrice: totalPrice holds the amount. Seen in a real cart, with the cart's own taxedPrice all
+//   zero too, so the payments SDK's getPaymentAmount currently throws "The cart has already been paid in full" and no
+//   checkout payment can be created (if you experience this, please open a commercetools issue). Kept, as in the
+//   PayPal connector's extension, where it works, so line items stay correct once getPaymentAmount gets the same fallback.
+// - no totalPrice: the (discounted) unit price times quantity.
+const relevantTotalCentAmount = ({ lineItemMode, taxedPrice, totalPrice, price, quantity }: LineItem) => {
+  if (lineItemMode === 'GiftLineItem') return 0;
+  return (
+    (taxedPrice?.totalGross?.centAmount || totalPrice?.centAmount) ??
+    (price.discounted?.value ?? price.value).centAmount * quantity
+  );
+};
+
 //tax and discount are not mapped separately to avoid rounding issues
 export const mapCTLineItemToBraintreeLineItem = (ctLineItem: LineItem, cartLocale?: string): BraintreeLineItem => {
-  const totalItemPrice = mapCommercetoolsMoneyToBraintreeMoney(ctLineItem.totalPrice);
+  // currency and fractionDigits must match the money the cent amount comes from: totalPrice/taxedPrice are always cent
+  // precision, while price.value can be high precision (its fractionDigits > the currency's) with a centAmount in cents
+  const { taxedPrice, totalPrice, price } = ctLineItem;
+  const totalItemPrice = mapCommercetoolsMoneyToBraintreeMoney({
+    ...(totalPrice ?? taxedPrice?.totalGross ?? price.value),
+    centAmount: relevantTotalCentAmount(ctLineItem),
+  });
   const localizedName =
     (cartLocale && ctLineItem.name[cartLocale]) || Object.values(ctLineItem.name)[0] || ctLineItem.productId;
   const nameWithQuantity = ctLineItem.quantity > 1 ? `${localizedName} (x${ctLineItem.quantity})` : localizedName;

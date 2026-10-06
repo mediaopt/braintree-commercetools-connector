@@ -4,6 +4,7 @@ dotenv.config();
 import { TypeDraft } from '@commercetools/platform-sdk';
 import {
   apiCallNameToFieldData,
+  BRAINTREE_CUSTOMER_TYPE_KEY,
   CUSTOM_TYPE_DESCRIPTORS,
   CustomTypeShape,
   FieldDefinitionData,
@@ -15,6 +16,7 @@ import {
 import { paymentSDK } from '../payment-sdk';
 import { getConfig } from '../config/config';
 
+// The processor registers every field it writes itself, so it can be developed or tested independently of extension.
 // The endpoint names processor itself calls Braintree with (see braintree-payment.service.ts's
 // updatePaymentWithTransaction/handleCustomFieldResponse usage) — the only ones it needs its own
 // ProcessorRequest field for. Everything else on braintree-payment-type (Request fields, and
@@ -39,6 +41,13 @@ const LOCAL_PAYMENT_METHODS_PAYMENT_ID_FIELD: FieldDefinitionData = {
 const BRAINTREE_ORDER_ID_FIELD: FieldDefinitionData = {
   name: 'BraintreeOrderId',
   label: { en: 'Order Id', de: 'Bestellnummer' },
+};
+
+// written by linkBraintreeCustomerId; same definition as braintree-extension's (connector/actions.ts)
+const BRAINTREE_CUSTOMER_ID_FIELD: FieldDefinitionData = {
+  name: 'braintreeCustomerId',
+  label: { en: 'Braintree customer Id' },
+  inputHint: 'SingleLine',
 };
 
 // Builds the TypeDraft processor itself needs for one custom type shared with extension's own
@@ -81,6 +90,11 @@ async function ensureProcessorFields(): Promise<void> {
       typeKey: getConfig().interactionTypeKey,
       shape: CUSTOM_TYPE_DESCRIPTORS[BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY],
       fields: PAYMENT_INTERACTION_TYPE_FIELDS,
+    },
+    {
+      typeKey: getConfig().customerTypeKey,
+      shape: CUSTOM_TYPE_DESCRIPTORS[BRAINTREE_CUSTOMER_TYPE_KEY],
+      fields: [BRAINTREE_CUSTOMER_ID_FIELD],
     },
   ];
 

@@ -1,6 +1,7 @@
 import {
   BRAINTREE_PAYMENT_TYPE_KEY,
   BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY,
+  BRAINTREE_CUSTOMER_TYPE_KEY,
   resolveTypeKey,
 } from 'common-connect/dist';
 
@@ -55,6 +56,7 @@ export const config = {
   // modules resolve to the same custom types when both are installed on the same project.
   paymentTypeKey: resolveTypeKey(BRAINTREE_PAYMENT_TYPE_KEY),
   interactionTypeKey: resolveTypeKey(BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY),
+  customerTypeKey: resolveTypeKey(BRAINTREE_CUSTOMER_TYPE_KEY),
 
   // Per-button style overrides forwarded via /operations/config → enabler baseOptions → RenderTemplate buttonStyleOverrides
   // Format: JSON object with keys: paypal, paypalExpress, paypalVault, ach, applePay, googlePay, venmo, creditCard — all optional

@@ -13,7 +13,7 @@ import {
 } from './types/operation.type';
 
 import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-componets.dto';
-import { PaymentIntentResponseSchemaDTO } from '../dtos/operations/payment-intents.dto';
+import { PaymentIntentResponseSchemaDTO, PaymentModificationStatus } from '../dtos/operations/payment-intents.dto';
 import {
   PaymentUpdateResponseSchemaDTO,
   PaymentRequestSchemaDTO,
@@ -22,6 +22,11 @@ import {
   TransactionSaleRequestSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { logger } from 'common-connect';
+import {
+  getBraintreePaymentTypeId,
+  isBraintreePayment,
+  notBraintreePaymentMessage,
+} from '../utils/customEntities.utils';
 
 /**
  * Abstract base class for payment service implementations.
@@ -195,16 +200,20 @@ export abstract class AbstractPaymentService {
    */
 
   public async modifyPayment(opts: ModifyPayment): Promise<PaymentIntentResponseSchemaDTO> {
-    const ctPayment = await this.ctPaymentService.getPayment({
-      id: opts.paymentId,
-    });
+    const [ctPayment, braintreePaymentTypeId] = await Promise.all([
+      this.ctPaymentService.getPayment({ id: opts.paymentId }),
+      getBraintreePaymentTypeId(),
+    ]);
     const request = opts.data.actions[0];
     logger.info(`Received request to modify payment ${opts.paymentId} with action ${request.action}`);
+    if (!isBraintreePayment(ctPayment, braintreePaymentTypeId))
+      return this.rejectPaymentIntent(ctPayment.id, request.action, notBraintreePaymentMessage(ctPayment.id), 'error');
     switch (request.action) {
       case 'capturePayment': {
         return await this.settlement({
           payment: ctPayment,
           amount: request.amount,
+          merchantReference: request.merchantReference,
         });
       }
       case 'cancelPayment': {
@@ -224,6 +233,20 @@ export abstract class AbstractPaymentService {
         throw new ErrorInvalidOperation(`Operation not supported.`);
       }
     }
+  }
+
+  /**
+   * Rejected answer for an operation impossible in the payment's current state (warn) or after a failure (error) —
+   * see docs/Intents.md "How this connector answers".
+   */
+  protected rejectPaymentIntent(
+    paymentId: string,
+    operation: string,
+    reason: string,
+    level: 'warn' | 'error' = 'warn',
+  ): PaymentIntentResponseSchemaDTO {
+    logger[level](`${operation}: rejected, paymentId: ${paymentId} — ${reason}`);
+    return { outcome: PaymentModificationStatus.REJECTED };
   }
 
   /**

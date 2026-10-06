@@ -44,6 +44,7 @@ import {
   mapBraintreeStatusToCommercetoolsTransactionType,
   findSuitableTransactionId,
   PaymentWithOptionalTransaction,
+  mapBraintreeVoidToCommercetoolsTransaction,
 } from 'common-connect/dist';
 
 const getPayPalOrderPaymentToken = (payment: Payment) => {
@@ -396,21 +397,10 @@ export async function voidTransaction(
     );
     updateActions.push({
       action: 'addTransaction',
-      transaction: {
-        type: 'CancelAuthorization',
-        amount: {
-          centAmount: mapBraintreeMoneyToCommercetoolsMoney(
-            response.amount,
-            amountPlanned.fractionDigits
-          ),
-          currencyCode: amountPlanned.currencyCode,
-        },
-        interactionId: response.id,
-        timestamp: response.updatedAt,
-        state: mapBraintreeStatusToCommercetoolsTransactionState(
-          response.status
-        ),
-      },
+      transaction: mapBraintreeVoidToCommercetoolsTransaction(
+        response,
+        amountPlanned
+      ),
     });
     updateActions = updateActions.concat(updatePaymentFields(response));
     return updateActions;
