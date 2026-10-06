@@ -160,6 +160,9 @@ const buildDiscountLineItem = (amount: string) => ({
  * connector requires a breakdown (only PayPal Express receives one), so on a mismatch it is omitted.
  * A missing breakdown hides the item list in the PayPal window (only subtotal, shipping and total are shown).
  * If you experience this, please open an issue with the anonymized cart.
+ *
+ * Carts paid partly by another payment (e.g. a gift card) or containing custom line items are not supported yet
+ * Please open an issue if you are interested in these features.
  */
 const lineItemsMatchItemTotal = (lineItems: BraintreeLineItem[], itemTotal: string, cartId: string): boolean => {
   const lineItemTotal = lineItems.reduce((sum, { totalAmount }) => sum + Number(totalAmount), 0).toFixed(2);
