@@ -25,7 +25,7 @@ const SONGBIRD_POLL_MS = 200;
 // threeDSecure.create resolves without waiting for Cardinal's Songbird script, and the SDK swallows
 // a failed load, so verifyCard would hang on a challenge. Songbird defines window.Cardinal, so wait
 // for it (it may still be loading on a slow connection) and reject when it never shows up.
-export const ensureSongbirdLoaded = async (): Promise<void> => {
+const ensureSongbirdLoaded = async (): Promise<void> => {
   for (
     let waited = 0;
     !(window as { Cardinal?: unknown }).Cardinal;
