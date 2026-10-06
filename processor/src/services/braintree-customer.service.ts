@@ -112,7 +112,10 @@ export class BraintreeCustomerService {
             type: { typeId: 'type', key: customerTypeKey },
             fields: { braintreeCustomerId },
           };
-      const result = customerTypeId && (await this.updateCtCustomer(ctCustomer.id, ctCustomer.version, [action]));
+      // setCustomType uses the type's key; only an existing type needs its id (unresolved → can't tell, retry)
+      const result =
+        (!ctCustomer.custom || customerTypeId) &&
+        (await this.updateCtCustomer(ctCustomer.id, ctCustomer.version, [action]));
       if (result) return;
       log.warn(`linkBraintreeCustomerId: attempt ${attempt}/${MAX_RETRIES} failed for customer ${ctCustomerId}`);
       if (attempt < MAX_RETRIES) await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));

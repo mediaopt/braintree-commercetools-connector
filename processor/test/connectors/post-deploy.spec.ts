@@ -4,6 +4,7 @@ import { getConfig } from '../../src/config/config';
 
 const paymentTypeKey = getConfig().paymentTypeKey;
 const interactionTypeKey = getConfig().interactionTypeKey;
+const customerTypeKey = getConfig().customerTypeKey;
 
 const PAYMENT_TYPE_FULL_FIELD_NAMES = [
   'LocalPaymentMethodsPaymentId',
@@ -67,9 +68,22 @@ describe('connectors/post-deploy', () => {
     });
   });
 
-  test('provisions both types independently, in parallel', async () => {
+  // the processor writes braintreeCustomerId itself (linkBraintreeCustomerId), so it doesn't rely on
+  // braintree-extension's post-deploy for it — and never registers the extension's own customer fields
+  test('provisions braintree-customer-type with braintreeCustomerId only', async () => {
     const createOrUpdate = await runPostDeploy();
 
-    expect(createOrUpdate).toHaveBeenCalledTimes(2);
+    expect(createOrUpdate).toHaveBeenCalledWith({
+      key: customerTypeKey,
+      name: { en: 'Custom customer type to braintree fields' },
+      resourceTypeIds: ['customer'],
+      fieldDefinitions: [expect.objectContaining({ name: 'braintreeCustomerId' })],
+    });
+  });
+
+  test('provisions all three types independently, in parallel', async () => {
+    const createOrUpdate = await runPostDeploy();
+
+    expect(createOrUpdate).toHaveBeenCalledTimes(3);
   });
 });

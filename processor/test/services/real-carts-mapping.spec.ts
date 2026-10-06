@@ -13,6 +13,7 @@ import { BraintreePaymentServiceOptions } from '../../src/services/types/braintr
 import * as FastifyContext from '../../src/libs/fastify/context/context';
 import { mockGetPaymentResult } from '../utils/mock-payment-results';
 import { realCarts } from '../utils/mock-real-carts';
+import { mockCustomTypeLookup } from '../utils/mock-custom-type-lookup';
 import { mapCTLineItemToBraintreeLineItem } from '../../src/utils/lineItem.utils';
 
 const toCents = (amount: string) => Math.round(Number(amount) * 100);
@@ -30,6 +31,7 @@ describe('real carts: mapped Braintree line items balance the charged amount', (
 
   beforeEach(() => {
     jest.resetAllMocks();
+    mockCustomTypeLookup();
   });
   afterEach(() => {
     jest.restoreAllMocks();

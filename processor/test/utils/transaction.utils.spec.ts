@@ -2,6 +2,7 @@ import { describe, test, expect } from '@jest/globals';
 import { Payment } from '@commercetools/connect-payments-sdk';
 import { Transaction } from '@commercetools/platform-sdk';
 import {
+  addPlaceholderActions,
   buildPlaceholderInteractionId,
   isPlaceholderInteractionId,
   withoutPlaceholders,
@@ -41,6 +42,41 @@ describe('transaction.utils', () => {
       expect(isPlaceholderInteractionId(buildPlaceholderInteractionId('payment-123'))).toBe(true);
       expect(isPlaceholderInteractionId('txn-test-1')).toBe(false);
       expect(isPlaceholderInteractionId(undefined)).toBe(false);
+    });
+  });
+
+  describe('addPlaceholderActions', () => {
+    test('adds a Pending Authorization with the marker id and the planned amount', () => {
+      const payment = paymentWith([]);
+
+      expect(addPlaceholderActions(payment)).toEqual([
+        {
+          action: 'addTransaction',
+          transaction: {
+            type: 'Authorization',
+            state: 'Pending',
+            interactionId: buildPlaceholderInteractionId(payment.id),
+            amount: { centAmount: 120000, currencyCode: 'GBP' },
+          },
+        },
+      ]);
+    });
+
+    // a placeholder from an earlier attempt, or the real Authorization written by transactionSale
+    test.each([
+      {
+        description: 'a placeholder',
+        existing: { interactionId: buildPlaceholderInteractionId('123456'), state: 'Pending' },
+      },
+      { description: 'a real Authorization', existing: { interactionId: 'bt-1' } },
+    ] as const)('nothing when the payment already has $description', ({ existing }) => {
+      expect(addPlaceholderActions(paymentWith([transaction(existing)]))).toEqual([]);
+    });
+
+    test('other transaction types do not count', () => {
+      expect(addPlaceholderActions(paymentWith([transaction({ type: 'Charge', interactionId: 'bt-1' })]))).toHaveLength(
+        1,
+      );
     });
   });
 
