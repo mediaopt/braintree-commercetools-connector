@@ -144,6 +144,23 @@ export const mapBraintreeTransactionToCommercetoolsTransaction = (
       };
 };
 
+export const mapBraintreeVoidToCommercetoolsTransaction = (
+  response: Transaction,
+  amountPlanned: { fractionDigits: number; currencyCode: string },
+) => ({
+  type: "CancelAuthorization" as const,
+  amount: {
+    centAmount: mapBraintreeMoneyToCommercetoolsMoney(
+      response.amount,
+      amountPlanned.fractionDigits,
+    ),
+    currencyCode: amountPlanned.currencyCode,
+  },
+  interactionId: response.id,
+  timestamp: response.updatedAt,
+  state: mapBraintreeStatusToCommercetoolsTransactionState(response.status),
+});
+
 export const mapCTCustomerToNewBraintreeCustomer = (
   ctCustomer: CTCustomer,
 ) => ({
