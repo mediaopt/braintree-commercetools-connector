@@ -278,8 +278,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
           // Braintree's real status can naturally map to something other than the CT Checkout override
           // (e.g. autocapture -> Charge). Record that too (same interactionId) so CT's amountPaid and
           // findActiveCharges (refund/reverse targets) see Braintree's actual state,
-          // not just the Authorization entry above. Skipped for failed sales — a single Authorization/Failure
-          // record is enough; there's no additional progression to reflect.
+          // not just the Authorization entry above. The Failure check is defensive only: a declined sale throws in
+          // common-connect's transactionSale before anything is written, so no Failure reaches here.
           ...(transactionTypeOverride &&
           mappedTransaction.type !== transactionTypeOverride &&
           mappedTransaction.state !== 'Failure'
@@ -541,7 +541,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
                 message:
                   'Braintree gateway is not responding. Please check the Braintree merchant status and credentials.',
                 details: {
-                  error: e,
+                  error: errorMessage(e),
                 },
               };
             }
@@ -697,7 +697,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
           isExpress ? this.getShippingMethods(ctCart.id) : Promise.resolve([]),
           this.ctCartService.getPaymentAmount({ cart: ctCart }), // PURE_VAULT_DISABLED: isPureVault ? ctCart.totalPrice :
           lastPaymentRef ? this.ctPaymentService.getPayment({ id: lastPaymentRef.id }) : Promise.resolve(undefined),
-          getBraintreePaymentTypeId(),
+          getBraintreePaymentTypeId().catch((err) => {
+            logger.error(
+              `createPayment: could not look up the Braintree payment type, not reusing the cart's last payment — ${errorMessage(err)}`,
+            );
+            return undefined;
+          }),
         ]);
 
       /* PURE_VAULT_DISABLED start
@@ -709,7 +714,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
       const { payment: reusedPayment, tokenRecentlyUpdated } = this.existingPaymentAndToken(
         // only this connector's payment is reused — the cart may hold other connectors' payments (e.g. gift cards)
-        existingPayment && isBraintreePayment(existingPayment, braintreePaymentTypeId) ? existingPayment : undefined,
+        existingPayment && braintreePaymentTypeId && isBraintreePayment(existingPayment, braintreePaymentTypeId)
+          ? existingPayment
+          : undefined,
         amountPlanned,
       );
 
@@ -887,7 +894,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         .execute()
         .then((response) => response.body)
         .catch((err) => {
-          log.warn(`Could not set shipping method ${newShippingMethodId} for cart ${ctCart.id}`, { error: err });
+          log.warn(`Could not set shipping method ${newShippingMethodId} for cart ${ctCart.id} — ${errorMessage(err)}`);
           return;
         });
       if (!updatedCard) {
@@ -963,6 +970,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
       localPaymentId,
       venmoUsername,
     );
+    if (paymentMethodType === PaymentMethodType.ACH && !deviceData)
+      logger.warn(
+        `transactionSale for payment ${ctPaymentId} has no deviceData (fraud device data collector failed, was blocked, or had not finished)`,
+      );
     const [updatedExpress, ctPayment, braintreePaymentTypeId] = await Promise.all([
       braintreePaymentDetails?.expressShippingChanged
         ? this.ctCartService
@@ -1069,9 +1080,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
       response = await transactionSale(transactionRequest);
     } catch (e) {
       logger.error(`transactionSale: Braintree call failed, paymentId: ${ctPaymentId} — ${errorMessage(e)}`);
-      throw new ErrorInvalidOperation(
-        `transactionSale failed for payment ${ctPaymentId} with error ${errorMessage(e)}`,
-      );
+      // Braintree's message is logged above, not sent back: this message reaches the browser.
+      throw new ErrorInvalidOperation(`transactionSale failed for payment ${ctPaymentId}`);
     }
     warnOnFieldMismatch(ctPaymentId, [
       {
@@ -1136,7 +1146,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
   // see docs/Intents.md "Capture"; see also extension module submitForSettlement
   public async settlement(request: ModifyPaymentWithTransactionRequest): Promise<PaymentIntentResponseSchemaDTO> {
     const { payment: ctPayment, amount, merchantReference } = request;
-    // the Authorization given as merchantReference, otherwise the last one
+    // the Authorization given as merchantReference, otherwise the last one. merchantReference is used as a Braintree id
+    // because capturePayment has no transactionId — see docs/Intents.md "Call parameters"
+    // (https://docs.commercetools.com/checkout/payment-intents-api)
     const transactionId = merchantReference ?? findTransactionIdOrUndefined(ctPayment, 'Authorization');
     if (!transactionId)
       return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'no transaction suitable for settlement');
@@ -1408,6 +1420,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * Target of refund / cancel / reverse (docs/Intents.md "Call parameters"): a merchant-given id must match a
    * (non-placeholder) transaction on the payment; without one, the operation's default — the single active capture
    * (refund), the Authorization (cancel), or the single active capture else the Authorization (reverse).
+   * Cancel and reverse have no transactionId in the Payment Intents API
+   * (https://docs.commercetools.com/checkout/payment-intents-api), so merchantReference is their only way to name a
+   * target; an id that matches nothing is rejected rather than ignored, so a mistyped id can't act on the default target.
    */
   private resolveTarget(
     ctPayment: Payment,
@@ -1508,7 +1523,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
     ctPaymentId,
     braintreeCustomerId,
     ctCustomerId,
+    logFrontendIssue,
   }: AchVaultTokenRequestSchemaDTO): Promise<AchVaultTokenResponseSchemaDTO> {
+    if (logFrontendIssue)
+      logger.warn(
+        `getAchVaultToken: frontend issue reported on payment ${ctPaymentId} before this attempt: ${logFrontendIssue}`,
+      );
     // Payment and type are read in parallel with the vault, so a payment without the Braintree type can't be refused
     // before Braintree. A failed read must not fail the vault: the type then isn't checked, and syncPayment fetches.
     const [{ token, verified }, braintreePaymentTypeId, ctPayment] = await Promise.all([

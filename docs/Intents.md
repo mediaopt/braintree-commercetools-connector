@@ -43,6 +43,9 @@ Full shape of an action, as sent to the Payment Intents API:
 - `capturePayment` targets an Authorization: the one whose Braintree transaction id is given as `merchantReference`,
   otherwise the payment's last Authorization. A `merchantReference` that isn't an Authorization of the payment →
   rejected.
+- `merchantReference` is read as a Braintree transaction id, not as your own reference (e.g. an order or invoice
+  number): it's the only field the Payment Intents API offers for naming a target on capture, cancel and reverse.
+  Don't send your own references in it: a value that matches no transaction on the payment is rejected.
 - For refund, cancel and reverse, a `transactionId` or `merchantReference` is resolved as follows:
   - it matches a transaction on the payment, of any type → that transaction is the target. Whether the operation
     applies to it is Braintree's decision, as in `braintree-extension`; e.g. cancel or reverse with a refund's id voids
@@ -72,7 +75,8 @@ The outcome values are defined by commercetools (see the link above). This conne
   logged with `logger.error`. If you are sure it's a Braintree checkout payment with a missing type, set that type
   with a raw commercetools call, (see `braintree-extension`). The checkout flow only sets one type for payment and
   it is the Braintree type on creation. So if this type is overwritten by some other part of your system it is your
-  responsibility to prevent the override in the future.
+  responsibility to prevent the override in the future. If the connector can't look up its payment type on
+  commercetools, the answer is rejected and logged with `logger.error` too; the next call tries the lookup again.
 - **The operation is impossible in the payment's current state** (nothing suitable to act on, already fully
   refunded, a `transactionId` or `merchantReference` that doesn't belong to the payment, a capture `merchantReference`
   that isn't an Authorization of the payment, more than one capture to refund or reverse without a target, a Braintree status that

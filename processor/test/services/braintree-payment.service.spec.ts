@@ -11,6 +11,7 @@ import { mockBraintreeTransaction } from '../utils/mock-payment-data';
 import { mockCustomTypeLookup } from '../utils/mock-custom-type-lookup';
 import { braintreePaymentCustom, nonBraintreeCustomCases, otherTypeCustom } from '../utils/mock-custom-types';
 import { notBraintreePayment } from '../../src/utils/customEntities.utils';
+import * as CustomEntities from '../../src/utils/customEntities.utils';
 
 // transactionSale is exported as a non-configurable ES module binding; jest.spyOn cannot
 // replace it. We must use jest.mock with a factory so Jest swaps the module before imports run.
@@ -2290,6 +2291,23 @@ describe('braintree-payment.service', () => {
 
       expect(createPaymentSpy).toHaveBeenCalled();
       expect(result.payment.ctPaymentId).toBe('new-payment-id');
+    });
+
+    // the type id is cached per process, so the lookup itself is failed here, not getByKey
+    test('type lookup fails: the existing payment is not reused, a new payment is created, logged as error', async () => {
+      mockExistingPaymentOnCart(existingPaymentWith(braintreePaymentCustom()));
+      jest.spyOn(CustomEntities, 'getBraintreePaymentTypeId').mockRejectedValue(new Error('unavailable'));
+      const errorSpy = jest.spyOn(CommonConnect.logger, 'error').mockImplementation(() => CommonConnect.logger);
+      jest.spyOn(paymentSDK.ctPaymentService, 'createPayment').mockResolvedValue({
+        ...mockGetPaymentResultWithoutTransactions,
+        id: 'new-payment-id',
+        amountPlanned,
+      } as never);
+
+      const result = await createCreditCardPayment();
+
+      expect(result.payment.ctPaymentId).toBe('new-payment-id');
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('could not look up the Braintree payment type'));
     });
 
     test('skips re-persisting client token when recently updated', async () => {

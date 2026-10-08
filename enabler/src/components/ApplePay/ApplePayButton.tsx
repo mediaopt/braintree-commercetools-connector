@@ -37,7 +37,7 @@ export const ApplePayButton: FC<ApplePayButtonProps> = ({
         }
       }
     } catch (err) {
-      notify("Error", `This device does not support Apple Pay${", " + err} `);
+      notify("Error", "This device does not support Apple Pay.");
     }
   }, []);
 
