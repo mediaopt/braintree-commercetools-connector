@@ -246,7 +246,8 @@ export type PayPalProps = {
   // PAYPAL_VAULT_DISABLED: enableVaulting?: boolean; vaultLabel?: string; — see PayPalMask.tsx's
   // showVaultCheckbox; please open an issue if you are interested in vaulting a new PayPal account.
   // PayPal Express deferred-cart-creation mode — see enabler/src/app/usePayment.tsx
-  onExpressPayButtonClick?: () => Promise<void>;
+  // resolves with the session every later processor call must use — see ExpressOptions.onPayButtonClick
+  onExpressPayButtonClick?: () => Promise<{ sessionId: string }>;
   // PayPal Express final address/email sync — see ExpressOptions.onPaymentSubmit
   onPaymentSubmit?: (opts: {
     shippingAddress: ExpressAddressData;

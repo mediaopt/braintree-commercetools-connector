@@ -422,13 +422,15 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
 
                         createOrder: async () => {
                           if (onExpressPayButtonClick) {
-                            // Deferred mode: Checkout creates the real cart and rebinds the
-                            // session to it inside onPayButtonClick — see
+                            // Deferred mode: Checkout creates the real cart inside onPayButtonClick
+                            // and resolves with the session bound to it — see
                             // https://docs.commercetools.com/checkout/browser-sdk#use-the-onpaybuttonclick-hook.
-                            // createExpressPayment then creates the CT Payment for real, against
-                            // that cart, since the session now resolves to it.
-                            await onExpressPayButtonClick();
-                            const result = await createExpressPayment();
+                            // createExpressPayment switches every later processor call to that
+                            // session, then creates the CT Payment for real, against that cart.
+                            const clickResult = await onExpressPayButtonClick();
+                            const result = await createExpressPayment(
+                              clickResult?.sessionId,
+                            );
                             deferredResultRef.current = result;
                             const real = result.paymentInfo;
                             return paypalCheckoutInstance.createPayment(
