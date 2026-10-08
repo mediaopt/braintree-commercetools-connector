@@ -53,6 +53,7 @@ import {
   CONCURRENT_CANCEL_AND_SALE_ISSUE,
 } from '../../src/services/braintree-payment.service';
 import * as FastifyContext from '../../src/libs/fastify/context/context';
+import * as StoredPaymentMethodsConfig from '../../src/config/stored-payment-methods.config';
 // import * as StatusHandler from '@commercetools/connect-payments-sdk/dist/api/handlers/status.handler';
 //
 // import { HealthCheckResult } from '@commercetools/connect-payments-sdk';
@@ -2484,6 +2485,93 @@ describe('braintree-payment.service', () => {
           builderType: undefined,
         } as never),
       ).rejects.toThrow('cart lookup failed');
+    });
+  });
+
+  // PayPal Express's session may have no Cart before the click
+  describe('session without a cart', () => {
+    const braintreePaymentService = new BraintreePaymentService(opts);
+    let getCartSpy: jest.SpiedFunction<typeof paymentSDK.ctCartService.getCart>;
+
+    beforeEach(() => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(undefined);
+      getCartSpy = jest.spyOn(paymentSDK.ctCartService, 'getCart');
+    });
+
+    test('stored payment methods are reported as disabled, without a cart lookup', async () => {
+      jest
+        .spyOn(StoredPaymentMethodsConfig, 'getStoredPaymentMethodsConfig')
+        .mockReturnValue({ enabled: true, config: { paymentInterface: 'braintree' } });
+
+      await expect(braintreePaymentService.isStoredPaymentMethodsEnabled()).resolves.toBe(false);
+      expect(getCartSpy).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      {
+        operation: 'createPayment',
+        run: () =>
+          braintreePaymentService.createPayment({
+            paymentMethodType: PaymentMethodType.PAYPAL,
+            builderType: 'express',
+          } as never),
+      },
+      {
+        operation: 'updateCartShipping',
+        run: () => braintreePaymentService.updateCartShipping({ newShippingMethodId: 'method-1' }),
+      },
+      { operation: 'getStoredPaymentMethods', run: () => braintreePaymentService.getStoredPaymentMethods() },
+    ])('$operation refuses with "no cart found"', async ({ run }) => {
+      const result = run();
+
+      await expect(result).rejects.toThrow(ErrorInvalidOperation);
+      await expect(result).rejects.toThrow('no cart found for the checkout session');
+      expect(getCartSpy).not.toHaveBeenCalled();
+    });
+
+    test('deleteStoredPaymentMethod refuses before the Braintree delete', async () => {
+      await expect(braintreePaymentService.deleteStoredPaymentMethod('pm-token-123')).rejects.toThrow(
+        'no cart found for the checkout session',
+      );
+      expect(CommonConnect.deletePayment).not.toHaveBeenCalled();
+    });
+
+    test('Express transactionSale after a shipping change refuses before Braintree', async () => {
+      jest.spyOn(paymentSDK.ctPaymentService, 'getPayment').mockResolvedValue(mockGetPaymentResult as never);
+
+      await expect(
+        braintreePaymentService.transactionSale({
+          ctPaymentId: mockGetPaymentResult.id,
+          paymentMethodType: PaymentMethodType.PAYPAL,
+          paymentMethodNonce: 'fake-paypal-billing-agreement-nonce',
+          braintreePaymentDetails: { expressShippingChanged: true },
+        }),
+      ).rejects.toThrow(`no cart found for ${mockGetPaymentResult.id}`);
+      expect(CommonConnect.transactionSale).not.toHaveBeenCalled();
+    });
+
+    test('getAchVaultToken still returns the vaulted token; only the PaymentMethod mirror is skipped', async () => {
+      jest
+        .spyOn(BraintreeCustomerService.prototype, 'vaultPaymentMethodForCustomer')
+        .mockResolvedValue({ token: 'ach-token-123', verified: true });
+      const saveSpy = jest.spyOn(paymentSDK.ctPaymentMethodService, 'save');
+      const warnSpy = jest.spyOn(CommonConnect.logger, 'warn');
+
+      const result = await braintreePaymentService.getAchVaultToken({
+        ctPaymentId: 'payment-123',
+        paymentMethodNonce: 'ach-nonce',
+        braintreeCustomerId: 'bt-cust-123',
+      });
+      // the mirror is fire-and-forget — flush its rejection before asserting
+      await new Promise((resolve) => process.nextTick(resolve));
+
+      expect(result.token).toBe('ach-token-123');
+      expect(saveSpy).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'getAchVaultToken: could not save commercetools PaymentMethod record for payment payment-123',
+        ),
+      );
     });
   });
 });
