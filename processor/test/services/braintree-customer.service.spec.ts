@@ -26,6 +26,10 @@ jest.mock('common-connect', () => ({
 }));
 
 import * as CommonConnect from 'common-connect';
+import { mockCustomTypeLookup } from '../utils/mock-custom-type-lookup';
+import { braintreeCustomerCustom, otherTypeCustom } from '../utils/mock-custom-types';
+import { getConfig } from '../../src/config/config';
+import { log } from '../../src/libs/logger';
 
 describe('braintree-customer.service', () => {
   const opts = {
@@ -45,6 +49,7 @@ describe('braintree-customer.service', () => {
     // lookup don't need to configure it themselves; resetAllMocks() strips this every test, so
     // it's re-applied here rather than relying on the jest.mock() factory running only once.
     (CommonConnect.findCustomer as any).mockRejectedValue(new Error('not found'));
+    mockCustomTypeLookup();
     jest.useFakeTimers();
     savedClient = paymentSDK.ctAPI.client;
   });
@@ -261,6 +266,67 @@ describe('braintree-customer.service', () => {
 
       // Should be called 3 times (initial + 2 retries)
       expect(mockPostResponse).toHaveBeenCalledTimes(3);
+    });
+
+    describe("by the customer's custom type", () => {
+      const customerWith = (custom?: object) => ({
+        id: 'ct-123',
+        version: 1,
+        createdAt: '2024-01-01T00:00:00Z',
+        lastModifiedAt: '2024-01-01T00:00:00Z',
+        ...(custom ? { custom } : {}),
+      });
+      // customers().withId().get()/post() chain; returns the post mock to read the sent actions from
+      const mockCustomerClient = (customer: object) => {
+        const post = jest.fn().mockReturnValue({
+          execute: jest.fn<() => Promise<unknown>>().mockResolvedValue({ body: { ...customer, version: 2 } }),
+        });
+        const get = jest
+          .fn()
+          .mockReturnValue({ execute: jest.fn<() => Promise<unknown>>().mockResolvedValue({ body: customer }) });
+        mockCtClient({ customers: jest.fn().mockReturnValue({ withId: jest.fn().mockReturnValue({ get, post }) }) });
+        return post;
+      };
+      const sentActions = (post: jest.Mock) =>
+        (post.mock.calls as [{ body: { actions: unknown[] } }][]).map(([args]) => args.body.actions);
+
+      test('no custom type: sets the Braintree customer type with braintreeCustomerId', async () => {
+        const post = mockCustomerClient(customerWith());
+
+        await service.linkBraintreeCustomerId('ct-123', 'bt-123');
+
+        expect(sentActions(post)).toEqual([
+          [
+            {
+              action: 'setCustomType',
+              type: { typeId: 'type', key: getConfig().customerTypeKey },
+              fields: { braintreeCustomerId: 'bt-123' },
+            },
+          ],
+        ]);
+      });
+
+      test('the Braintree customer type: sets only the field', async () => {
+        const post = mockCustomerClient(customerWith(braintreeCustomerCustom({ other: 'kept' })));
+
+        await service.linkBraintreeCustomerId('ct-123', 'bt-123');
+
+        expect(sentActions(post)).toEqual([
+          [{ action: 'setCustomField', name: 'braintreeCustomerId', value: 'bt-123' }],
+        ]);
+      });
+
+      // never replaces a merchant's own customer type; no retries
+      test('another custom type: nothing written, logged once', async () => {
+        const post = mockCustomerClient(customerWith(otherTypeCustom()));
+        const warnSpy = jest.spyOn(log, 'warn');
+
+        await service.linkBraintreeCustomerId('ct-123', 'bt-123');
+
+        expect(post).not.toHaveBeenCalled();
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('ct-123'));
+      });
     });
 
     test('customer not found causes early return', async () => {

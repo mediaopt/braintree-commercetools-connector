@@ -4,6 +4,12 @@ import { paymentSDK } from '../../src/payment-sdk';
 import { ErrorInvalidOperation } from '@commercetools/connect-payments-sdk';
 import { mockGetPaymentResult } from '../utils/mock-payment-results';
 import { CentPrecisionMoney } from '@commercetools/platform-sdk';
+import { PaymentModificationStatus } from '../../src/dtos/operations/payment-intents.dto';
+import { logger } from 'common-connect/dist';
+import { mockCustomTypeLookup } from '../utils/mock-custom-type-lookup';
+import { nonBraintreeCustomCases } from '../utils/mock-custom-types';
+import { notBraintreePayment } from '../../src/utils/customEntities.utils';
+import * as CustomEntities from '../../src/utils/customEntities.utils';
 
 jest.mock('common-connect/dist', () => ({
   ...(jest.requireActual('common-connect/dist') as object),
@@ -22,6 +28,7 @@ describe('abstract-payment.service (modifyPayment)', () => {
   beforeEach(() => {
     jest.setTimeout(10000);
     jest.resetAllMocks();
+    mockCustomTypeLookup();
   });
 
   afterEach(() => {
@@ -41,7 +48,9 @@ describe('abstract-payment.service (modifyPayment)', () => {
     });
 
     test('capturePayment action calls settlement with payment and amount', async () => {
-      const settlementSpy = jest.spyOn(paymentService, 'settlement').mockResolvedValue({ success: true } as never);
+      const settlementSpy = jest
+        .spyOn(paymentService, 'settlement')
+        .mockResolvedValue({ outcome: PaymentModificationStatus.APPROVED });
 
       await paymentService.modifyPayment({
         paymentId: mockGetPaymentResult.id,
@@ -56,8 +65,66 @@ describe('abstract-payment.service (modifyPayment)', () => {
       });
     });
 
+    test('capturePayment passes merchantReference on as the target Authorization', async () => {
+      const settlementSpy = jest
+        .spyOn(paymentService, 'settlement')
+        .mockResolvedValue({ outcome: PaymentModificationStatus.APPROVED });
+
+      await paymentService.modifyPayment({
+        paymentId: mockGetPaymentResult.id,
+        data: { actions: [{ action: 'capturePayment', amount, merchantReference: 'txn-auth' }] },
+      });
+
+      expect(settlementSpy).toHaveBeenCalledWith({
+        payment: mockGetPaymentResult,
+        amount,
+        merchantReference: 'txn-auth',
+      });
+    });
+
+    // checked before the action switch, so nothing reaches Braintree
+    test.each(nonBraintreeCustomCases)(
+      'payment with $description: rejected and logged as error, no operation runs',
+      async ({ custom }) => {
+        jest
+          .spyOn(paymentSDK.ctPaymentService, 'getPayment')
+          .mockResolvedValue({ ...mockGetPaymentResult, custom } as never);
+        const settlementSpy = jest.spyOn(paymentService, 'settlement');
+        const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => logger);
+
+        const result = await paymentService.modifyPayment({
+          paymentId: mockGetPaymentResult.id,
+          data: { actions: [{ action: 'capturePayment', amount }] },
+        });
+
+        expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
+        expect(settlementSpy).not.toHaveBeenCalled();
+        expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining(notBraintreePayment(mockGetPaymentResult.id)));
+      },
+    );
+
+    // the type id is cached per process, so the lookup itself is failed here, not getByKey
+    test('type lookup fails: rejected and logged as error, no operation runs', async () => {
+      jest.spyOn(CustomEntities, 'getBraintreePaymentTypeId').mockRejectedValue(new Error('unavailable'));
+      const settlementSpy = jest.spyOn(paymentService, 'settlement');
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => logger);
+
+      const result = await paymentService.modifyPayment({
+        paymentId: mockGetPaymentResult.id,
+        data: { actions: [{ action: 'capturePayment', amount }] },
+      });
+
+      expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
+      expect(settlementSpy).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('could not look up the Braintree payment type: unavailable'),
+      );
+    });
+
     test('cancelPayment action calls void with payment', async () => {
-      const voidSpy = jest.spyOn(paymentService, 'void').mockResolvedValue({ success: true } as never);
+      const voidSpy = jest
+        .spyOn(paymentService, 'void')
+        .mockResolvedValue({ outcome: PaymentModificationStatus.APPROVED });
 
       await paymentService.modifyPayment({
         paymentId: mockGetPaymentResult.id,
@@ -71,8 +138,24 @@ describe('abstract-payment.service (modifyPayment)', () => {
       });
     });
 
+    test.each([
+      ['cancelPayment', 'void'],
+      ['reversePayment', 'reversePayment'],
+    ] as const)('%s passes merchantReference on as the target', async (action, method) => {
+      const spy = jest.spyOn(paymentService, method).mockResolvedValue({ outcome: PaymentModificationStatus.APPROVED });
+
+      await paymentService.modifyPayment({
+        paymentId: mockGetPaymentResult.id,
+        data: { actions: [{ action, merchantReference: 'txn-child' }] },
+      });
+
+      expect(spy).toHaveBeenCalledWith({ payment: mockGetPaymentResult, merchantReference: 'txn-child' });
+    });
+
     test('refundPayment action calls refundPayment with amount and payment', async () => {
-      const refundSpy = jest.spyOn(paymentService, 'refundPayment').mockResolvedValue({ success: true } as never);
+      const refundSpy = jest
+        .spyOn(paymentService, 'refundPayment')
+        .mockResolvedValue({ outcome: PaymentModificationStatus.APPROVED });
 
       await paymentService.modifyPayment({
         paymentId: mockGetPaymentResult.id,
@@ -89,7 +172,9 @@ describe('abstract-payment.service (modifyPayment)', () => {
     });
 
     test('refundPayment with transactionId', async () => {
-      const refundSpy = jest.spyOn(paymentService, 'refundPayment').mockResolvedValue({ success: true } as never);
+      const refundSpy = jest
+        .spyOn(paymentService, 'refundPayment')
+        .mockResolvedValue({ outcome: PaymentModificationStatus.APPROVED });
 
       await paymentService.modifyPayment({
         paymentId: mockGetPaymentResult.id,
@@ -105,19 +190,22 @@ describe('abstract-payment.service (modifyPayment)', () => {
       });
     });
 
-    test('reversePayment action calls void with payment', async () => {
-      const voidSpy = jest.spyOn(paymentService, 'void').mockResolvedValue({ success: true } as never);
+    test('reversePayment action delegates to reversePayment with payment and returns its outcome', async () => {
+      const reverseSpy = jest
+        .spyOn(paymentService, 'reversePayment')
+        .mockResolvedValue({ outcome: PaymentModificationStatus.APPROVED });
 
-      await paymentService.modifyPayment({
+      const result = await paymentService.modifyPayment({
         paymentId: mockGetPaymentResult.id,
         data: {
           actions: [{ action: 'reversePayment' }],
         },
       });
 
-      expect(voidSpy).toHaveBeenCalledWith({
+      expect(reverseSpy).toHaveBeenCalledWith({
         payment: mockGetPaymentResult,
       });
+      expect(result).toEqual({ outcome: 'approved' });
     });
 
     test('unknown action throws ErrorInvalidOperation', async () => {
@@ -144,7 +232,7 @@ describe('abstract-payment.service (modifyPayment)', () => {
       const getPaymentSpy = jest
         .spyOn(paymentSDK.ctPaymentService, 'getPayment')
         .mockResolvedValue(mockGetPaymentResult as never);
-      jest.spyOn(paymentService, 'settlement').mockResolvedValue({ success: true } as never);
+      jest.spyOn(paymentService, 'settlement').mockResolvedValue({ outcome: PaymentModificationStatus.APPROVED });
 
       await paymentService.modifyPayment({
         paymentId: 'payment-456',
@@ -158,7 +246,9 @@ describe('abstract-payment.service (modifyPayment)', () => {
     });
 
     test('settlement receives correct shape from settlement spy', async () => {
-      const settlementSpy = jest.spyOn(paymentService, 'settlement').mockResolvedValue({ success: true } as never);
+      const settlementSpy = jest
+        .spyOn(paymentService, 'settlement')
+        .mockResolvedValue({ outcome: PaymentModificationStatus.APPROVED });
 
       const testPayment = {
         ...mockGetPaymentResult,
@@ -182,7 +272,9 @@ describe('abstract-payment.service (modifyPayment)', () => {
     });
 
     test('void receives only payment, no amount', async () => {
-      const voidSpy = jest.spyOn(paymentService, 'void').mockResolvedValue({ success: true } as never);
+      const voidSpy = jest
+        .spyOn(paymentService, 'void')
+        .mockResolvedValue({ outcome: PaymentModificationStatus.APPROVED });
 
       await paymentService.modifyPayment({
         paymentId: mockGetPaymentResult.id,
@@ -196,21 +288,6 @@ describe('abstract-payment.service (modifyPayment)', () => {
         payment: mockGetPaymentResult,
       });
       expect(voidSpy.mock.calls[0][0]).not.toHaveProperty('amount');
-    });
-
-    test('reverse maps to void not refund', async () => {
-      const voidSpy = jest.spyOn(paymentService, 'void').mockResolvedValue({ success: true } as never);
-      const refundSpy = jest.spyOn(paymentService, 'refundPayment').mockResolvedValue({ success: true } as never);
-
-      await paymentService.modifyPayment({
-        paymentId: mockGetPaymentResult.id,
-        data: {
-          actions: [{ action: 'reversePayment' }],
-        },
-      });
-
-      expect(voidSpy).toHaveBeenCalled();
-      expect(refundSpy).not.toHaveBeenCalled();
     });
   });
 });

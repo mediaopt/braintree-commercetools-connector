@@ -87230,7 +87230,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"capturePayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
+									"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"capturePayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            }\n        }\n    ]\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -87248,7 +87248,7 @@
 										"{{payment-id}}"
 									]
 								},
-								"description": "This is called on the commercetools Checkout host (`{{checkout-host}}`, e.g. `https://checkout.<region>.commercetools.com`) — a different host from `{{host}}` used elsewhere in this collection. Checkout forwards the request to this connector's own `POST /operations/payment-intents/:id` route. Requires an OAuth2 token with the `manage_checkout_payment_intents:{{project-key}}` and `manage_projects:{{project-key}}` scopes."
+								"description": "Follows the commercetools [Payment Intents API](https://docs.commercetools.com/checkout/payment-intents-api): requests and responses match its documentation.\n\nThis connector carries out each relevant action on the Braintree [transaction](https://developer.paypal.com/braintree/docs/reference/response/transaction/node) and syncs the result onto the commercetools payment.\n\nHow actions and statuses map between the two: `docs/Intents.md` in the connector repository.\n\n**Using this collection**\n- Host: `{{checkout-host}}` is the commercetools Checkout host (e.g. `https://checkout.<region>.commercetools.com`, not `{{host}}`), which forwards the request to the connector's `POST /operations/payment-intents/:id` route. For local tests, send the same request and token to the processor directly: `<processor URL>/operations/payment-intents/{{payment-id}}`.\n- Permissions required for the commercetools API client: [Scope](https://docs.commercetools.com/checkout/payment-intents-api#scope).\n- To target a specific transaction with an action that doesn't support `transactionId`, pass the target Braintree transaction id as `merchantReference`.\n- `capturePayment` targets the Authorization whose Braintree transaction id is given as `merchantReference`, otherwise the payment's last Authorization; a `merchantReference` that isn't an Authorization of the payment is rejected."
 							},
 							"response": [
 								{
@@ -87264,7 +87264,7 @@
 										],
 										"body": {
 											"mode": "raw",
-											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"capturePayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"capturePayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"merchantReference\": \"this-connector-doesn't-use-it\"\n        }\n    ]\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -87283,10 +87283,61 @@
 											]
 										}
 									},
-									"_postman_previewlanguage": null,
-									"header": null,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
 									"cookie": [],
-									"body": null
+									"body": "{\n    \"outcome\": \"received\"\n}",
+									"status": "OK",
+									"code": 200
+								},
+								{
+									"name": "Capture Payment (partial)",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"capturePayment\",\n            \"amount\": {\n                \"centAmount\": 5000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"merchantReference\": \"this-connector-doesn't-use-it\"\n        }\n    ]\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{checkout-host}}/{{project-key}}/payment-intents/{{payment-id}}",
+											"host": [
+												"{{checkout-host}}"
+											],
+											"path": [
+												"{{project-key}}",
+												"payment-intents",
+												"{{payment-id}}"
+											]
+										}
+									},
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"outcome\": \"received\"\n}",
+									"status": "OK",
+									"code": 200
 								},
 								{
 									"name": "Refund Payment",
@@ -87301,7 +87352,7 @@
 										],
 										"body": {
 											"mode": "raw",
-											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"refundPayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"transactionId\": \"{{transaction-id}}\",\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"refundPayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"transactionId\": \"Braintree-target-transaction-id\",\n            \"merchantReference\": \"this-connector-doesn't-use-it\"\n        }\n    ]\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -87320,10 +87371,61 @@
 											]
 										}
 									},
-									"_postman_previewlanguage": null,
-									"header": null,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
 									"cookie": [],
-									"body": null
+									"body": "{\n    \"outcome\": \"received\"\n}",
+									"status": "OK",
+									"code": 200
+								},
+								{
+									"name": "Refund Payment (single capture)",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"refundPayment\",\n            \"amount\": {\n                \"centAmount\": 10000,\n                \"currencyCode\": \"EUR\"\n            },\n            \"merchantReference\": \"this-connector-doesn't-use-it\"\n        }\n    ]\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{checkout-host}}/{{project-key}}/payment-intents/{{payment-id}}",
+											"host": [
+												"{{checkout-host}}"
+											],
+											"path": [
+												"{{project-key}}",
+												"payment-intents",
+												"{{payment-id}}"
+											]
+										}
+									},
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"outcome\": \"received\"\n}",
+									"status": "OK",
+									"code": 200
 								},
 								{
 									"name": "Cancel Payment",
@@ -87338,7 +87440,7 @@
 										],
 										"body": {
 											"mode": "raw",
-											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"cancelPayment\",\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"cancelPayment\"\n        }\n    ]\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -87357,10 +87459,61 @@
 											]
 										}
 									},
-									"_postman_previewlanguage": null,
-									"header": null,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
 									"cookie": [],
-									"body": null
+									"body": "{\n    \"outcome\": \"approved\"\n}",
+									"status": "OK",
+									"code": 200
+								},
+								{
+									"name": "Cancel Payment (by merchantReference)",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"cancelPayment\",\n            \"merchantReference\": \"Braintree-target-transaction-id\"\n        }\n    ]\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{checkout-host}}/{{project-key}}/payment-intents/{{payment-id}}",
+											"host": [
+												"{{checkout-host}}"
+											],
+											"path": [
+												"{{project-key}}",
+												"payment-intents",
+												"{{payment-id}}"
+											]
+										}
+									},
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"outcome\": \"approved\"\n}",
+									"status": "OK",
+									"code": 200
 								},
 								{
 									"name": "Reverse Payment",
@@ -87375,7 +87528,7 @@
 										],
 										"body": {
 											"mode": "raw",
-											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"reversePayment\",\n            \"merchantReference\": \"example-reference\"\n        }\n    ]\n}",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"reversePayment\"\n        }\n    ]\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -87394,10 +87547,61 @@
 											]
 										}
 									},
-									"_postman_previewlanguage": null,
-									"header": null,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
 									"cookie": [],
-									"body": null
+									"body": "{\n    \"outcome\": \"approved\"\n}",
+									"status": "OK",
+									"code": 200
+								},
+								{
+									"name": "Reverse Payment (by merchantReference)",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"actions\": [\n        {\n            \"action\": \"reversePayment\",\n            \"merchantReference\": \"Braintree-target-transaction-id\"\n        }\n    ]\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{checkout-host}}/{{project-key}}/payment-intents/{{payment-id}}",
+											"host": [
+												"{{checkout-host}}"
+											],
+											"path": [
+												"{{project-key}}",
+												"payment-intents",
+												"{{payment-id}}"
+											]
+										}
+									},
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"outcome\": \"approved\"\n}",
+									"status": "OK",
+									"code": 200
 								}
 							]
 						}

@@ -13,6 +13,7 @@ import {
   createPaymentMethod,
   deleteCustomer,
   findTransaction,
+  getTransaction,
   deletePayment,
   updatePayment,
 } from '../service';
@@ -49,6 +50,7 @@ beforeEach(() => {
       submitForSettlement: jest.fn(),
       submitForPartialSettlement: jest.fn(),
       search: jest.fn(),
+      find: jest.fn(),
       packageTracking: jest.fn(),
     },
     customer: {
@@ -372,6 +374,23 @@ describe("findTransaction", () => {
     const promise = findTransaction("order-1");
     emitter.emit("error", new Error("stream failure"));
     await expect(promise).rejects.toThrow("stream failure");
+  });
+});
+
+describe("getTransaction", () => {
+  test("returns the transaction found by id", async () => {
+    const mockTransaction = { id: "txn-1", status: "settled" };
+    mockGatewayInstance.transaction.find.mockResolvedValue(mockTransaction);
+    const result = await getTransaction("txn-1");
+    expect(mockGatewayInstance.transaction.find).toHaveBeenCalledWith("txn-1");
+    expect(result).toBe(mockTransaction);
+  });
+
+  test("rejects when the gateway rejects (e.g. unknown id)", async () => {
+    mockGatewayInstance.transaction.find.mockRejectedValue(
+      new Error("notFoundError"),
+    );
+    await expect(getTransaction("missing")).rejects.toThrow("notFoundError");
   });
 });
 

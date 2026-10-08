@@ -44,7 +44,7 @@ The connector includes a checkout mode for faster, streamlined payment processin
 
 - **PayPal SDK Frontend**: The enabler module provides a frontend based on the PayPal SDK for quick checkout integration.
 - **Performance Optimized**: The processor module uses the Commercetools Checkout API for faster cart and payment API interactions.
-- **Limited Scope**: The processor is designed to be used together with the `enabler` to drive the [checkout flow](https://docs.commercetools.com/learning-implement-checkout/implement-commercetools-checkout/intro-to-commercetools-checkout); the only part of the API meant to be triggered manually, not through the enabler, is the [Payment Intents API](https://docs.commercetools.com/checkout/payment-intents-api). Merchants call this on commercetools' own Checkout host (`checkout.<region>.commercetools.com/{projectKey}/payment-intents/{paymentId}`), which forwards the request internally to this connector's `POST /operations/payment-intents/:id` route — merchants should not call that route on the processor directly (see "Checkout mode" below for the local-testing exception). See the "Checkout" → "Payment Intents" folder of the [Postman collection](docs/Braintree.postman_collection.json) for request examples.
+- **Limited Scope**: The processor is designed to be used together with the `enabler` to drive the [checkout flow](https://docs.commercetools.com/learning-implement-checkout/implement-commercetools-checkout/intro-to-commercetools-checkout); the only part of the API meant to be triggered manually, not through the enabler, is the [Payment Intents API](https://docs.commercetools.com/checkout/payment-intents-api). Merchants call this on commercetools' own Checkout host (`checkout.<region>.commercetools.com/{projectKey}/payment-intents/{paymentId}`), which forwards the request internally to this connector's `POST /operations/payment-intents/:id` route — merchants should not call that route on the processor directly (see "Checkout mode" below for the local-testing exception). See the "Checkout" → "Payment Intents" folder of the [Postman collection](docs/Braintree.postman_collection.json) for request examples. See [Payment Intents](docs/Intents.md) for how each action maps to Braintree.
 
 **Note**: The main purpose of processor and enabler modules is to provide full compatibility with commercetools checkout. Previously existing fine-grained API control and customization is still available via extension module.
 
@@ -208,7 +208,13 @@ correspondingly.
 
 - `cd common-connect`
 - run `npm install` to install the dependencies
-- run `build` to install the dependencies
+- run `npm run build` to build the package
+- `cd ../processor`
+- run `npm install` and `npm run build`
+- run `npm run connector:post-deploy` to register the commercetools custom fields the processor writes. commercetools
+  Connect runs it on every deployment; locally, run it after the first setup and after every update. The processor
+  records a payment update in one commercetools call, so if a field added by an update (e.g. `findTransactionResponse`)
+  is missing, commercetools rejects the whole update, including the transaction.
 - `cd ..`
 - run `docker compose up` to start the local JWT mock server, enabler and processor.
 

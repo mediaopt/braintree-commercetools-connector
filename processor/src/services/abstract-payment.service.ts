@@ -13,6 +13,7 @@ import {
 } from './types/operation.type';
 
 import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-componets.dto';
+import { PaymentIntentResponseSchemaDTO, PaymentModificationStatus } from '../dtos/operations/payment-intents.dto';
 import {
   PaymentUpdateResponseSchemaDTO,
   PaymentRequestSchemaDTO,
@@ -21,6 +22,12 @@ import {
   TransactionSaleRequestSchemaDTO,
 } from '../dtos/braintree-payment.dto';
 import { logger } from 'common-connect';
+import {
+  getBraintreePaymentTypeId,
+  isBraintreePayment,
+  notBraintreePaymentMessage,
+} from '../utils/customEntities.utils';
+import { errorMessage } from '../utils/error.utils';
 
 /**
  * Abstract base class for payment service implementations.
@@ -145,7 +152,7 @@ export abstract class AbstractPaymentService {
    * @param request - commercetools payment object, optional braintree money refund amount, optional transaction ID
    * @returns Promise with success response
    */
-  abstract refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<PaymentUpdateResponseSchemaDTO>;
+  abstract refundPayment(request: ModifyPaymentWithTransactionRequest): Promise<PaymentIntentResponseSchemaDTO>;
 
   /**
    * Settlement
@@ -156,7 +163,7 @@ export abstract class AbstractPaymentService {
    * @param request - commercetools payment and optional transaction ID to settle
    * @returns Promise with success response
    */
-  abstract settlement(request: ModifyPaymentWithTransactionRequest): Promise<PaymentUpdateResponseSchemaDTO>;
+  abstract settlement(request: ModifyPaymentWithTransactionRequest): Promise<PaymentIntentResponseSchemaDTO>;
 
   /**
    * Cancel payment (void)
@@ -167,7 +174,18 @@ export abstract class AbstractPaymentService {
    * @param request - commercetools payment
    * @returns Promise with success response
    */
-  abstract void(request: CancelPaymentRequest): Promise<PaymentUpdateResponseSchemaDTO>;
+  abstract void(request: CancelPaymentRequest): Promise<PaymentIntentResponseSchemaDTO>;
+
+  /**
+   * Reverse payment
+   *
+   * @remarks
+   * Abstract method to refund what has been captured or void what hasn't. The actual implementation should be provided by subclasses.
+   *
+   * @param request - commercetools payment
+   * @returns Promise with success response
+   */
+  abstract reversePayment(request: CancelPaymentRequest): Promise<PaymentIntentResponseSchemaDTO>;
 
   /**
    * Modify payment
@@ -176,35 +194,41 @@ export abstract class AbstractPaymentService {
    * This method is used to execute Capture/Cancel/Refund payment in external PSPs and update composable commerce.
    * The actual invocation to PSPs should be implemented in subclasses
    *
-   * The names for commecetools and braintree methods are mapped in the following way:
-   *
-   * | commercetools | braintree |
-   * |---------------|-----------|
-   * | capture       | settlement|
-   * | refund        | refund    |
-   * | cancel        | void      |
-   *
-   * reverse is not implemented in current connector iteration
+   * How each action maps to Braintree: see docs/Intents.md
    *
    * @param opts - input for payment modification including payment ID, action and payment amount
    * @returns Promise with success response
    */
 
-  public async modifyPayment(opts: ModifyPayment): Promise<PaymentUpdateResponseSchemaDTO> {
-    const ctPayment = await this.ctPaymentService.getPayment({
-      id: opts.paymentId,
-    });
+  public async modifyPayment(opts: ModifyPayment): Promise<PaymentIntentResponseSchemaDTO> {
+    const [ctPayment, typeLookup] = await Promise.all([
+      this.ctPaymentService.getPayment({ id: opts.paymentId }),
+      getBraintreePaymentTypeId().then(
+        (id) => ({ id }),
+        (err) => ({ error: errorMessage(err) }),
+      ),
+    ]);
     const request = opts.data.actions[0];
     logger.info(`Received request to modify payment ${opts.paymentId} with action ${request.action}`);
+    if ('error' in typeLookup)
+      return this.rejectPaymentIntent(
+        ctPayment.id,
+        request.action,
+        `could not look up the Braintree payment type: ${typeLookup.error}`,
+        'error',
+      );
+    if (!isBraintreePayment(ctPayment, typeLookup.id))
+      return this.rejectPaymentIntent(ctPayment.id, request.action, notBraintreePaymentMessage(ctPayment.id), 'error');
     switch (request.action) {
       case 'capturePayment': {
         return await this.settlement({
           payment: ctPayment,
           amount: request.amount,
+          merchantReference: request.merchantReference,
         });
       }
       case 'cancelPayment': {
-        return await this.void({ payment: ctPayment });
+        return await this.void({ payment: ctPayment, merchantReference: request.merchantReference });
       }
       case 'refundPayment': {
         return await this.refundPayment({
@@ -214,12 +238,26 @@ export abstract class AbstractPaymentService {
         });
       }
       case 'reversePayment': {
-        return await this.void({ payment: ctPayment });
+        return await this.reversePayment({ payment: ctPayment, merchantReference: request.merchantReference });
       }
       default: {
         throw new ErrorInvalidOperation(`Operation not supported.`);
       }
     }
+  }
+
+  /**
+   * Rejected answer for an operation impossible in the payment's current state (warn) or after a failure (error) —
+   * see docs/Intents.md "How this connector answers".
+   */
+  protected rejectPaymentIntent(
+    paymentId: string,
+    operation: string,
+    reason: string,
+    level: 'warn' | 'error' = 'warn',
+  ): PaymentIntentResponseSchemaDTO {
+    logger[level](`${operation}: rejected, paymentId: ${paymentId} — ${reason}`);
+    return { outcome: PaymentModificationStatus.REJECTED };
   }
 
   /**

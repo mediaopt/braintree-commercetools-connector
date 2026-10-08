@@ -4,6 +4,7 @@ dotenv.config();
 import { TypeDraft } from '@commercetools/platform-sdk';
 import {
   apiCallNameToFieldData,
+  BRAINTREE_CUSTOMER_TYPE_KEY,
   CUSTOM_TYPE_DESCRIPTORS,
   CustomTypeShape,
   FieldDefinitionData,
@@ -15,6 +16,7 @@ import {
 import { paymentSDK } from '../payment-sdk';
 import { getConfig } from '../config/config';
 
+// The processor registers every field it writes itself, so it can be developed or tested independently of extension.
 // The endpoint names processor itself calls Braintree with (see braintree-payment.service.ts's
 // updatePaymentWithTransaction/handleCustomFieldResponse usage) — the only ones it needs its own
 // ProcessorRequest field for. Everything else on braintree-payment-type (Request fields, and
@@ -25,6 +27,7 @@ const PROCESSOR_PAYMENT_API_CALL_NAMES = [
   'submitForSettlement',
   'refund',
   'void',
+  'findTransaction',
 ];
 
 const LOCAL_PAYMENT_METHODS_PAYMENT_ID_FIELD: FieldDefinitionData = {
@@ -40,6 +43,13 @@ const BRAINTREE_ORDER_ID_FIELD: FieldDefinitionData = {
   label: { en: 'Order Id', de: 'Bestellnummer' },
 };
 
+// written by linkBraintreeCustomerId; same definition as braintree-extension's (connector/actions.ts)
+const BRAINTREE_CUSTOMER_ID_FIELD: FieldDefinitionData = {
+  name: 'braintreeCustomerId',
+  label: { en: 'Braintree customer Id' },
+  inputHint: 'SingleLine',
+};
+
 // Builds the TypeDraft processor itself needs for one custom type shared with extension's own
 // response logs. The actual create-if-missing/add-missing-fields orchestration is provided by
 // paymentSDK.ctCustomTypeService.createOrUpdate(). Never touches any of braintree-extension's own
@@ -47,7 +57,7 @@ const BRAINTREE_ORDER_ID_FIELD: FieldDefinitionData = {
 const buildTypeDraft = (
   key: string,
   { name, resourceTypeIds }: CustomTypeShape,
-  fields: FieldDefinitionData[]
+  fields: FieldDefinitionData[],
 ): TypeDraft => ({
   key,
   name,
@@ -73,9 +83,7 @@ async function ensureProcessorFields(): Promise<void> {
       fields: [
         LOCAL_PAYMENT_METHODS_PAYMENT_ID_FIELD,
         BRAINTREE_ORDER_ID_FIELD,
-        ...PROCESSOR_PAYMENT_API_CALL_NAMES.flatMap((name) =>
-          apiCallNameToFieldData(name, true)
-        ),
+        ...PROCESSOR_PAYMENT_API_CALL_NAMES.flatMap((name) => apiCallNameToFieldData(name, true)),
       ],
     },
     {
@@ -83,14 +91,17 @@ async function ensureProcessorFields(): Promise<void> {
       shape: CUSTOM_TYPE_DESCRIPTORS[BRAINTREE_PAYMENT_INTERACTION_TYPE_KEY],
       fields: PAYMENT_INTERACTION_TYPE_FIELDS,
     },
+    {
+      typeKey: getConfig().customerTypeKey,
+      shape: CUSTOM_TYPE_DESCRIPTORS[BRAINTREE_CUSTOMER_TYPE_KEY],
+      fields: [BRAINTREE_CUSTOMER_ID_FIELD],
+    },
   ];
 
   await Promise.all(
     typeSpecs.map(({ typeKey, shape, fields }) =>
-      paymentSDK.ctCustomTypeService.createOrUpdate(
-        buildTypeDraft(typeKey, shape, fields)
-      )
-    )
+      paymentSDK.ctCustomTypeService.createOrUpdate(buildTypeDraft(typeKey, shape, fields)),
+    ),
   );
 }
 

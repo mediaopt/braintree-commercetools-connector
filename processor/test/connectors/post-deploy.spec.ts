@@ -4,6 +4,7 @@ import { getConfig } from '../../src/config/config';
 
 const paymentTypeKey = getConfig().paymentTypeKey;
 const interactionTypeKey = getConfig().interactionTypeKey;
+const customerTypeKey = getConfig().customerTypeKey;
 
 const PAYMENT_TYPE_FULL_FIELD_NAMES = [
   'LocalPaymentMethodsPaymentId',
@@ -18,6 +19,8 @@ const PAYMENT_TYPE_FULL_FIELD_NAMES = [
   'refundResponse',
   'voidProcessorRequest',
   'voidResponse',
+  'findTransactionProcessorRequest',
+  'findTransactionResponse',
 ];
 
 const INTERACTION_TYPE_FULL_FIELD_NAMES = ['type', 'data', 'timestamp'];
@@ -30,9 +33,7 @@ describe('connectors/post-deploy', () => {
   const runPostDeploy = async () => {
     jest.resetModules();
     const { paymentSDK } = require('../../src/payment-sdk');
-    const createOrUpdate = jest
-      .spyOn(paymentSDK.ctCustomTypeService, 'createOrUpdate')
-      .mockResolvedValue({} as never);
+    const createOrUpdate = jest.spyOn(paymentSDK.ctCustomTypeService, 'createOrUpdate').mockResolvedValue({} as never);
     require('../../src/connectors/post-deploy');
     // The module's own runPostDeployScripts() is async but not awaited by require() itself —
     // flush microtasks so its internal awaits have a chance to settle before assertions run.
@@ -45,16 +46,14 @@ describe('connectors/post-deploy', () => {
     jest.clearAllMocks();
   });
 
-  test("provisions braintree-payment-type with processor's own 5 endpoints plus its 2 direct fields", async () => {
+  test("provisions braintree-payment-type with processor's own endpoint and direct fields", async () => {
     const createOrUpdate = await runPostDeploy();
 
     expect(createOrUpdate).toHaveBeenCalledWith({
       key: paymentTypeKey,
       name: { en: 'Custom payment type to braintree fields' },
       resourceTypeIds: ['payment'],
-      fieldDefinitions: PAYMENT_TYPE_FULL_FIELD_NAMES.map((name) =>
-        expect.objectContaining({ name }),
-      ),
+      fieldDefinitions: PAYMENT_TYPE_FULL_FIELD_NAMES.map((name) => expect.objectContaining({ name })),
     });
   });
 
@@ -65,15 +64,26 @@ describe('connectors/post-deploy', () => {
       key: interactionTypeKey,
       name: { en: 'Custom payment interaction type to braintree fields' },
       resourceTypeIds: ['payment-interface-interaction'],
-      fieldDefinitions: INTERACTION_TYPE_FULL_FIELD_NAMES.map((name) =>
-        expect.objectContaining({ name }),
-      ),
+      fieldDefinitions: INTERACTION_TYPE_FULL_FIELD_NAMES.map((name) => expect.objectContaining({ name })),
     });
   });
 
-  test('provisions both types independently, in parallel', async () => {
+  // the processor writes braintreeCustomerId itself (linkBraintreeCustomerId), so it doesn't rely on
+  // braintree-extension's post-deploy for it — and never registers the extension's own customer fields
+  test('provisions braintree-customer-type with braintreeCustomerId only', async () => {
     const createOrUpdate = await runPostDeploy();
 
-    expect(createOrUpdate).toHaveBeenCalledTimes(2);
+    expect(createOrUpdate).toHaveBeenCalledWith({
+      key: customerTypeKey,
+      name: { en: 'Custom customer type to braintree fields' },
+      resourceTypeIds: ['customer'],
+      fieldDefinitions: [expect.objectContaining({ name: 'braintreeCustomerId' })],
+    });
+  });
+
+  test('provisions all three types independently, in parallel', async () => {
+    const createOrUpdate = await runPostDeploy();
+
+    expect(createOrUpdate).toHaveBeenCalledTimes(3);
   });
 });

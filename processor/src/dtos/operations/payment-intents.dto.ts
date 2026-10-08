@@ -11,7 +11,7 @@ export const ActionCapturePaymentSchema = Type.Composite([
   }),
   Type.Object({
     amount: AmountSchema,
-    transactionId: Type.Optional(Type.String()),
+    merchantReference: Type.Optional(Type.String()),
   }),
 ]);
 
@@ -28,6 +28,7 @@ export const ActionRefundPaymentSchema = Type.Composite([
 export const ActionCancelPaymentSchema = Type.Composite([
   Type.Object({
     action: Type.Literal('cancelPayment'),
+    merchantReference: Type.Optional(Type.String()),
   }),
 ]);
 
@@ -79,3 +80,4 @@ export const PaymentIntentResponseSchema = Type.Object({
 });
 
 export type PaymentIntentRequestSchemaDTO = Static<typeof PaymentIntentRequestSchema>;
+export type PaymentIntentResponseSchemaDTO = Static<typeof PaymentIntentResponseSchema>;
