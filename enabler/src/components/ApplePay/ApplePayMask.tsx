@@ -117,11 +117,12 @@ export const ApplePayMask: FC<PropsWithChildren<ApplePayMaskProps>> = ({
                       return;
                     }
 
+                    // Failure is already notified inside handleTransactionSale; its rejection is only for submit()-driven callers.
                     if (payload)
                       handleTransactionSale(payload.nonce, {
                         lineItems: paymentInfo.braintreeLineItems,
                         shipping: shipping,
-                      });
+                      }).catch(() => {});
 
                     session.completePayment(
                       window.ApplePaySession.STATUS_SUCCESS,

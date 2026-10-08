@@ -7,6 +7,16 @@ import { useNotifications } from "../../app/useNotifications";
 import { useLoader } from "../../app/useLoader";
 import loadScript from "../../app/loadScript";
 import { GooglePayTypes } from "../../types";
+import { withBraintreeRef } from "../../helpers/braintreeErrorRef";
+
+// Google Pay's own errors carry a fixed statusCode (e.g. CANCELED, DEVELOPER_ERROR); its statusMessage is
+// not logged. Errors from Braintree get the Braintree reference instead.
+const withGooglePayRef = (text: string, err: unknown): string => {
+  const statusCode = (err as { statusCode?: unknown } | null)?.statusCode;
+  return typeof statusCode === "string" && /^[A-Z_]{1,40}$/.test(statusCode)
+    ? `${text} (Google Pay status code: ${statusCode})`
+    : withBraintreeRef(text, err);
+};
 
 export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
   environment,
@@ -22,7 +32,8 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
   shipping,
 }: GooglePayTypes) => {
   const { handleTransactionSale, paymentInfo, clientToken } = usePayment();
-  const effectiveAcquirerCountryCode = acquirerCountryCode ?? paymentInfo.countryCode;
+  const effectiveAcquirerCountryCode =
+    acquirerCountryCode ?? paymentInfo.countryCode;
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
   const GoogleApiVersion: number = 2;
@@ -113,18 +124,25 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
                               paymentData,
                               function (err: any, result: any) {
                                 if (err) {
-                                  notify("Error", err.message);
+                                  const text =
+                                    "The Google Pay response could not be processed.";
+                                  notify("Error", text);
+                                  console.error(withBraintreeRef(text, err));
                                   return;
                                 }
+                                // Failure is already notified inside handleTransactionSale; its rejection is only for submit()-driven callers.
                                 handleTransactionSale(result.nonce, {
                                   lineItems: paymentInfo.braintreeLineItems,
                                   shipping: shipping,
-                                });
+                                }).catch(() => {});
                               },
                             );
                           })
                           .catch(function (err) {
-                            notify("Error", err.message);
+                            const text =
+                              "The Google Pay payment was not completed.";
+                            notify("Error", text);
+                            console.error(withGooglePayRef(text, err));
                           });
                       },
                       buttonColor: buttonTheme,
@@ -141,7 +159,9 @@ export const GooglePayMask: FC<PropsWithChildren<GooglePayTypes>> = ({
                   }
                 })
                 .catch(function (err) {
-                  notify("Error", err.message);
+                  const text = "Google Pay is not available.";
+                  notify("Error", text);
+                  console.error(withGooglePayRef(text, err));
                 });
             },
           );

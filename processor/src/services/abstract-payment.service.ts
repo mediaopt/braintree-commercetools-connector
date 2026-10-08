@@ -27,6 +27,7 @@ import {
   isBraintreePayment,
   notBraintreePaymentMessage,
 } from '../utils/customEntities.utils';
+import { errorMessage } from '../utils/error.utils';
 
 /**
  * Abstract base class for payment service implementations.
@@ -200,13 +201,23 @@ export abstract class AbstractPaymentService {
    */
 
   public async modifyPayment(opts: ModifyPayment): Promise<PaymentIntentResponseSchemaDTO> {
-    const [ctPayment, braintreePaymentTypeId] = await Promise.all([
+    const [ctPayment, typeLookup] = await Promise.all([
       this.ctPaymentService.getPayment({ id: opts.paymentId }),
-      getBraintreePaymentTypeId(),
+      getBraintreePaymentTypeId().then(
+        (id) => ({ id }),
+        (err) => ({ error: errorMessage(err) }),
+      ),
     ]);
     const request = opts.data.actions[0];
     logger.info(`Received request to modify payment ${opts.paymentId} with action ${request.action}`);
-    if (!isBraintreePayment(ctPayment, braintreePaymentTypeId))
+    if ('error' in typeLookup)
+      return this.rejectPaymentIntent(
+        ctPayment.id,
+        request.action,
+        `could not look up the Braintree payment type: ${typeLookup.error}`,
+        'error',
+      );
+    if (!isBraintreePayment(ctPayment, typeLookup.id))
       return this.rejectPaymentIntent(ctPayment.id, request.action, notBraintreePaymentMessage(ctPayment.id), 'error');
     switch (request.action) {
       case 'capturePayment': {

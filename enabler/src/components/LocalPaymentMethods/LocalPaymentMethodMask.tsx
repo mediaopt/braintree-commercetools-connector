@@ -16,14 +16,12 @@ import {
 import { usePayment } from "../../app/usePayment";
 import { useNotifications } from "../../app/useNotifications";
 
-import {
-  LocalPaymentMethodsType,
-  GeneralPayButtonProps,
-} from "../../types";
+import { LocalPaymentMethodsType, GeneralPayButtonProps } from "../../types";
 import { useLoader } from "../../app/useLoader";
 import { renderMaskButtonClasses } from "../../styles";
 import { validateCountryAndCurrency } from "./validateCountryAndCurrency";
 import { invalidDataLog } from "./invalidDataLog";
+import { withBraintreeRef } from "../../helpers/braintreeErrorRef";
 
 type LocalPaymentMethodMaskType = LocalPaymentMethodsType &
   GeneralPayButtonProps;
@@ -115,7 +113,9 @@ export const LocalPaymentMethodMask: FC<
           if (startPaymentError.code === "LOCAL_PAYMENT_POPUP_CLOSED") {
             notify("Error", "Customer closed Local Payment popup.");
           } else {
-            notify("Error", startPaymentError.message);
+            const text = "The local payment could not be started.";
+            notify("Error", text);
+            console.error(withBraintreeRef(text, startPaymentError));
           }
         } else {
           if (payload) {
@@ -125,7 +125,8 @@ export const LocalPaymentMethodMask: FC<
               shipping: shipping,
               localPaymentId,
             };
-            handleTransactionSale(payload.nonce, handlePurchaseOptions);
+            // Failure is already notified inside handleTransactionSale; its rejection is only for submit()-driven callers.
+            handleTransactionSale(payload.nonce, handlePurchaseOptions).catch(() => {});
           } else {
             isLoading(false);
             notify("Error", "No payload received");
@@ -145,7 +146,9 @@ export const LocalPaymentMethodMask: FC<
         isLoading(true);
         if (clientError) {
           isLoading(false);
-          notify("Error", clientError.message);
+          const text = "There was an error connecting to Braintree.";
+          notify("Error", text);
+          console.error(withBraintreeRef(text, clientError));
           return;
         }
         const localPaymentAuthOption: any = merchantAccountId
@@ -157,7 +160,9 @@ export const LocalPaymentMethodMask: FC<
           function (localPaymentError, paymentInstance) {
             if (localPaymentError) {
               isLoading(false);
-              notify("Error", localPaymentError.message);
+              const text = "The local payment method could not be created.";
+              notify("Error", text);
+              console.error(withBraintreeRef(text, localPaymentError));
               return;
             }
             dataCollector.create(
