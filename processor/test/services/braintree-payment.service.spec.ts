@@ -2147,12 +2147,22 @@ describe('braintree-payment.service', () => {
       });
     });
 
-    test('no cart-bound session: fallback to anonymous', async () => {
-      // getCartIdFromContext's real return type is always `string` — the "no session" fallback
-      // is triggered by it (or the subsequent getCart call) throwing, not by returning undefined.
-      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockImplementation(() => {
-        throw new Error('no cart-bound session');
+    test('session without a cart: anonymous token, no cart lookup', async () => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(undefined);
+      const getCartSpy = jest.spyOn(paymentSDK.ctCartService, 'getCart');
+      (CommonConnect.getClientToken as jest.Mock).mockResolvedValue('anon-client-token' as never);
+
+      const result = await braintreePaymentService.getExpressClientToken();
+
+      expect(getCartSpy).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        braintreeData: { clientToken: 'anon-client-token', braintreeCustomerId: undefined },
       });
+    });
+
+    test('cart lookup fails: fallback to anonymous', async () => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue('cart-id');
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockRejectedValue(new Error('CT unavailable'));
       (CommonConnect.getClientToken as jest.Mock).mockResolvedValue('anon-client-token' as never);
 
       const result = await braintreePaymentService.getExpressClientToken();

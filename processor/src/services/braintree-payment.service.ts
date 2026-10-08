@@ -485,9 +485,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
       return false;
     }
 
-    const ctCart = await this.ctCartService.getCart({
-      id: getCartIdFromContext(),
-    });
+    // PayPal Express's session may have no Cart before the click
+    const cartId = getCartIdFromContext();
+    if (!cartId) {
+      return false;
+    }
+    const ctCart = await this.ctCartService.getCart({ id: cartId });
 
     return ctCart.customerId !== undefined;
   }
@@ -633,15 +636,20 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }> {
     const merchantAccountId = getConfig().merchantAccountId;
     let braintreeCustomerId: string | undefined;
-    try {
-      const cartId = getCartIdFromContext();
-      const ctCart = await this.ctCartService.getCart({ id: cartId });
-      const customer = ctCart.customerId
-        ? await this.braintreeCustomerService.getCtCustomer(ctCart.customerId)
-        : undefined;
-      braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
-    } catch (err) {
-      logger.info(`getExpressClientToken: no cart-bound session, issuing anonymous token — ${errorMessage(err)}`);
+    // PayPal Express's session may have no Cart before the click: anonymous token
+    const cartId = getCartIdFromContext();
+    if (cartId) {
+      try {
+        const ctCart = await this.ctCartService.getCart({ id: cartId });
+        const customer = ctCart.customerId
+          ? await this.braintreeCustomerService.getCtCustomer(ctCart.customerId)
+          : undefined;
+        braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
+      } catch (err) {
+        logger.warn(
+          `getExpressClientToken: customer lookup failed for cart ${cartId}, issuing anonymous token — ${errorMessage(err)}`,
+        );
+      }
     }
     const clientToken = await getClientToken({ merchantAccountId, customerId: braintreeCustomerId });
     return { braintreeData: { clientToken, braintreeCustomerId } };
@@ -666,7 +674,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // PURE_VAULT_DISABLED: isPureVault detection disabled; feature cancelled
     const isPureVault = false;
     const isExpress = paymentMethodType === 'PayPal' && builderType === 'express';
-    const cartId = getCartIdFromContext();
+    const cartId = this.requireCartIdFromContext();
     try {
       const ctCart = await this.ctCartService.getCart({
         id: cartId,
@@ -865,7 +873,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     newShippingMethodId,
     address,
   }: UpdateCartShippingRequestSchemaDTO): Promise<UpdateCartShippingResponseSchemaDTO> {
-    const cartId = getCartIdFromContext();
+    const cartId = this.requireCartIdFromContext();
     try {
       const ctCart = await this.ctCartService.getCart({
         id: cartId,
@@ -977,7 +985,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const [updatedExpress, ctPayment, braintreePaymentTypeId] = await Promise.all([
       braintreePaymentDetails?.expressShippingChanged
         ? this.ctCartService
-            .getCart({ id: getCartIdFromContext() })
+            .getCart({ id: this.requireCartIdFromContext(ctPaymentId) })
             .then(async (cart) => cart && { cart, amountPlanned: await this.expressCartAmount(cart) })
         : Promise.resolve(undefined),
       this.ctPaymentService.getPayment({ id: ctPaymentId }),
@@ -1549,16 +1557,17 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // so it's resolved from cart context instead, same as getStoredPaymentMethods/deleteStoredPaymentMethod.
     // Fire-and-forget end-to-end so the cart lookup doesn't add latency to the vault-token response.
     this.fireAndForgetCtPaymentMethodSync(
-      () =>
-        this.ctCartService.getCart({ id: getCartIdFromContext() }).then((ctCartForVault) => {
-          if (!ctCartForVault.customerId) return;
-          return this.ctPaymentMethodService.save({
-            customerId: ctCartForVault.customerId,
-            method: PaymentMethodType.ACH,
-            paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
-            token,
-          });
-        }),
+      // async, so a missing cart rejects into the fire-and-forget catch instead of throwing past it
+      async () => {
+        const ctCartForVault = await this.ctCartService.getCart({ id: this.requireCartIdFromContext(ctPaymentId) });
+        if (!ctCartForVault.customerId) return;
+        return this.ctPaymentMethodService.save({
+          customerId: ctCartForVault.customerId,
+          method: PaymentMethodType.ACH,
+          paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
+          token,
+        });
+      },
       `getAchVaultToken: could not save commercetools PaymentMethod record for payment ${ctPaymentId}`,
     );
 
@@ -1592,7 +1601,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   public async getStoredPaymentMethods(): Promise<StoredPaymentMethodsResponse> {
-    const ctCart = await this.ctCartService.getCart({ id: getCartIdFromContext() });
+    const ctCart = await this.ctCartService.getCart({ id: this.requireCartIdFromContext() });
     if (!ctCart.customerId) {
       logger.warn('getStoredPaymentMethods: cart has no customerId, returning empty');
       return { storedPaymentMethods: [] };
@@ -1654,7 +1663,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   public async deleteStoredPaymentMethod(token: string): Promise<void> {
-    const cartId = getCartIdFromContext();
+    const cartId = this.requireCartIdFromContext();
     let ctCart: Cart | undefined;
     try {
       [, ctCart] = await Promise.all([
@@ -1702,6 +1711,15 @@ export class BraintreePaymentService extends AbstractPaymentService {
    */
   private fireAndForgetCtPaymentMethodSync(operation: () => Promise<unknown>, logContext: string): void {
     void operation().catch((e) => logger.warn(`${logContext}: ${errorMessage(e)}`));
+  }
+
+  // For flows that can't work without a Cart; paymentId only identifies the failing request
+  private requireCartIdFromContext(paymentId?: string): string {
+    const cartId = getCartIdFromContext();
+    if (!cartId) {
+      throw new ErrorInvalidOperation(`no cart found for ${paymentId ?? 'the checkout session'}`);
+    }
+    return cartId;
   }
 
   private validateCartRequiredData(ctCart: Cart, isCartCheckout?: boolean): void {
