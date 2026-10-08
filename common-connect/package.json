@@ -16,7 +16,7 @@
     "@commercetools/platform-sdk": "^4.0.0",
     "@commercetools/sdk-client-v2": "^2.0.0",
     "@commercetools-backend/loggers": "27.4.2",
-    "@commercetools/connect-payments-sdk": "0.28.0",
+    "@commercetools/connect-payments-sdk": "1.5.0",
     "braintree": "^3.13.0",
     "express": "^5.2.1"
   },

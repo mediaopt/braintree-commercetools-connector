@@ -43,6 +43,7 @@ describe('shipping.utils', () => {
       isDefault: false,
       predicate: 'true',
       zoneRates: zoneRates(['US']),
+      stores: [],
       custom: undefined,
     };
 
