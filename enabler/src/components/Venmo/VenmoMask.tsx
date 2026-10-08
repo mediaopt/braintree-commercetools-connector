@@ -19,6 +19,7 @@ import { usePayment } from "../../app/usePayment";
 import { useNotifications } from "../../app/useNotifications";
 
 import { VenmoTypes, GeneralPayButtonProps } from "../../types";
+import { withBraintreeRef } from "../../helpers/braintreeErrorRef";
 import classNames from "classnames";
 
 type VenmoMaskType = VenmoTypes & GeneralPayButtonProps;
@@ -57,17 +58,20 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
     } else if (err.code === "VENMO_APP_CANCELED") {
       notify("Error", "User canceled payment flow");
     } else {
-      notify("Error", err.message);
+      const text = "The Venmo payment could not be completed.";
+      notify("Error", text);
+      console.error(withBraintreeRef(text, err));
     }
   };
 
   const handleVenmoSuccess = (payload: VenmoTokenizePayload) => {
+    // Failure is already notified inside handleTransactionSale; its rejection is only for submit()-driven callers.
     handleTransactionSale(payload.nonce, {
       deviceData: deviceData,
       lineItems: paymentInfo.braintreeLineItems,
       shipping: shipping,
       venmoUsername: payload.details.username,
-    });
+    }).catch(() => {});
   };
 
   const handleTokenizeResult = (payload?: VenmoTokenizePayload) => {
@@ -187,8 +191,7 @@ export const VenmoMask: FC<PropsWithChildren<VenmoMaskType>> = ({
         disabled={venmoDisabled}
         type="submit"
         className={classNames({
-          "justify-center align-center rounded-md px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-white bg-blue-500 hover:bg-blue-600  shadow-sm":
-            true,
+          "justify-center align-center rounded-md px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-white bg-blue-500 hover:bg-blue-600  shadow-sm": true,
           "w-full": fullWidth,
           hidden: !displayButton,
         })}

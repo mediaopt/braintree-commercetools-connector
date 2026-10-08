@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, describe, expect, test } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import Fastify, { type FastifyInstance, FastifyError } from 'fastify';
 import { errorHandler } from '../../../src/libs/fastify/error-handler';
 import { ErrorAuthErrorResponse, Errorx, ErrorxAdditionalOpts } from '@commercetools/connect-payments-sdk';
 import { requestContextPlugin } from '../../../src/libs/fastify/context/context';
 import { FastifySchemaValidationError } from 'fastify/types/schema';
+import { log } from '../../../src/libs/logger';
 
 describe('error-handler', () => {
   let fastify: FastifyInstance;
@@ -93,6 +94,21 @@ describe('error-handler', () => {
         },
       ],
     });
+  });
+
+  test('logs one depersonalized line, never the error object or its cause', async () => {
+    const logError = jest.spyOn(log, 'error');
+    const cause = Object.assign(new Error('Braintree call failed'), {
+      request: { billingAddress: { streetAddress: '1 Private Street' } },
+    });
+    fastify.get('/', () => {
+      throw new Errorx({ code: 'ErrorCode', message: 'someMessage', httpErrorStatus: 400, cause });
+    });
+
+    await fastify.inject({ method: 'GET', url: '/' });
+
+    expect(logError.mock.calls).toEqual([['ErrorCode (400): someMessage — Braintree call failed']]);
+    logError.mockRestore();
   });
 
   test('Fastify error with missing required field', async () => {

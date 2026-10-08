@@ -2,6 +2,7 @@ import { Client, client, ThreeDSecure, threeDSecure } from "braintree-web";
 import { useEffect, useState } from "react";
 import { usePayment } from "./usePayment";
 import { useNotifications } from "./useNotifications";
+import { withBraintreeRef } from "../helpers/braintreeErrorRef";
 
 export const useBraintreeClient = () => {
   const { clientToken } = usePayment();
@@ -59,7 +60,9 @@ export const useBraintreeClient = () => {
         setThreeDSecureInstance(threeDSecureInstance);
       })
       .catch(function (err) {
-        notify("Error", err.message);
+        const text = "3D Secure could not be initialized.";
+        notify("Error", text);
+        console.error(withBraintreeRef(text, err));
       });
   }, [clientToken]);
 

@@ -66,11 +66,11 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
         purchaseCallback:
           configJson.purchaseCallback ||
           options.onComplete ||
-          ((result: any, options: any) => {
+          // Logs only the payment reference: result/options carry shipping address and line items.
+          ((result: any) => {
             console.log(
               "It is your responsibility to configure the action on success. The recommended way is to use the return URL in merchant center. Use this log for debug purpose only",
-              result,
-              options,
+              result?.paymentReference,
             );
           }),
       },

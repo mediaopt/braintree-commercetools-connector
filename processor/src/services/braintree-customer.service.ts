@@ -23,6 +23,7 @@ PURE_VAULT_DISABLED end */
 import { log } from '../libs/logger';
 
 import { getConfig } from '../config/config';
+import { errorMessage } from '../utils/error.utils';
 import { getTypeId } from '../utils/customEntities.utils';
 
 import { DefaultCommercetoolsAPI } from '@commercetools/connect-payments-sdk/dist/commercetools/api/root-api';
@@ -54,7 +55,7 @@ export class BraintreeCustomerService {
       .execute()
       .then((response) => response.body)
       .catch((err) => {
-        log.warn(`Customer not found ${ctCustomerId}`, { error: err });
+        log.warn(`Customer not found ${ctCustomerId} — ${errorMessage(err)}`);
         return;
       });
   }
@@ -71,7 +72,7 @@ export class BraintreeCustomerService {
       .execute()
       .then((response) => response.body)
       .catch((err) => {
-        log.warn(`Could not update customer ${ctCustomerId}`, { error: err });
+        log.warn(`Could not update customer ${ctCustomerId} — ${errorMessage(err)}`);
         return;
       });
   }
@@ -91,7 +92,9 @@ export class BraintreeCustomerService {
       const [ctCustomer, customerTypeId] = await Promise.all([
         this.getCtCustomer(ctCustomerId),
         getTypeId(customerTypeKey).catch((err) => {
-          log.warn(`linkBraintreeCustomerId: could not resolve the customer type ${customerTypeKey}`, { error: err });
+          log.warn(
+            `linkBraintreeCustomerId: could not resolve the customer type ${customerTypeKey} — ${errorMessage(err)}`,
+          );
           return undefined;
         }),
       ]);
