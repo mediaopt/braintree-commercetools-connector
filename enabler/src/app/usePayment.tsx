@@ -280,7 +280,8 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         // processor logs the details.
         const errorMessage = "The payment could not be completed.";
         notify("Error", errorMessage);
-        // Rejects so a Checkout-registered submit() sees the failure (see CreditCardMask).
+        // Rejects so a Checkout-registered submit() sees the failure (see CreditCardMask). Callers that
+        // don't await it end with .catch(() => {}): the toast above already reports the failure.
         throw new Error(errorMessage);
       }
 
