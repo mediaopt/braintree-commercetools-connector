@@ -142,8 +142,11 @@ Otherwise the 3D Secure challenge can't be shown. The connector can't set this p
 because a CSP applies to the page that loads the scripts, not to the connector's own responses.
 When Braintree requests a challenge and it isn't shown within 10 seconds, the payment is rejected:
 `onError` receives `THREEDS_SONGBIRD_NOT_LOADED` (Cardinal's script didn't load) or
-`THREEDS_CHALLENGE_NOT_SHOWN`, and the browser console logs the same message. Payments that need no
-challenge aren't affected.
+`THREEDS_CHALLENGE_NOT_SHOWN`, and the browser console logs the same message. If Cardinal's script
+was only slow, a challenge that becomes available after that is not shown; the browser console logs a
+warning instead. Until 3D Secure has finished loading (at most about a minute), a new payment attempt
+is rejected before the card is tokenized: `onError` receives `THREEDS_STILL_LOADING` and the shopper is
+asked to try again in a moment. Payments that need no challenge aren't affected.
 
 ##### Venmo
 
