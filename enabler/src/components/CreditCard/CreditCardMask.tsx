@@ -14,33 +14,33 @@ import {
 } from "../../types";
 
 import { HOSTED_FIELDS_LABEL, HOSTED_FIELDS } from "../../styles";
+import { withBraintreeRef } from "../../helpers/braintreeErrorRef";
 import { HostedFieldsHostedFieldsFieldName } from "braintree-web/hosted-fields";
 import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
 
 type CreditCardMaskProps = GeneralPayButtonProps & GeneralCreditCardProps;
 
-export const SONGBIRD_WAIT_MS = 3000;
-const SONGBIRD_POLL_MS = 200;
+// When the lookup asks for a challenge, it must appear within this time: if Songbird is blocked or
+// fails to set up, the SDK never shows it and verifyCard hangs. 10 s is the budget commercetools
+// sets for payment-related API extensions:
+// https://docs.commercetools.com/api/releases/2021-12-09-increased-maximum-timeout-for-payment-related-api-extensions
+export const CHALLENGE_SHOW_TIMEOUT_MS = 10000;
 
-// threeDSecure.create resolves without waiting for Cardinal's Songbird script, and the SDK swallows
-// a failed load, so verifyCard would hang on a challenge. Songbird defines window.Cardinal, so wait
-// for it (it may still be loading on a slow connection) and reject when it never shows up.
-const ensureSongbirdLoaded = async (): Promise<void> => {
-  for (
-    let waited = 0;
-    !(window as { Cardinal?: unknown }).Cardinal;
-    waited += SONGBIRD_POLL_MS
-  ) {
-    if (waited >= SONGBIRD_WAIT_MS) {
-      throw Object.assign(
-        new Error(
-          "Cardinal's Songbird.js (3D Secure) was not loaded: blocked by the page's Content Security Policy, a browser extension or the network. See the README's Credit Card section.",
-        ),
-        { code: "THREEDS_SONGBIRD_NOT_LOADED" },
-      );
-    }
-    await new Promise((resolve) => setTimeout(resolve, SONGBIRD_POLL_MS));
-  }
+// window.Cardinal (defined by Songbird) isn't announced by Braintree, so it only words the error;
+// it never decides whether to reject.
+const challengeNotShownError = () => {
+  const [code, hint] = (window as { Cardinal?: unknown }).Cardinal
+    ? ["THREEDS_CHALLENGE_NOT_SHOWN", ""]
+    : [
+        "THREEDS_SONGBIRD_NOT_LOADED",
+        ": Cardinal's Songbird.js (3D Secure) was not loaded. If you are the domain owner, please whitelist the hosts listed in https://braintree.github.io/braintree-web/current/#content-security-policy",
+      ];
+  return Object.assign(
+    new Error(
+      `3D Secure challenge was not shown within ${CHALLENGE_SHOW_TIMEOUT_MS / 1000} s${hint}.`,
+    ),
+    { code },
+  );
 };
 
 export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
@@ -120,9 +120,33 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     if (paymentInfo.braintreeShipping) {
       options.shipping = paymentInfo.braintreeShipping;
     }
-    const verified = ensureSongbirdLoaded().then(() =>
+    // Only a challenge needs Songbird, so only a requested challenge starts the timer (public events:
+    // lookup-complete asks for it, authentication-iframe-available puts it on the page).
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let notShownError: Error | undefined;
+    let rejectNotShown!: (error: Error) => void;
+    const challengeNotShown = new Promise<never>((_, reject) => {
+      rejectNotShown = reject;
+    });
+    const onLookup = (data?: any) => {
+      if (!data?.requiresUserAuthentication) return;
+      timer = setTimeout(() => {
+        threeDS!.cancelVerifyCard(() => {});
+        notShownError = challengeNotShownError();
+        rejectNotShown(notShownError);
+      }, CHALLENGE_SHOW_TIMEOUT_MS);
+    };
+    const onShown = () => clearTimeout(timer);
+    threeDS!.on("lookup-complete", onLookup);
+    threeDS!.on("authentication-iframe-available", onShown);
+    const verified = Promise.race([
       threeDS!.verifyCard(threeDSecureParameters),
-    );
+      challengeNotShown,
+    ]).finally(() => {
+      clearTimeout(timer);
+      threeDS!.off("lookup-complete", onLookup);
+      threeDS!.off("authentication-iframe-available", onShown);
+    });
     return verified.then(
       function (response: any) {
         if (response.threeDSecureInfo.status !== "authenticate_successful") {
@@ -158,10 +182,11 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
       },
       function (error) {
         isLoading(false);
-        if (error?.code.indexOf("THREEDS_LOOKUP") === 0) {
+        // `?.` on code too: an error without one (e.g. a TypeError) must still reach notify/onError.
+        if (error?.code?.startsWith("THREEDS_LOOKUP")) {
           if (error.code === "THREEDS_LOOKUP_TOKENIZED_CARD_NOT_FOUND_ERROR") {
             notify("Error", "Payment nonce does not exist or was already used");
-          } else if (error.code.indexOf("THREEDS_LOOKUP_VALIDATION") === 0) {
+          } else if (error.code.startsWith("THREEDS_LOOKUP_VALIDATION")) {
             notify(
               "Error",
               "Validation error - check your input or try a different payment",
@@ -172,11 +197,22 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
         } else {
           notify("Error", "Something went wrong - try again");
         }
-        onError?.({
-          code: error?.code ?? "THREEDS_VERIFY_FAILED",
-          message: error?.message ?? "Something went wrong - try again",
+        // Our own challenge-not-shown error keeps its code and text; anything else gets only our text
+        // plus the Braintree reference (see withBraintreeRef). Checkout gets the same sanitized error.
+        let sanitized: { code: string; message: string };
+        if (error === notShownError) {
+          console.error(error.message);
+          sanitized = { code: error.code, message: error.message };
+        } else {
+          sanitized = {
+            code: "THREEDS_VERIFY_FAILED",
+            message: withBraintreeRef("3D Secure verification failed.", error),
+          };
+        }
+        onError?.(sanitized);
+        throw Object.assign(new Error(sanitized.message), {
+          code: sanitized.code,
         });
-        throw error;
       },
     );
   };
@@ -247,8 +283,12 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
         if (err) {
           isLoading(false);
           notify("Error", "Something went wrong.");
-          console.error(err);
-          onError?.({ code: err.code, message: err.message });
+          const message = withBraintreeRef(
+            "Credit card fields could not be created.",
+            err,
+          );
+          console.error(message);
+          onError?.({ code: "HOSTED_FIELDS_CREATE_FAILED", message });
           return;
         }
 
@@ -339,13 +379,16 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
                     "Error",
                     "Something went wrong. Check your card details and try again.",
                   );
-                  onError?.({
-                    code: err?.code ?? "TOKENIZE_FAILED",
-                    message:
-                      err?.message ??
-                      "Something went wrong. Check your card details and try again.",
-                  });
-                  return reject(err);
+                  const message = withBraintreeRef(
+                    "Card details could not be tokenized.",
+                    err,
+                  );
+                  onError?.({ code: "TOKENIZE_FAILED", message });
+                  return reject(
+                    Object.assign(new Error(message), {
+                      code: "TOKENIZE_FAILED",
+                    }),
+                  );
                 }
 
                 /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable

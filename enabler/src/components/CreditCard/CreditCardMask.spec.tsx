@@ -191,16 +191,23 @@ describe("CreditCardMask — Checkout submit() and onError on 3D Secure and toke
     });
   });
 
-  it("rejects and reports the SDK's code when verifyCard rejects with a lookup error", async () => {
+  it("reports our code with the Braintree code and requestId, never the SDK message, when verifyCard rejects with a lookup error", async () => {
     fillCard();
     tokenizeSucceeds();
     mockVerifyCard.mockRejectedValue({
+      name: "BraintreeError",
       code: "THREEDS_LOOKUP_VALIDATION_ERROR",
-      message: "lookup validation failed",
+      message: "lookup failed for 1 Private Street",
+      details: {
+        originalError: { extensions: { requestId: "req-123" } },
+      },
     });
+    const expected =
+      "3D Secure verification failed. (Braintree error code: THREEDS_LOOKUP_VALIDATION_ERROR, Braintree requestId: req-123)";
 
     await expect(submit()).rejects.toMatchObject({
-      code: "THREEDS_LOOKUP_VALIDATION_ERROR",
+      code: "THREEDS_VERIFY_FAILED",
+      message: expected,
     });
 
     expect(mockIsLoading).toHaveBeenLastCalledWith(false);
@@ -209,28 +216,55 @@ describe("CreditCardMask — Checkout submit() and onError on 3D Secure and toke
       "Validation error - check your input or try a different payment",
     );
     expect(mockOnError).toHaveBeenCalledWith({
-      code: "THREEDS_LOOKUP_VALIDATION_ERROR",
-      message: "lookup validation failed",
+      code: "THREEDS_VERIFY_FAILED",
+      message: expected,
     });
   });
 
-  it("rejects and reports the SDK's code when tokenize fails, without calling verifyCard", async () => {
+  it("still notifies and reports when verifyCard rejects with an error that has no code", async () => {
     fillCard();
-    const tokenizeError = {
-      code: "HOSTED_FIELDS_FAILED_TOKENIZATION",
-      message: "tokenize failed",
-    };
-    mockTokenize.mockImplementation((_options, callback) =>
-      callback(tokenizeError),
+    tokenizeSucceeds();
+    mockVerifyCard.mockRejectedValue(
+      new TypeError("Cannot read properties of undefined"),
     );
 
-    await expect(submit()).rejects.toBe(tokenizeError);
+    await expect(submit()).rejects.toMatchObject({
+      code: "THREEDS_VERIFY_FAILED",
+      message: "3D Secure verification failed.",
+    });
+
+    expect(mockNotify).toHaveBeenCalledWith(
+      "Error",
+      "Something went wrong - try again",
+    );
+    expect(mockOnError).toHaveBeenCalledWith({
+      code: "THREEDS_VERIFY_FAILED",
+      message: "3D Secure verification failed.",
+    });
+  });
+
+  it("reports our code with the Braintree code, never the SDK message, when tokenize fails, without calling verifyCard", async () => {
+    fillCard();
+    mockTokenize.mockImplementation((_options, callback) =>
+      callback({
+        name: "BraintreeError",
+        code: "HOSTED_FIELDS_FAILED_TOKENIZATION",
+        message: "tokenize failed for 4111 1111 1111 1111",
+      }),
+    );
+    const expected =
+      "Card details could not be tokenized. (Braintree error code: HOSTED_FIELDS_FAILED_TOKENIZATION)";
+
+    await expect(submit()).rejects.toMatchObject({
+      code: "TOKENIZE_FAILED",
+      message: expected,
+    });
 
     expect(mockVerifyCard).not.toHaveBeenCalled();
     expect(mockIsLoading).toHaveBeenLastCalledWith(false);
     expect(mockOnError).toHaveBeenCalledWith({
-      code: "HOSTED_FIELDS_FAILED_TOKENIZATION",
-      message: "tokenize failed",
+      code: "TOKENIZE_FAILED",
+      message: expected,
     });
   });
 
