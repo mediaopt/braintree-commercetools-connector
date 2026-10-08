@@ -26,6 +26,8 @@ type CreditCardMaskProps = GeneralPayButtonProps & GeneralCreditCardProps;
 // https://docs.commercetools.com/api/releases/2021-12-09-increased-maximum-timeout-for-payment-related-api-extensions
 export const CHALLENGE_SHOW_TIMEOUT_MS = 10000;
 
+const THREEDS_CONTAINER_ID = "braintree-3ds-container";
+
 // window.Cardinal (defined by Songbird) isn't announced by Braintree, so it only words the error;
 // it never decides whether to reject.
 const challengeNotShownError = () => {
@@ -70,6 +72,10 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   // onRegisterSubmit inside the [client, threeDS] effect below, which only ever fires once — a
   // state closure there would permanently see deviceData as "" from before the collector resolved.
   const deviceDataRef = useRef("");
+  // Set after a challenge-not-shown timeout, removed by the next verification (see below).
+  const lateChallengeListenerRef = useRef<(() => void) | undefined>(undefined);
+  // True while a timed-out verification's own verifyCard promise hasn't settled yet.
+  const staleVerifyPendingRef = useRef(false);
 
   const { client, threeDS } = useBraintreeClient();
 
@@ -99,6 +105,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   // Resolves only once the whole 3DS + transactionSale flow is done and rejects on every failure:
   // Checkout only has submit()'s promise to tell a failed payment apart from a successful one,
   // otherwise it keeps its loader up forever.
+  // Callers must refuse while staleVerifyPendingRef is set (see submitPayment).
   const verifyCardAndHandlePurchase = (
     threeDSecureParameters: ThreeDSecureVerifyOptions,
     shouldVault?: boolean,
@@ -128,25 +135,61 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     const challengeNotShown = new Promise<never>((_, reject) => {
       rejectNotShown = reject;
     });
+    // A leftover late-challenge listener must not fire for this verification's own challenge.
+    if (lateChallengeListenerRef.current) {
+      threeDS!.off(
+        "authentication-iframe-available",
+        lateChallengeListenerRef.current,
+      );
+      lateChallengeListenerRef.current = undefined;
+    }
+    // cancelVerifyCard doesn't stop a challenge still waiting for a slow (not blocked) Songbird:
+    // the SDK presents it once Songbird is ready. It is only logged then, never mounted.
+    const onLateShown = () => {
+      console.warn(
+        `3D Secure challenge became available after the payment was already rejected (not shown within ${CHALLENGE_SHOW_TIMEOUT_MS / 1000} s); it was not displayed.`,
+      );
+      threeDS!.off("authentication-iframe-available", onLateShown);
+      lateChallengeListenerRef.current = undefined;
+    };
     const onLookup = (data?: any) => {
       if (!data?.requiresUserAuthentication) return;
       timer = setTimeout(() => {
         threeDS!.cancelVerifyCard(() => {});
+        threeDS!.on("authentication-iframe-available", onLateShown);
+        lateChallengeListenerRef.current = onLateShown;
+        // The SDK settles it only once Songbird is ready or has failed (at most its own 60 s).
+        staleVerifyPendingRef.current = true;
+        const clear = () => {
+          staleVerifyPendingRef.current = false;
+        };
+        sdkVerified.then(clear, clear);
         notShownError = challengeNotShownError();
         rejectNotShown(notShownError);
       }, CHALLENGE_SHOW_TIMEOUT_MS);
     };
-    const onShown = () => clearTimeout(timer);
+    // The challenge is mounted only here, i.e. only while this verification is running.
+    const onShown = (event: any, next?: () => void) => {
+      clearTimeout(timer);
+      const container = document.createElement("div");
+      container.id = THREEDS_CONTAINER_ID;
+      container.className =
+        "fixed inset-0 w-full h-full bg-black/50 z-[2147483647] flex items-center justify-center";
+      (event.element as HTMLElement).classList.add("bg-white");
+      container.appendChild(event.element);
+      document.body.appendChild(container);
+      if (next) next();
+    };
     threeDS!.on("lookup-complete", onLookup);
     threeDS!.on("authentication-iframe-available", onShown);
-    const verified = Promise.race([
-      threeDS!.verifyCard(threeDSecureParameters),
-      challengeNotShown,
-    ]).finally(() => {
-      clearTimeout(timer);
-      threeDS!.off("lookup-complete", onLookup);
-      threeDS!.off("authentication-iframe-available", onShown);
-    });
+    const sdkVerified = threeDS!.verifyCard(threeDSecureParameters);
+    const verified = Promise.race([sdkVerified, challengeNotShown]).finally(
+      () => {
+        clearTimeout(timer);
+        threeDS!.off("lookup-complete", onLookup);
+        threeDS!.off("authentication-iframe-available", onShown);
+      },
+    );
     return verified.then(
       function (response: any) {
         if (response.threeDSecureInfo.status !== "authenticate_successful") {
@@ -219,6 +262,9 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
 
   useEffect(() => {
     if (!client || !threeDS) return;
+    threeDS.on("authentication-modal-close", function () {
+      document.getElementById(THREEDS_CONTAINER_ID)?.remove();
+    });
     isLoading(true);
 
     let hostedFieldsInputs: object = {
@@ -368,6 +414,16 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
             if (invalidInputRef.current) {
               notify("Error", "Please correct the card details and try again.");
               return reject(new Error("invalid fields"));
+            }
+            // A timed-out verification's challenge can still be presented once Songbird is ready,
+            // and this verification's listener would mount it, so wait until the SDK settles it.
+            if (staleVerifyPendingRef.current) {
+              const code = "THREEDS_STILL_LOADING";
+              const message =
+                "3D Secure is still loading. Please try again in a moment.";
+              notify("Error", message);
+              onError?.({ code, message });
+              return reject(Object.assign(new Error(message), { code }));
             }
             isLoading(true);
             hostedFieldsInstance.tokenize(
