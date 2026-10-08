@@ -135,6 +135,19 @@ is your responsibility.
 3D Secure verification is enabled by default. It can be disabled or reconfigured via your Braintree
 account's [Rules Manager](https://developer.paypal.com/braintree/docs/guides/3d-secure/rules-manager/javascript/v3/).
 
+3D Secure loads Cardinal's Songbird script and frames into your storefront page. If that page sends a
+Content Security Policy, it must allow the hosts Braintree lists for your environment in its
+[Content Security Policy guide](https://braintree.github.io/braintree-web/current/#content-security-policy).
+Otherwise the 3D Secure challenge can't be shown. The connector can't set this policy for you,
+because a CSP applies to the page that loads the scripts, not to the connector's own responses.
+When Braintree requests a challenge and it isn't shown within 10 seconds, the payment is rejected:
+`onError` receives `THREEDS_SONGBIRD_NOT_LOADED` (Cardinal's script didn't load) or
+`THREEDS_CHALLENGE_NOT_SHOWN`, and the browser console logs the same message. If Cardinal's script
+was only slow, a challenge that becomes available after that is not shown; the browser console logs a
+warning instead. Until 3D Secure has finished loading (at most about a minute), a new payment attempt
+is rejected before the card is tokenized: `onError` receives `THREEDS_STILL_LOADING` and the shopper is
+asked to try again in a moment. Payments that need no challenge aren't affected.
+
 ##### Venmo
 
 Displaying the Venmo username in the checkout UI is the merchant's responsibility. After a successful Venmo payment, venmoUsername is appended to the merchantReturnUrl as a query parameter. The merchant's return page should read this value from the URL.

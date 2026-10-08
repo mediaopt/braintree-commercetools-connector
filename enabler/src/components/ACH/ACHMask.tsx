@@ -17,7 +17,11 @@ import { usePayment } from "../../app/usePayment";
 import { useNotifications } from "../../app/useNotifications";
 import { useLoader } from "../../app/useLoader";
 
-import { GeneralPayButtonProps, GeneralACHProps } from "../../types";
+import {
+  GeneralPayButtonProps,
+  GeneralACHProps,
+  GenericError,
+} from "../../types";
 
 import { HOSTED_FIELDS_LABEL, HOSTED_FIELDS } from "../../styles";
 
@@ -88,7 +92,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   const [businessName, setBusinessName] = useState<string>("");
 
   // useRef, not useState: read inside the tokenize callback below, which is scheduled
-  // synchronously alongside dataCollector.create() in the same handleSubmit call — a state
+  // synchronously alongside dataCollector.create() in the same submitPayment call — a state
   // closure there would still see the value from before this submission's collector resolved.
   const deviceDataRef = useRef("");
   const [firstName, setFirstName] = useState<string>("");
@@ -174,17 +178,188 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     formButtonDisabledRef.current = formButtonDisabled;
   }, [formButtonDisabled]);
 
+  // Resolves only once the whole tokenize + vault + transactionSale flow is done and rejects on
+  // every failure: Checkout only has submit()'s promise to tell a failed payment apart from a
+  // successful one, otherwise it keeps its loader up forever.
+  const submitPayment = (): Promise<void> =>
+    new Promise((resolve, reject) => {
+      if (!clientToken) return reject(new Error("No client token"));
+
+      const fail = (
+        toast: string,
+        error: GenericError,
+        cause: unknown = new Error(error.message),
+      ) => {
+        notify("Error", toast);
+        onError?.(error);
+        isLoading(false);
+        reject(cause);
+      };
+
+      if (formButtonDisabled) {
+        notify("Error", "Please fill in all required fields");
+        return reject(new Error("empty fields"));
+      }
+      isLoading(true);
+
+      const mandateAcceptedAt = new Date().toISOString();
+
+      let bankDetails: BankDetails = {
+        accountNumber,
+        routingNumber,
+        accountType,
+        ownershipType,
+        billingAddress: {
+          streetAddress,
+          extendedAddress,
+          locality,
+          region,
+          postalCode,
+        },
+      };
+
+      if (ownershipType === "personal") {
+        bankDetails.firstName = firstName;
+        bankDetails.lastName = lastName;
+      } else {
+        bankDetails.businessName = businessName;
+      }
+
+      braintreeClient.create(
+        {
+          authorization: clientToken,
+        },
+        function (clientErr, clientInstance) {
+          if (clientErr) {
+            return fail(
+              `Error creating client ${clientErr.message}`,
+              { code: clientErr.code, message: clientErr.message },
+              clientErr,
+            );
+          }
+
+          usBankAccount.create(
+            {
+              client: clientInstance,
+            },
+            function (usBankAccountErr, usBankAccountInstance) {
+              if (usBankAccountErr || !usBankAccountInstance) {
+                const toast =
+                  "There was an error creating the USBankAccount instance.";
+                return fail(
+                  toast,
+                  {
+                    code:
+                      usBankAccountErr?.code ?? "US_BANK_ACCOUNT_CREATE_FAILED",
+                    message: usBankAccountErr?.message ?? toast,
+                  },
+                  usBankAccountErr ??
+                    new Error("USBankAccount instance not created"),
+                );
+              }
+
+              dataCollector.create(
+                {
+                  client: clientInstance,
+                  paypal: true,
+                  kount: useKount ?? undefined,
+                },
+                function (dataCollectorErr, dataCollectorInstance) {
+                  if (!dataCollectorErr && dataCollectorInstance) {
+                    deviceDataRef.current = dataCollectorInstance.deviceData;
+                  }
+                },
+              );
+
+              usBankAccountInstance.tokenize(
+                {
+                  bankDetails: bankDetails,
+                  mandateText: mandateText,
+                  bankLogin: undefined,
+                },
+                async function (
+                  tokenizeErr?: BraintreeError,
+                  tokenizedPayload?: any,
+                ) {
+                  if (tokenizeErr) {
+                    return fail(
+                      `There was an error tokenizing the bank details, ${tokenizeErr}`,
+                      { code: tokenizeErr.code, message: tokenizeErr.message },
+                      tokenizeErr,
+                    );
+                  }
+
+                  const vaultResponse = await processorRequest<
+                    AchVaultRequest,
+                    AchVaultResponse
+                  >(requestHeader, getAchVaultTokenURL, {
+                    paymentMethodNonce: tokenizedPayload.nonce,
+                    ctPaymentId: paymentInfo.ctPaymentId,
+                    braintreeCustomerId: braintreeCustomerId || undefined,
+                    ctCustomerId: paymentInfo.ctCustomerId,
+                  });
+
+                  const {
+                    token: vaultToken,
+                    verified,
+                    merchantReturnUrl,
+                    message: vaultErrorMessage,
+                  } = vaultResponse || {};
+
+                  if (!vaultToken) {
+                    const toast =
+                      "There is an error in vaulting the bank account.";
+                    return fail(toast, {
+                      code: "ACH_VAULT_FAILED",
+                      message: vaultErrorMessage ?? toast,
+                    });
+                  }
+
+                  if (verified) {
+                    // Instantly verified (bank login / Plaid): proceed with payment immediately.
+                    try {
+                      await handleTransactionSale("", {
+                        paymentToken: vaultToken,
+                        deviceData: deviceDataRef.current,
+                        lineItems: paymentInfo.braintreeLineItems,
+                        shipping,
+                        achMandateText: mandateText,
+                        achMandateAcceptedAt: mandateAcceptedAt,
+                      });
+                      resolve();
+                    } catch (saleErr) {
+                      reject(saleErr);
+                    } finally {
+                      isLoading(false);
+                    }
+                  } else {
+                    // Micro-deposit verification initiated: CT payment already synced to Pending
+                    // by the processor. Redirect to result page — merchant is responsible for
+                    // completing payment once the customer verifies their bank account.
+                    isLoading(false);
+                    if (merchantReturnUrl) {
+                      window.location.href = merchantReturnUrl;
+                    } else {
+                      notify("Info", mandateText);
+                    }
+                    resolve();
+                  }
+                },
+              );
+            },
+          );
+        },
+      );
+    });
+
+  // Checkout's submit is registered once (effect below), so it calls the latest submitPayment
+  // through this ref instead of capturing the form state of its first render.
+  const submitPaymentRef = useRef(submitPayment);
+  submitPaymentRef.current = submitPayment;
+
   useEffect(() => {
     if (!clientToken) return;
-    onRegisterSubmit?.(async () => {
-      if (formButtonDisabledRef.current) {
-        notify("Error", "Please fill in all required fields");
-        return;
-      }
-      if (formRef.current) {
-        formRef.current.requestSubmit();
-      }
-    });
+    onRegisterSubmit?.(() => submitPaymentRef.current());
     onRegisterValidation?.({
       isValid: async () => !formButtonDisabledRef.current,
       showValidation: async () => {
@@ -194,161 +369,9 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   }, [clientToken]);
 
   const handleSubmit = (e: FormEvent) => {
-    if (!clientToken) return;
     e.preventDefault();
-
-    if (formButtonDisabled) return;
-    isLoading(true);
-
-    const mandateAcceptedAt = new Date().toISOString();
-
-    let bankDetails: BankDetails = {
-      accountNumber,
-      routingNumber,
-      accountType,
-      ownershipType,
-      billingAddress: {
-        streetAddress,
-        extendedAddress,
-        locality,
-        region,
-        postalCode,
-      },
-    };
-
-    if (ownershipType === "personal") {
-      bankDetails.firstName = firstName;
-      bankDetails.lastName = lastName;
-    } else {
-      bankDetails.businessName = businessName;
-    }
-
-    braintreeClient.create(
-      {
-        authorization: clientToken,
-      },
-      function (clientErr, clientInstance) {
-        if (clientErr) {
-          notify("Error", `Error creating client ${clientErr.message}`);
-          onError?.({ code: clientErr.code, message: clientErr.message });
-          isLoading(false);
-          return;
-        }
-
-        usBankAccount.create(
-          {
-            client: clientInstance,
-          },
-          function (usBankAccountErr, usBankAccountInstance) {
-            if (usBankAccountErr) {
-              notify(
-                "Error",
-                "There was an error creating the USBankAccount instance.",
-              );
-              onError?.({
-                code: usBankAccountErr.code,
-                message: usBankAccountErr.message,
-              });
-              isLoading(false);
-              return;
-            }
-
-            dataCollector.create(
-              {
-                client: clientInstance,
-                paypal: true,
-                kount: useKount ?? undefined,
-              },
-              function (dataCollectorErr, dataCollectorInstance) {
-                if (!dataCollectorErr && dataCollectorInstance) {
-                  deviceDataRef.current = dataCollectorInstance.deviceData;
-                }
-              },
-            );
-
-            usBankAccountInstance?.tokenize(
-              {
-                bankDetails: bankDetails,
-                mandateText: mandateText,
-                bankLogin: undefined,
-              },
-              async function (
-                tokenizeErr?: BraintreeError,
-                tokenizedPayload?: any,
-              ) {
-                if (tokenizeErr) {
-                  notify(
-                    "Error",
-                    `There was an error tokenizing the bank details, ${tokenizeErr}`,
-                  );
-                  onError?.({
-                    code: tokenizeErr.code,
-                    message: tokenizeErr.message,
-                  });
-                  isLoading(false);
-                  return;
-                }
-
-                const vaultResponse = await processorRequest<
-                  AchVaultRequest,
-                  AchVaultResponse
-                >(requestHeader, getAchVaultTokenURL, {
-                  paymentMethodNonce: tokenizedPayload.nonce,
-                  ctPaymentId: paymentInfo.ctPaymentId,
-                  braintreeCustomerId: braintreeCustomerId || undefined,
-                  ctCustomerId: paymentInfo.ctCustomerId,
-                });
-
-                const {
-                  token: vaultToken,
-                  verified,
-                  merchantReturnUrl,
-                  message: vaultErrorMessage,
-                } = vaultResponse || {};
-
-                if (!vaultToken) {
-                  notify(
-                    "Error",
-                    "There is an error in vaulting the bank account.",
-                  );
-                  onError?.({
-                    code: "ACH_VAULT_FAILED",
-                    message:
-                      vaultErrorMessage ??
-                      "There is an error in vaulting the bank account.",
-                  });
-                  isLoading(false);
-                  return;
-                }
-
-                if (verified) {
-                  // Instantly verified (bank login / Plaid): proceed with payment immediately.
-                  await handleTransactionSale("", {
-                    paymentToken: vaultToken,
-                    deviceData: deviceDataRef.current,
-                    lineItems: paymentInfo.braintreeLineItems,
-                    shipping,
-                    achMandateText: mandateText,
-                    achMandateAcceptedAt: mandateAcceptedAt,
-                  });
-                  isLoading(false);
-                } else {
-                  // Micro-deposit verification initiated: CT payment already synced to Pending
-                  // by the processor. Redirect to result page — merchant is responsible for
-                  // completing payment once the customer verifies their bank account.
-                  isLoading(false);
-                  if (merchantReturnUrl) {
-                    window.location.href = merchantReturnUrl;
-                  } else {
-                    notify("Info", mandateText);
-                  }
-                }
-              },
-            );
-          },
-        );
-      },
-    );
+    // Failures are already notified inside submitPayment.
+    submitPayment().catch(() => {});
   };
 
   return (
