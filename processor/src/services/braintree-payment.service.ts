@@ -541,7 +541,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
                 message:
                   'Braintree gateway is not responding. Please check the Braintree merchant status and credentials.',
                 details: {
-                  error: e,
+                  error: errorMessage(e),
                 },
               };
             }
@@ -887,7 +887,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         .execute()
         .then((response) => response.body)
         .catch((err) => {
-          log.warn(`Could not set shipping method ${newShippingMethodId} for cart ${ctCart.id}`, { error: err });
+          log.warn(`Could not set shipping method ${newShippingMethodId} for cart ${ctCart.id} — ${errorMessage(err)}`);
           return;
         });
       if (!updatedCard) {
@@ -963,6 +963,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
       localPaymentId,
       venmoUsername,
     );
+    if (paymentMethodType === PaymentMethodType.ACH && !deviceData)
+      logger.warn(
+        `transactionSale for payment ${ctPaymentId} has no deviceData (fraud device data collector failed, was blocked, or had not finished)`,
+      );
     const [updatedExpress, ctPayment, braintreePaymentTypeId] = await Promise.all([
       braintreePaymentDetails?.expressShippingChanged
         ? this.ctCartService
@@ -1069,9 +1073,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
       response = await transactionSale(transactionRequest);
     } catch (e) {
       logger.error(`transactionSale: Braintree call failed, paymentId: ${ctPaymentId} — ${errorMessage(e)}`);
-      throw new ErrorInvalidOperation(
-        `transactionSale failed for payment ${ctPaymentId} with error ${errorMessage(e)}`,
-      );
+      // Braintree's message is logged above, not sent back: this message reaches the browser.
+      throw new ErrorInvalidOperation(`transactionSale failed for payment ${ctPaymentId}`);
     }
     warnOnFieldMismatch(ctPaymentId, [
       {
@@ -1508,7 +1511,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
     ctPaymentId,
     braintreeCustomerId,
     ctCustomerId,
+    logFrontendIssue,
   }: AchVaultTokenRequestSchemaDTO): Promise<AchVaultTokenResponseSchemaDTO> {
+    if (logFrontendIssue)
+      logger.warn(
+        `getAchVaultToken: frontend issue reported on payment ${ctPaymentId} before this attempt: ${logFrontendIssue}`,
+      );
     // Payment and type are read in parallel with the vault, so a payment without the Braintree type can't be refused
     // before Braintree. A failed read must not fail the vault: the type then isn't checked, and syncPayment fetches.
     const [{ token, verified }, braintreePaymentTypeId, ctPayment] = await Promise.all([
