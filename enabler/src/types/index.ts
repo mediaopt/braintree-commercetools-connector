@@ -62,7 +62,9 @@ export type GeneralPayButtonProps = {
   // Restores PaymentComponent.isValid()/showValidation() for form-based methods (CreditCard, ACH) —
   // these are stubbed to always-valid/no-op in BraintreeBuilder.ts unless a component registers here.
   onRegisterValidation?: (handlers: ValidationHandlers) => void;
-  onError?: (error: GenericError) => void;
+  // commercetools Checkout's EnablerOptions.onError (captured in BraintreePaymentEnabler._Setup), unless the
+  // component was built with its own ComponentOptions.onError
+  onError?: (error: GenericError, context?: OnErrorContext) => void;
 } & UseKount &
   LineItemsShipping;
 
@@ -293,6 +295,8 @@ export type VenmoTypes = {
 export type ApplePayTypes = {
   applePayDisplayName: string;
 };
+
+export type OnErrorContext = { paymentReference?: string };
 
 export type GenericError = {
   code: string;
