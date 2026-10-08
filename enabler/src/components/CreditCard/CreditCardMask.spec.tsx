@@ -1,6 +1,6 @@
 import { act, render } from "@testing-library/react";
 
-type Handler = (event?: any) => void;
+type Handler = (...args: any[]) => void;
 let hostedFieldsHandlers: Record<string, Handler>;
 const mockTokenize = jest.fn();
 
@@ -29,8 +29,8 @@ jest.mock("braintree-web", () => ({
 const mockVerifyCard = jest.fn();
 const mockCancelVerifyCard = jest.fn();
 const mockThreeDSHandlers: Record<string, Set<Handler>> = {};
-const emitThreeDS = (event: string, data?: unknown) =>
-  mockThreeDSHandlers[event]?.forEach((handler) => handler(data));
+const emitThreeDS = (event: string, ...args: unknown[]) =>
+  mockThreeDSHandlers[event]?.forEach((handler) => handler(...args));
 jest.mock("../../app/useBraintreeClient", () => {
   // Stable references: the mask's setup effect depends on [client, threeDS].
   const braintreeClient = {
@@ -135,7 +135,26 @@ describe("CreditCardMask — Checkout submit() and onError on 3D Secure and toke
   afterEach(() => {
     jest.useRealTimers();
     delete windowWithCardinal.Cardinal;
+    challengeContainer()?.remove();
+    jest.restoreAllMocks();
   });
+
+  const challengeContainer = () =>
+    document.getElementById("braintree-3ds-container");
+
+  // A requested challenge that isn't shown in time: submit() rejects, the SDK's verifyCard stays
+  // pending until the returned function settles it (as the SDK does once Songbird is ready).
+  const timeOutChallenge = async () => {
+    jest.useFakeTimers();
+    jest.spyOn(console, "error").mockImplementation();
+    fillCard();
+    tokenizeSucceeds();
+    const finishVerify = verifyCardAfterLookup(true);
+    const first = submit().catch(() => {});
+    await jest.advanceTimersByTimeAsync(CHALLENGE_SHOW_TIMEOUT_MS);
+    await first;
+    return finishVerify;
+  };
 
   it.each([
     {
@@ -175,7 +194,6 @@ describe("CreditCardMask — Checkout submit() and onError on 3D Secure and toke
       );
       expect(mockOnError).toHaveBeenCalledWith({ code, message });
       expect(consoleError).toHaveBeenCalledWith(message);
-      consoleError.mockRestore();
     },
   );
 
@@ -187,15 +205,80 @@ describe("CreditCardMask — Checkout submit() and onError on 3D Secure and toke
 
     const result = submit();
     await jest.advanceTimersByTimeAsync(0);
-    emitThreeDS("authentication-iframe-available");
+    const element = document.createElement("iframe");
+    const next = jest.fn();
+    emitThreeDS("authentication-iframe-available", { element }, next);
     await jest.advanceTimersByTimeAsync(CHALLENGE_SHOW_TIMEOUT_MS * 3);
     finishVerify({ status: "authenticate_successful", liabilityShifted: true });
 
     await expect(result).resolves.toBeUndefined();
+    expect(challengeContainer()?.contains(element)).toBe(true);
+    expect(next).toHaveBeenCalled();
     expect(mockCancelVerifyCard).not.toHaveBeenCalled();
     expect(mockHandleTransactionSale).toHaveBeenCalledWith("3ds-nonce", {
       deviceData: "device-data",
     });
+
+    emitThreeDS("authentication-modal-close");
+    expect(challengeContainer()).toBeNull();
+  });
+
+  it("never mounts a challenge that a slow Songbird presents after the timeout, only warns", async () => {
+    const consoleWarn = jest.spyOn(console, "warn").mockImplementation();
+    await timeOutChallenge();
+
+    const next = jest.fn();
+    emitThreeDS(
+      "authentication-iframe-available",
+      { element: document.createElement("iframe") },
+      next,
+    );
+
+    expect(challengeContainer()).toBeNull();
+    expect(next).not.toHaveBeenCalled();
+    expect(consoleWarn).toHaveBeenCalledWith(
+      "3D Secure challenge became available after the payment was already rejected (not shown within 10 s); it was not displayed.",
+    );
+    expect(mockThreeDSHandlers["authentication-iframe-available"]?.size).toBe(
+      0,
+    );
+  });
+
+  it("refuses a retry without tokenizing while the timed-out verification hasn't settled", async () => {
+    await timeOutChallenge();
+    const message = "3D Secure is still loading. Please try again in a moment.";
+
+    await expect(submit()).rejects.toMatchObject({
+      code: "THREEDS_STILL_LOADING",
+      message,
+    });
+
+    expect(mockTokenize).toHaveBeenCalledTimes(1);
+    expect(mockVerifyCard).toHaveBeenCalledTimes(1);
+    expect(mockNotify).toHaveBeenLastCalledWith("Error", message);
+    expect(mockOnError).toHaveBeenLastCalledWith({
+      code: "THREEDS_STILL_LOADING",
+      message,
+    });
+  });
+
+  it("allows a retry once the timed-out verification settles, without the late-challenge warning", async () => {
+    const consoleWarn = jest.spyOn(console, "warn").mockImplementation();
+    const finishStale = await timeOutChallenge();
+    finishStale({ status: "authenticate_successful", liabilityShifted: true });
+    await jest.advanceTimersByTimeAsync(0);
+
+    const finishVerify = verifyCardAfterLookup(true);
+    const result = submit();
+    await jest.advanceTimersByTimeAsync(0);
+    const element = document.createElement("iframe");
+    emitThreeDS("authentication-iframe-available", { element }, jest.fn());
+    finishVerify({ status: "authenticate_successful", liabilityShifted: true });
+
+    await expect(result).resolves.toBeUndefined();
+    expect(challengeContainer()?.contains(element)).toBe(true);
+    expect(consoleWarn).not.toHaveBeenCalled();
+    expect(mockHandleTransactionSale).toHaveBeenCalledTimes(1);
   });
 
   it("pays a frictionless card without Songbird: no challenge requested, no timeout", async () => {
