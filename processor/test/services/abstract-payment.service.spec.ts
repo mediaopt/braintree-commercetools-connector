@@ -9,6 +9,7 @@ import { logger } from 'common-connect/dist';
 import { mockCustomTypeLookup } from '../utils/mock-custom-type-lookup';
 import { nonBraintreeCustomCases } from '../utils/mock-custom-types';
 import { notBraintreePayment } from '../../src/utils/customEntities.utils';
+import * as CustomEntities from '../../src/utils/customEntities.utils';
 
 jest.mock('common-connect/dist', () => ({
   ...(jest.requireActual('common-connect/dist') as object),
@@ -101,6 +102,24 @@ describe('abstract-payment.service (modifyPayment)', () => {
         expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining(notBraintreePayment(mockGetPaymentResult.id)));
       },
     );
+
+    // the type id is cached per process, so the lookup itself is failed here, not getByKey
+    test('type lookup fails: rejected and logged as error, no operation runs', async () => {
+      jest.spyOn(CustomEntities, 'getBraintreePaymentTypeId').mockRejectedValue(new Error('unavailable'));
+      const settlementSpy = jest.spyOn(paymentService, 'settlement');
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => logger);
+
+      const result = await paymentService.modifyPayment({
+        paymentId: mockGetPaymentResult.id,
+        data: { actions: [{ action: 'capturePayment', amount }] },
+      });
+
+      expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
+      expect(settlementSpy).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('could not look up the Braintree payment type: unavailable'),
+      );
+    });
 
     test('cancelPayment action calls void with payment', async () => {
       const voidSpy = jest
