@@ -48,8 +48,6 @@ The connector includes a checkout mode for faster, streamlined payment processin
 
 **Note**: The main purpose of processor and enabler modules is to provide full compatibility with commercetools checkout. Previously existing fine-grained API control and customization is still available via extension module.
 
-To be fully compatible with the checkout SDK, the PayPal Express button supports deferred cart creation: when no cart exists yet (e.g. a product page or mini-cart button), it creates the commercetools cart on first click, immediately before the payment sheet opens.
-
 ### Checkout mode installation and configuration
 
 To use the checkout compatible connector please create a checkout application in the [merchant center](https://docs.commercetools.com/checkout/overview#merchant-center-configuration). In the application payment integrations you can select this connector and configure payment methods available. Please note that the connector only supports standard payments and express payments. It is your responsibility to configure the relevant restriction for your payment methods. This includes, but doesn't limit to, local payment methods (Example: for Przelewy24 country PL is required, set it as billingAddress.country = "PL").
@@ -78,6 +76,12 @@ To use the checkout compatible connector please create a checkout application in
 This is your responsibility to configure in the merchant center → checkout application → payment integration the relevant payment methods based on your Braintree account settings, using [payment integration predicates](https://docs.commercetools.com/checkout/payment-integration-predicates#predicate-syntax). The "Recommended predicates" column above shows a starting point for each method: for local payment methods, it's the country/currency pairing the method is fixed to; for ACH, it restricts the method to logged-in customers, since ACH requires vaulting to a Braintree customer and a guest checkout can't complete it even though this connector doesn't block guests from seeing the option.
 
 Express methods only include PayPal Buy Now today.
+
+##### PayPal Express
+
+- **No cart needed before the click** (e.g. a product page or mini-cart button): commercetools Checkout creates the cart in its `onPayButtonClick` hook, immediately before the PayPal window opens, and the commercetools Payment is created only after that click.
+- **Stored payment methods** are not offered for Express — please open an issue if you are interested in this.
+- **Custom line items** are not sent to PayPal as line items: for a cart containing them, the PayPal window shows only the subtotal, shipping and total, and the payment still completes — please open an issue if you are interested in this.
 
 ##### Local payment methods not offered
 
