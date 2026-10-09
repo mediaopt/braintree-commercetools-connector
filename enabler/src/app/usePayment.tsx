@@ -177,6 +177,11 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   ): Promise<DeferredPaymentResult> => {
     if (clickSessionId) {
       sessionIdRef.current = clickSessionId;
+    } else if (!sessionIdRef.current) {
+      // Without any session the processor refuses createPayment anyway — fail here with a clear reason
+      throw new Error(
+        "PayPal Express: onPayButtonClick resolved without a sessionId and there is no current session.",
+      );
     } else {
       console.warn(
         "PayPal Express: onPayButtonClick resolved without a sessionId, continuing with the current session.",

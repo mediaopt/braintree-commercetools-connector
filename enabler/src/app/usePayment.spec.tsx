@@ -41,14 +41,14 @@ const mockProviderProps = {
 
 // Renders a deferred-mode (PayPal Express without a cart) provider and returns the context value
 // captured once the mount-time client token arrived — like PayPalMask, which keeps using that value.
-const renderDeferredProvider = async () => {
+const renderDeferredProvider = async (sessionId = "mount-session") => {
   let payment: ReturnType<typeof usePayment> | undefined;
   const Consumer = () => {
     payment = usePayment();
     return null;
   };
   render(
-    <PaymentProvider {...mockProviderProps}>
+    <PaymentProvider {...mockProviderProps} sessionId={sessionId}>
       <Consumer />
     </PaymentProvider>,
   );
@@ -95,5 +95,16 @@ describe("usePayment — PayPal Express session switch", () => {
       expect.stringContaining("onPayButtonClick resolved without a sessionId"),
     );
     warn.mockRestore();
+  });
+
+  it("refuses before createPayment when onPayButtonClick resolves without a session and there is none", async () => {
+    const payment = await renderDeferredProvider("");
+
+    // Throws before any state update, so no act() is needed
+    await expect(payment.createExpressPayment(undefined)).rejects.toThrow(
+      "there is no current session",
+    );
+
+    expect(sessionSentTo("")).toEqual([]);
   });
 });
