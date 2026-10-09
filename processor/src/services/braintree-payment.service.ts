@@ -780,7 +780,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         braintreeCustomerId,
       );
     } catch (err) {
-      logger.error(`createPayment: failed, cartId: ${cartId ?? 'unavailable'} — ${errorMessage(err)}`);
+      logger.error(`createPayment: failed, cartId: ${cartId} — ${errorMessage(err)}`);
       throw err;
     }
   }
@@ -950,7 +950,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           : undefined,
       };
     } catch (err) {
-      logger.error(`updateCartShipping: failed, cartId: ${cartId ?? 'unavailable'} — ${errorMessage(err)}`);
+      logger.error(`updateCartShipping: failed, cartId: ${cartId} — ${errorMessage(err)}`);
       throw err;
     }
   }
@@ -1601,7 +1601,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   public async getStoredPaymentMethods(): Promise<StoredPaymentMethodsResponse> {
-    const ctCart = await this.ctCartService.getCart({ id: this.requireCartIdFromContext() });
+    const ctCart = await this.ctCartService.getCart({ id: this.requireStoredPaymentMethodsCartId() });
     if (!ctCart.customerId) {
       logger.warn('getStoredPaymentMethods: cart has no customerId, returning empty');
       return { storedPaymentMethods: [] };
@@ -1663,16 +1663,17 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   public async deleteStoredPaymentMethod(token: string): Promise<void> {
-    const cartId = this.requireCartIdFromContext();
+    // Before the Braintree delete starts: the cart read below runs in parallel with it
+    const cartId = this.requireStoredPaymentMethodsCartId();
     let ctCart: Cart | undefined;
     try {
       [, ctCart] = await Promise.all([
         braintreeDeletePayment(token),
         this.ctCartService.getCart({ id: cartId }).catch(() => undefined),
       ]);
-      logger.info(`deleteStoredPaymentMethod: success, cartId: ${ctCart?.id ?? 'unavailable'}`);
+      logger.info(`deleteStoredPaymentMethod: success, cartId: ${cartId}`);
     } catch (err) {
-      logger.error(`deleteStoredPaymentMethod: failed, cartId: ${cartId ?? 'unavailable'} — ${errorMessage(err)}`);
+      logger.error(`deleteStoredPaymentMethod: failed, cartId: ${cartId} — ${errorMessage(err)}`);
       throw err;
     }
 
@@ -1711,6 +1712,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
    */
   private fireAndForgetCtPaymentMethodSync(operation: () => Promise<unknown>, logContext: string): void {
     void operation().catch((e) => logger.warn(`${logContext}: ${errorMessage(e)}`));
+  }
+
+  // Stored payment methods aren't supported for commercetools Express Checkout, whose session may
+  // have no Cart. Supporting them would need commercetools to support it as well. Please open an
+  // issue if you are interested in stored payment methods for Express Checkout.
+  private requireStoredPaymentMethodsCartId(): string {
+    return this.requireCartIdFromContext();
   }
 
   // For flows that can't work without a Cart; paymentId only identifies the failing request
