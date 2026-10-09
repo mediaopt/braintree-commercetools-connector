@@ -1,14 +1,15 @@
 const express = require('express');
 const cors = require('cors');
-const { generateKeyPair, exportJWK, SignJWT } = require('jose');
+const { generateKeyPair, exportJWK, calculateJwkThumbprint, SignJWT } = require('jose');
 
 const PORT = process.env.PORT || 9002;
-const KID = 'jwt-mock-key-1';
 
 async function main() {
   const { publicKey, privateKey } = await generateKeyPair('RS256');
   const publicJwk = await exportJWK(publicKey);
-  publicJwk.kid = KID;
+  // A new key on every start gets a new kid, so the processor's JWKS cache fetches it instead of reusing the old key
+  const kid = await calculateJwkThumbprint(publicJwk);
+  publicJwk.kid = kid;
   publicJwk.use = 'sig';
   publicJwk.alg = 'RS256';
 
@@ -22,7 +23,7 @@ async function main() {
 
   app.post('/jwt/token', async (req, res) => {
     const token = await new SignJWT(req.body || {})
-      .setProtectedHeader({ alg: 'RS256', kid: KID })
+      .setProtectedHeader({ alg: 'RS256', kid })
       .setIssuedAt()
       .setExpirationTime('1h')
       .sign(privateKey);
