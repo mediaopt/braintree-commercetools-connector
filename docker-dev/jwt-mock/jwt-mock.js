@@ -1,3 +1,5 @@
+// Differs from the commercetools connect-payment-integration-template, which runs the npm jwt-mock-server package
+// instead (see its docker-compose.yaml). This mock follows the template's behavior as closely as possible.
 const express = require('express');
 const cors = require('cors');
 const { generateKeyPair, exportJWK, calculateJwkThumbprint, SignJWT } = require('jose');
@@ -7,7 +9,8 @@ const PORT = process.env.PORT || 9002;
 async function main() {
   const { publicKey, privateKey } = await generateKeyPair('RS256');
   const publicJwk = await exportJWK(publicKey);
-  // A new key on every start gets a new kid, so the processor's JWKS cache fetches it instead of reusing the old key
+  // Differs from the template: jwt-mock-server (node-jose) gives each new key a random kid. A thumbprint likewise changes
+  // with every new key, so after a restart the processor's JWKS cache fetches the new key instead of reusing the old one
   const kid = await calculateJwkThumbprint(publicJwk);
   publicJwk.kid = kid;
   publicJwk.use = 'sig';

@@ -232,6 +232,8 @@ correspondingly.
 - `cd ..`
 - run `docker compose up` to start the local JWT mock server, enabler and processor.
 
+For local authentication (OAuth2 token, session, JWT), see the commercetools [connect-payment-integration-template](https://github.com/commercetools/connect-payment-integration-template). This repository follows the template as closely as possible. It differs in the JWT mock: its own `docker-dev/jwt-mock` replaces the template's `jwt-mock-server` package and runs on port `9002` instead of `9000`, as some IDEs reserve 9000 for their internal operations.
+
 In production, the [Payment Intents API](https://docs.commercetools.com/checkout/payment-intents-api) is called on commercetools' own Checkout host, which forwards to the processor's `POST /operations/payment-intents/:id` route. Locally there's no Checkout host in front of the processor, so that route can be hit directly instead for testing.
 
 ## Technology Stack
