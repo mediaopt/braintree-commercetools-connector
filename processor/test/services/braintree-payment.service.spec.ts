@@ -407,6 +407,7 @@ describe('braintree-payment.service', () => {
     const braintreePaymentService = new BraintreePaymentService(opts);
 
     beforeEach(() => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue('cart-id');
       (CommonConnect.transactionSale as jest.Mock).mockResolvedValue(mockBraintreeTransaction as never);
       jest.spyOn(paymentSDK.ctPaymentService, 'getPayment').mockResolvedValue(mockGetPaymentResult as never);
     });
@@ -1004,6 +1005,7 @@ describe('braintree-payment.service', () => {
     const braintreePaymentService = new BraintreePaymentService(opts);
 
     beforeEach(() => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue('cart-id');
       jest.spyOn(paymentSDK.ctPaymentService, 'updatePayment').mockResolvedValue({} as never);
       (CommonConnect.transactionSale as jest.Mock).mockResolvedValue(mockBraintreeTransaction as never);
     });
@@ -1835,6 +1837,7 @@ describe('braintree-payment.service', () => {
     const braintreePaymentService = new BraintreePaymentService(opts);
 
     beforeEach(() => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue('cart-id');
       jest.spyOn(BraintreeCustomerService.prototype, 'vaultPaymentMethodForCustomer').mockResolvedValue({
         token: 'ach-token-123',
         verified: true,
@@ -2536,7 +2539,10 @@ describe('braintree-payment.service', () => {
       expect(CommonConnect.deletePayment).not.toHaveBeenCalled();
     });
 
-    test('Express transactionSale after a shipping change refuses before Braintree', async () => {
+    test.each([
+      { flow: 'Express after a shipping change', braintreePaymentDetails: { expressShippingChanged: true } },
+      { flow: 'without a shipping change', braintreePaymentDetails: undefined },
+    ])('transactionSale ($flow) refuses before Braintree', async ({ braintreePaymentDetails }) => {
       jest.spyOn(paymentSDK.ctPaymentService, 'getPayment').mockResolvedValue(mockGetPaymentResult as never);
 
       await expect(
@@ -2544,34 +2550,24 @@ describe('braintree-payment.service', () => {
           ctPaymentId: mockGetPaymentResult.id,
           paymentMethodType: PaymentMethodType.PAYPAL,
           paymentMethodNonce: 'fake-paypal-billing-agreement-nonce',
-          braintreePaymentDetails: { expressShippingChanged: true },
+          braintreePaymentDetails,
         }),
       ).rejects.toThrow(`no cart found for ${mockGetPaymentResult.id}`);
       expect(CommonConnect.transactionSale).not.toHaveBeenCalled();
     });
 
-    test('getAchVaultToken still returns the vaulted token; only the PaymentMethod mirror is skipped', async () => {
-      jest
-        .spyOn(BraintreeCustomerService.prototype, 'vaultPaymentMethodForCustomer')
-        .mockResolvedValue({ token: 'ach-token-123', verified: true });
-      const saveSpy = jest.spyOn(paymentSDK.ctPaymentMethodService, 'save');
-      const warnSpy = jest.spyOn(CommonConnect.logger, 'warn');
+    test('getAchVaultToken refuses before the Braintree vault', async () => {
+      const vaultSpy = jest.spyOn(BraintreeCustomerService.prototype, 'vaultPaymentMethodForCustomer');
 
-      const result = await braintreePaymentService.getAchVaultToken({
-        ctPaymentId: 'payment-123',
-        paymentMethodNonce: 'ach-nonce',
-        braintreeCustomerId: 'bt-cust-123',
-      });
-      // the mirror is fire-and-forget — flush its rejection before asserting
-      await new Promise((resolve) => process.nextTick(resolve));
-
-      expect(result.token).toBe('ach-token-123');
-      expect(saveSpy).not.toHaveBeenCalled();
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          'getAchVaultToken: could not save commercetools PaymentMethod record for payment payment-123',
-        ),
-      );
+      await expect(
+        braintreePaymentService.getAchVaultToken({
+          ctPaymentId: 'payment-123',
+          paymentMethodNonce: 'ach-nonce',
+          braintreeCustomerId: 'bt-cust-123',
+        }),
+      ).rejects.toThrow('no cart found for payment-123');
+      expect(vaultSpy).not.toHaveBeenCalled();
+      expect(getCartSpy).not.toHaveBeenCalled();
     });
   });
 });

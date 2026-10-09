@@ -971,6 +971,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     achMandateText,
     achMandateAcceptedAt,
   }: TransactionSaleRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO> {
+    // A session without a Cart (PayPal Express before the click) passes auth, but must never charge
+    const cartId = this.requireCartIdFromContext(ctPaymentId);
     this.validateTransactionSaleParams(
       paymentMethodType,
       paymentMethodNonce,
@@ -985,7 +987,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const [updatedExpress, ctPayment, braintreePaymentTypeId] = await Promise.all([
       braintreePaymentDetails?.expressShippingChanged
         ? this.ctCartService
-            .getCart({ id: this.requireCartIdFromContext(ctPaymentId) })
+            .getCart({ id: cartId })
             .then(async (cart) => cart && { cart, amountPlanned: await this.expressCartAmount(cart) })
         : Promise.resolve(undefined),
       this.ctPaymentService.getPayment({ id: ctPaymentId }),
@@ -1533,6 +1535,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     ctCustomerId,
     logFrontendIssue,
   }: AchVaultTokenRequestSchemaDTO): Promise<AchVaultTokenResponseSchemaDTO> {
+    // A session without a Cart (PayPal Express before the click) passes auth, but must never vault
+    const cartId = this.requireCartIdFromContext(ctPaymentId);
     if (logFrontendIssue)
       logger.warn(
         `getAchVaultToken: frontend issue reported on payment ${ctPaymentId} before this attempt: ${logFrontendIssue}`,
@@ -1556,20 +1560,16 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // ctCustomerId (that field can be omitted when the caller only supplied an existing braintreeCustomerId),
     // so it's resolved from cart context instead, same as getStoredPaymentMethods/deleteStoredPaymentMethod.
     // Fire-and-forget end-to-end so the cart lookup doesn't add latency to the vault-token response.
-    this.fireAndForgetCtPaymentMethodSync(
-      // async, so a missing cart rejects into the fire-and-forget catch instead of throwing past it
-      async () => {
-        const ctCartForVault = await this.ctCartService.getCart({ id: this.requireCartIdFromContext(ctPaymentId) });
-        if (!ctCartForVault.customerId) return;
-        return this.ctPaymentMethodService.save({
-          customerId: ctCartForVault.customerId,
-          method: PaymentMethodType.ACH,
-          paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
-          token,
-        });
-      },
-      `getAchVaultToken: could not save commercetools PaymentMethod record for payment ${ctPaymentId}`,
-    );
+    this.fireAndForgetCtPaymentMethodSync(async () => {
+      const ctCartForVault = await this.ctCartService.getCart({ id: cartId });
+      if (!ctCartForVault.customerId) return;
+      return this.ctPaymentMethodService.save({
+        customerId: ctCartForVault.customerId,
+        method: PaymentMethodType.ACH,
+        paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
+        token,
+      });
+    }, `getAchVaultToken: could not save commercetools PaymentMethod record for payment ${ctPaymentId}`);
 
     if (!verified) {
       // The placeholder write needs no custom type, so it still goes ahead; the merchant is told to resolve the type.
