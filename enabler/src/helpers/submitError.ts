@@ -35,3 +35,14 @@ export const failSubmit = (
   error: GenericError,
   cause?: unknown,
 ) => reject(reportSubmitError(reporters, toast, error, false, cause));
+
+// handleTransactionSale already showed its toast and rejects with a coded error; a component paid
+// through Checkout's own button also reports that failure to onError before passing it on.
+export const reportSaleFailure = <T>(
+  sale: Promise<T>,
+  onError?: (error: GenericError) => void,
+) =>
+  sale.catch((error) => {
+    onError?.({ code: error.code, message: error.message });
+    throw error;
+  });

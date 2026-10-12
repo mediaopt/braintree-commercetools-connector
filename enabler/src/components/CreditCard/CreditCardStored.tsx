@@ -5,13 +5,15 @@ import { useNotifications } from "../../app/useNotifications";
 import { useLoader } from "../../app/useLoader";
 
 import { GeneralPayButtonProps } from "../../types";
+import { reportSaleFailure } from "../../helpers/submitError";
 
-export type CreditCardStoredProps = Pick<GeneralPayButtonProps, "onRegisterSubmit"> & {
+export type CreditCardStoredProps = Pick<GeneralPayButtonProps, "onRegisterSubmit" | "onError"> & {
   id?: string;
 };
 
 export const CreditCardStored: FC<PropsWithChildren<CreditCardStoredProps>> = ({
   onRegisterSubmit,
+  onError,
   id,
 }) => {
   const { handleTransactionSale, paymentInfo } = usePayment();
@@ -27,10 +29,13 @@ export const CreditCardStored: FC<PropsWithChildren<CreditCardStoredProps>> = ({
         return;
       }
       isLoading(true);
-      await handleTransactionSale("", {
-        paymentToken: id,
-        lineItems: paymentInfo.braintreeLineItems,
-      });
+      await reportSaleFailure(
+        handleTransactionSale("", {
+          paymentToken: id,
+          lineItems: paymentInfo.braintreeLineItems,
+        }),
+        onError,
+      );
       isLoading(false);
     });
   }, []);

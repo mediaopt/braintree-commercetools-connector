@@ -4,7 +4,14 @@ import { CreditCardStored, CreditCardStoredProps } from "./CreditCardStored";
 
 export const CreditCardStoredButton: FC<CreditCardStoredProps> = ({
   onRegisterSubmit,
+  onError,
   id,
 }: CreditCardStoredProps) => {
-  return <CreditCardStored onRegisterSubmit={onRegisterSubmit} id={id} />;
+  return (
+    <CreditCardStored
+      onRegisterSubmit={onRegisterSubmit}
+      onError={onError}
+      id={id}
+    />
+  );
 };

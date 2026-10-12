@@ -15,7 +15,10 @@ import {
 
 import { HOSTED_FIELDS_LABEL, HOSTED_FIELDS } from "../../styles";
 import { withBraintreeRef } from "../../helpers/braintreeErrorRef";
-import { reportSubmitError } from "../../helpers/submitError";
+import {
+  reportSaleFailure,
+  reportSubmitError,
+} from "../../helpers/submitError";
 import { HostedFieldsHostedFieldsFieldName } from "braintree-web/hosted-fields";
 import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
 import { CHALLENGE_SHOW_TIMEOUT_MS } from "./constants";
@@ -106,6 +109,8 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     if (paymentInfo.braintreeShipping) {
       options.shipping = paymentInfo.braintreeShipping;
     }
+    const sale = (nonce: string) =>
+      reportSaleFailure(handleTransactionSale(nonce, options), onError);
     return verifyCardWithShowTimeout(threeDS!, threeDSecureParameters).then(
       function (response) {
         if (response.threeDSecureInfo.status !== "authenticate_successful") {
@@ -115,10 +120,10 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           });
         }
         if (response.threeDSecureInfo.liabilityShifted) {
-          return handleTransactionSale(response.nonce, options);
+          return sale(response.nonce);
         } else if (response.threeDSecureInfo.liabilityShiftPossible) {
           if (continueOnLiabilityShiftPossible) {
-            return handleTransactionSale(response.nonce, options);
+            return sale(response.nonce);
           }
           throw reportSubmitError(
             reporters,
@@ -131,7 +136,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           );
         } else {
           if (continueOnNoThreeDS) {
-            return handleTransactionSale(response.nonce, options);
+            return sale(response.nonce);
           }
           throw reportSubmitError(
             reporters,

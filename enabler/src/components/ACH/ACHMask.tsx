@@ -16,7 +16,7 @@ import {
 import { usePayment } from "../../app/usePayment";
 import { useNotifications } from "../../app/useNotifications";
 import { useLoader } from "../../app/useLoader";
-import { failSubmit } from "../../helpers/submitError";
+import { failSubmit, reportSaleFailure } from "../../helpers/submitError";
 
 import {
   GeneralPayButtonProps,
@@ -311,14 +311,17 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                   if (verified) {
                     // Instantly verified (bank login / Plaid): proceed with payment immediately.
                     try {
-                      await handleTransactionSale("", {
-                        paymentToken: vaultToken,
-                        deviceData: deviceDataRef.current,
-                        lineItems: paymentInfo.braintreeLineItems,
-                        shipping,
-                        achMandateText: mandateText,
-                        achMandateAcceptedAt: mandateAcceptedAt,
-                      });
+                      await reportSaleFailure(
+                        handleTransactionSale("", {
+                          paymentToken: vaultToken,
+                          deviceData: deviceDataRef.current,
+                          lineItems: paymentInfo.braintreeLineItems,
+                          shipping,
+                          achMandateText: mandateText,
+                          achMandateAcceptedAt: mandateAcceptedAt,
+                        }),
+                        onError,
+                      );
                       resolve();
                     } catch (saleErr) {
                       reject(saleErr);
