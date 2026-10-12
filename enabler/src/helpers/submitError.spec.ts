@@ -1,4 +1,9 @@
-import { codedError, failSubmit, reportSubmitError } from "./submitError";
+import {
+  codedError,
+  failSubmit,
+  reportSaleFailure,
+  reportSubmitError,
+} from "./submitError";
 
 describe("submitError", () => {
   const error = { code: "SOME_CODE", message: "Something failed." };
@@ -52,5 +57,26 @@ describe("submitError", () => {
     );
 
     expect(reject).toHaveBeenCalledWith(cause);
+  });
+
+  it("reportSaleFailure reports a failed sale to onError and passes the same error on", async () => {
+    const onError = jest.fn();
+    const saleError = codedError(error.code, error.message);
+
+    await expect(
+      reportSaleFailure(Promise.reject(saleError), onError),
+    ).rejects.toBe(saleError);
+
+    expect(onError).toHaveBeenCalledWith(error);
+  });
+
+  it("reportSaleFailure leaves a successful sale alone", async () => {
+    const onError = jest.fn();
+
+    await expect(
+      reportSaleFailure(Promise.resolve("done"), onError),
+    ).resolves.toBe("done");
+
+    expect(onError).not.toHaveBeenCalled();
   });
 });

@@ -380,6 +380,26 @@ describe("CreditCardMask — Checkout submit() and onError on 3D Secure and toke
     );
   });
 
+  it("reports a failed sale to onError once, after 3D Secure succeeded", async () => {
+    fillCard();
+    tokenizeSucceeds();
+    verifyCardReturns(LIABILITY_SHIFTED);
+    const saleFailure = {
+      code: "TRANSACTION_SALE_FAILED",
+      message: "The payment could not be completed.",
+    };
+    mockHandleTransactionSale.mockRejectedValue(
+      Object.assign(new Error(saleFailure.message), {
+        code: saleFailure.code,
+      }),
+    );
+
+    await expect(submit()).rejects.toMatchObject(saleFailure);
+
+    expect(mockOnError).toHaveBeenCalledTimes(1);
+    expect(mockOnError).toHaveBeenCalledWith(saleFailure);
+  });
+
   it("runs transactionSale with the 3DS nonce when liability shifted", async () => {
     fillCard();
     tokenizeSucceeds();
