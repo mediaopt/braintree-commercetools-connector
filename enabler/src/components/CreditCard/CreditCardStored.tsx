@@ -20,6 +20,8 @@ export const CreditCardStored: FC<PropsWithChildren<CreditCardStoredProps>> = ({
 
   useEffect(() => {
     onRegisterSubmit?.(async () => {
+      // Only a guard: Checkout always has a stored method selected here (with even one available,
+      // it is selected automatically), so submit() can't be reached without an id.
       if (!id) {
         notify("Error", "No stored payment method token provided");
         return;
