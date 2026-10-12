@@ -15,7 +15,7 @@ import {
 
 import { HOSTED_FIELDS_LABEL, HOSTED_FIELDS } from "../../styles";
 import { withBraintreeRef } from "../../helpers/braintreeErrorRef";
-import { codedError, failSubmit } from "../../helpers/submitError";
+import { reportSubmitError } from "../../helpers/submitError";
 import { HostedFieldsHostedFieldsFieldName } from "braintree-web/hosted-fields";
 import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
 import { CHALLENGE_SHOW_TIMEOUT_MS } from "./constants";
@@ -80,6 +80,8 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     postalCode: ccPostalRef,
   };
 
+  const reporters = { notify, onError, isLoading };
+
   // Resolves only once the whole 3DS + transactionSale flow is done and rejects on every failure:
   // Checkout only has submit()'s promise to tell a failed payment apart from a successful one,
   // otherwise it keeps its loader up forever.
@@ -107,11 +109,10 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     return verifyCardWithShowTimeout(threeDS!, threeDSecureParameters).then(
       function (response) {
         if (response.threeDSecureInfo.status !== "authenticate_successful") {
-          const message = `Could not authenticate: ${response.threeDSecureInfo.status}`;
-          isLoading(false);
-          notify("Error", "Could not authenticate");
-          onError?.({ code: "3DS_AUTHENTICATION_FAILED", message });
-          throw codedError("3DS_AUTHENTICATION_FAILED", message);
+          throw reportSubmitError(reporters, "Could not authenticate", {
+            code: "3DS_AUTHENTICATION_FAILED",
+            message: `Could not authenticate: ${response.threeDSecureInfo.status}`,
+          });
         }
         if (response.threeDSecureInfo.liabilityShifted) {
           return handleTransactionSale(response.nonce, options);
@@ -119,41 +120,39 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           if (continueOnLiabilityShiftPossible) {
             return handleTransactionSale(response.nonce, options);
           }
-          isLoading(false);
-          notify(
-            "Warning",
+          throw reportSubmitError(
+            reporters,
             "Failed the 3D Secure verification. Please use a different payment method.",
+            {
+              code: "3DS_LIABILITY_SHIFT_NOT_ACHIEVED",
+              message: "3D Secure liability shift not achieved",
+            },
+            true,
           );
-          throw new Error("3D Secure liability shift not achieved");
         } else {
           if (continueOnNoThreeDS) {
             return handleTransactionSale(response.nonce, options);
           }
-          isLoading(false);
-          notify(
-            "Warning",
+          throw reportSubmitError(
+            reporters,
             "3D Secure is not available for your card. Please use a different payment method.",
+            {
+              code: "3DS_NOT_AVAILABLE",
+              message: "3D Secure not available for this card",
+            },
+            true,
           );
-          throw new Error("3D Secure not available for this card");
         }
       },
       function (error) {
-        isLoading(false);
-        // `?.` on code too: an error without one (e.g. a TypeError) must still reach notify/onError.
-        if (error?.code?.startsWith("THREEDS_LOOKUP")) {
-          if (error.code === "THREEDS_LOOKUP_TOKENIZED_CARD_NOT_FOUND_ERROR") {
-            notify("Error", "Payment nonce does not exist or was already used");
-          } else if (error.code.startsWith("THREEDS_LOOKUP_VALIDATION")) {
-            notify(
-              "Error",
-              "Validation error - check your input or try a different payment",
-            );
-          } else {
-            notify("Error", "Something went wrong - try again");
-          }
-        } else {
-          notify("Error", "Something went wrong - try again");
-        }
+        // `?.`: an error without a code (e.g. a TypeError) must still reach notify/onError.
+        const braintreeCode: string | undefined = error?.code;
+        const toast =
+          braintreeCode === "THREEDS_LOOKUP_TOKENIZED_CARD_NOT_FOUND_ERROR"
+            ? "Payment nonce does not exist or was already used"
+            : braintreeCode?.startsWith("THREEDS_LOOKUP_VALIDATION")
+              ? "Validation error - check your input or try a different payment"
+              : "Something went wrong - try again";
         // Our own challenge-not-shown error keeps its code and text; anything else gets only our text
         // plus the Braintree reference (see withBraintreeRef). Checkout gets the same sanitized error.
         let sanitized: { code: string; message: string };
@@ -168,8 +167,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
             message: withBraintreeRef("3D Secure verification failed.", error),
           };
         }
-        onError?.(sanitized);
-        throw codedError(sanitized.code, sanitized.message);
+        throw reportSubmitError(reporters, toast, sanitized);
       },
     );
   };
@@ -317,7 +315,6 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           },
         );
 
-        const reporters = { notify, onError, isLoading };
         const submitPayment = (shouldVault: boolean): Promise<void> =>
           new Promise((resolve, reject) => {
             if (emptyInputsRef.current) {
@@ -333,27 +330,30 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
             if (isRetryBlocked()) {
               const message =
                 "3D Secure is still loading. Please try again in a moment.";
-              return failSubmit(reporters, reject, message, {
-                code: "THREEDS_STILL_LOADING",
-                message,
-              });
+              return reject(
+                reportSubmitError(reporters, message, {
+                  code: "THREEDS_STILL_LOADING",
+                  message,
+                }),
+              );
             }
             isLoading(true);
             hostedFieldsInstance.tokenize(
               { vault: shouldVault },
               function (err, payload) {
                 if (err || !payload) {
-                  return failSubmit(
-                    reporters,
-                    reject,
-                    "Something went wrong. Check your card details and try again.",
-                    {
-                      code: "TOKENIZE_FAILED",
-                      message: withBraintreeRef(
-                        "Card details could not be tokenized.",
-                        err,
-                      ),
-                    },
+                  return reject(
+                    reportSubmitError(
+                      reporters,
+                      "Something went wrong. Check your card details and try again.",
+                      {
+                        code: "TOKENIZE_FAILED",
+                        message: withBraintreeRef(
+                          "Card details could not be tokenized.",
+                          err,
+                        ),
+                      },
+                    ),
                   );
                 }
 
