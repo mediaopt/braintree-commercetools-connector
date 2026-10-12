@@ -15,6 +15,7 @@ import {
 
 import { HOSTED_FIELDS_LABEL, HOSTED_FIELDS } from "../../styles";
 import { withBraintreeRef } from "../../helpers/braintreeErrorRef";
+import { codedError, failSubmit } from "../../helpers/submitError";
 import { HostedFieldsHostedFieldsFieldName } from "braintree-web/hosted-fields";
 import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
 
@@ -243,8 +244,10 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
         // Our own challenge-not-shown error keeps its code and text; anything else gets only our text
         // plus the Braintree reference (see withBraintreeRef). Checkout gets the same sanitized error.
         let sanitized: { code: string; message: string };
-        if (error === notShownError) {
-          console.error(error.message);
+        if (error instanceof ChallengeNotShownError) {
+          console.error(
+            `${error.message} If Songbird becomes ready later, the challenge is still not displayed; if it comes more than ${CHALLENGE_SHOW_TIMEOUT_MS / 1000} s after the 3D Secure SDK settled, it isn't logged either, but its requests remain visible in the browser's network tab.`,
+          );
           sanitized = { code: error.code, message: error.message };
         } else {
           sanitized = {
@@ -253,9 +256,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           };
         }
         onError?.(sanitized);
-        throw Object.assign(new Error(sanitized.message), {
-          code: sanitized.code,
-        });
+        throw codedError(sanitized.code, sanitized.message);
       },
     );
   };
@@ -421,29 +422,27 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
               const code = "THREEDS_STILL_LOADING";
               const message =
                 "3D Secure is still loading. Please try again in a moment.";
-              notify("Error", message);
-              onError?.({ code, message });
-              return reject(Object.assign(new Error(message), { code }));
+              return failSubmit(reporters, reject, message, {
+                code: "THREEDS_STILL_LOADING",
+                message,
+              });
             }
             isLoading(true);
             hostedFieldsInstance.tokenize(
               { vault: shouldVault },
               function (err, payload) {
                 if (err || !payload) {
-                  isLoading(false);
-                  notify(
-                    "Error",
+                  return failSubmit(
+                    reporters,
+                    reject,
                     "Something went wrong. Check your card details and try again.",
-                  );
-                  const message = withBraintreeRef(
-                    "Card details could not be tokenized.",
-                    err,
-                  );
-                  onError?.({ code: "TOKENIZE_FAILED", message });
-                  return reject(
-                    Object.assign(new Error(message), {
+                    {
                       code: "TOKENIZE_FAILED",
-                    }),
+                      message: withBraintreeRef(
+                        "Card details could not be tokenized.",
+                        err,
+                      ),
+                    },
                   );
                 }
 

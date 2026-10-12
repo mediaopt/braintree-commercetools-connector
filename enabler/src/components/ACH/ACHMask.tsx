@@ -16,6 +16,7 @@ import {
 import { usePayment } from "../../app/usePayment";
 import { useNotifications } from "../../app/useNotifications";
 import { useLoader } from "../../app/useLoader";
+import { failSubmit } from "../../helpers/submitError";
 
 import {
   GeneralPayButtonProps,
@@ -185,16 +186,8 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     new Promise((resolve, reject) => {
       if (!clientToken) return reject(new Error("No client token"));
 
-      const fail = (
-        toast: string,
-        error: GenericError,
-        cause: unknown = new Error(error.message),
-      ) => {
-        notify("Error", toast);
-        onError?.(error);
-        isLoading(false);
-        reject(cause);
-      };
+      const fail = (toast: string, error: GenericError, cause?: unknown) =>
+        failSubmit({ notify, onError, isLoading }, reject, toast, error, cause);
 
       if (formButtonDisabled) {
         notify("Error", "Please fill in all required fields");
