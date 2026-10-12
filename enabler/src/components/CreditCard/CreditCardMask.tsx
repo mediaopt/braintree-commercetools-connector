@@ -1,4 +1,11 @@
-import { useEffect, FC, PropsWithChildren, useRef, RefObject } from "react";
+import {
+  useEffect,
+  useMemo,
+  FC,
+  PropsWithChildren,
+  useRef,
+  RefObject,
+} from "react";
 import { hostedFields, dataCollector } from "braintree-web";
 
 import { useBraintreeClient } from "../../app/useBraintreeClient";
@@ -18,33 +25,14 @@ import { withBraintreeRef } from "../../helpers/braintreeErrorRef";
 import { codedError, failSubmit } from "../../helpers/submitError";
 import { HostedFieldsHostedFieldsFieldName } from "braintree-web/hosted-fields";
 import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
+import { CHALLENGE_SHOW_TIMEOUT_MS } from "./constants";
+import {
+  ChallengeNotShownError,
+  createThreeDSVerifier,
+  unmountChallenge,
+} from "./threeDSVerifier";
 
 type CreditCardMaskProps = GeneralPayButtonProps & GeneralCreditCardProps;
-
-// When the lookup asks for a challenge, it must appear within this time: if Songbird is blocked or
-// fails to set up, the SDK never shows it and verifyCard hangs. 10 s is the budget commercetools
-// sets for payment-related API extensions:
-// https://docs.commercetools.com/api/releases/2021-12-09-increased-maximum-timeout-for-payment-related-api-extensions
-export const CHALLENGE_SHOW_TIMEOUT_MS = 10000;
-
-const THREEDS_CONTAINER_ID = "braintree-3ds-container";
-
-// window.Cardinal (defined by Songbird) isn't announced by Braintree, so it only words the error;
-// it never decides whether to reject.
-const challengeNotShownError = () => {
-  const [code, hint] = (window as { Cardinal?: unknown }).Cardinal
-    ? ["THREEDS_CHALLENGE_NOT_SHOWN", ""]
-    : [
-        "THREEDS_SONGBIRD_NOT_LOADED",
-        ": Cardinal's Songbird.js (3D Secure) was not loaded. If you are the domain owner, please whitelist the hosts listed in https://braintree.github.io/braintree-web/current/#content-security-policy",
-      ];
-  return Object.assign(
-    new Error(
-      `3D Secure challenge was not shown within ${CHALLENGE_SHOW_TIMEOUT_MS / 1000} s${hint}.`,
-    ),
-    { code },
-  );
-};
 
 export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   showPostalCode,
@@ -73,12 +61,11 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   // onRegisterSubmit inside the [client, threeDS] effect below, which only ever fires once — a
   // state closure there would permanently see deviceData as "" from before the collector resolved.
   const deviceDataRef = useRef("");
-  // Set after a challenge-not-shown timeout, removed by the next verification (see below).
-  const lateChallengeListenerRef = useRef<(() => void) | undefined>(undefined);
-  // True while a timed-out verification's own verifyCard promise hasn't settled yet.
-  const staleVerifyPendingRef = useRef(false);
-
   const { client, threeDS } = useBraintreeClient();
+  const verifier = useMemo(
+    () => threeDS && createThreeDSVerifier(threeDS),
+    [threeDS],
+  );
 
   const emptyInputsRef = useRef(true);
   const invalidInputRef = useRef(false);
@@ -106,7 +93,6 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   // Resolves only once the whole 3DS + transactionSale flow is done and rejects on every failure:
   // Checkout only has submit()'s promise to tell a failed payment apart from a successful one,
   // otherwise it keeps its loader up forever.
-  // Callers must refuse while staleVerifyPendingRef is set (see submitPayment).
   const verifyCardAndHandlePurchase = (
     threeDSecureParameters: ThreeDSecureVerifyOptions,
     shouldVault?: boolean,
@@ -128,71 +114,11 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     if (paymentInfo.braintreeShipping) {
       options.shipping = paymentInfo.braintreeShipping;
     }
-    // Only a challenge needs Songbird, so only a requested challenge starts the timer (public events:
-    // lookup-complete asks for it, authentication-iframe-available puts it on the page).
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let notShownError: Error | undefined;
-    let rejectNotShown!: (error: Error) => void;
-    const challengeNotShown = new Promise<never>((_, reject) => {
-      rejectNotShown = reject;
-    });
-    // A leftover late-challenge listener must not fire for this verification's own challenge.
-    if (lateChallengeListenerRef.current) {
-      threeDS!.off(
-        "authentication-iframe-available",
-        lateChallengeListenerRef.current,
-      );
-      lateChallengeListenerRef.current = undefined;
-    }
-    // cancelVerifyCard doesn't stop a challenge still waiting for a slow (not blocked) Songbird:
-    // the SDK presents it once Songbird is ready. It is only logged then, never mounted.
-    const onLateShown = () => {
-      console.warn(
-        `3D Secure challenge became available after the payment was already rejected (not shown within ${CHALLENGE_SHOW_TIMEOUT_MS / 1000} s); it was not displayed.`,
-      );
-      threeDS!.off("authentication-iframe-available", onLateShown);
-      lateChallengeListenerRef.current = undefined;
-    };
-    const onLookup = (data?: any) => {
-      if (!data?.requiresUserAuthentication) return;
-      timer = setTimeout(() => {
-        threeDS!.cancelVerifyCard(() => {});
-        threeDS!.on("authentication-iframe-available", onLateShown);
-        lateChallengeListenerRef.current = onLateShown;
-        // The SDK settles it only once Songbird is ready or has failed (at most its own 60 s).
-        staleVerifyPendingRef.current = true;
-        const clear = () => {
-          staleVerifyPendingRef.current = false;
-        };
-        sdkVerified.then(clear, clear);
-        notShownError = challengeNotShownError();
-        rejectNotShown(notShownError);
-      }, CHALLENGE_SHOW_TIMEOUT_MS);
-    };
-    // The challenge is mounted only here, i.e. only while this verification is running.
-    const onShown = (event: any, next?: () => void) => {
-      clearTimeout(timer);
-      const container = document.createElement("div");
-      container.id = THREEDS_CONTAINER_ID;
-      container.className =
-        "fixed inset-0 w-full h-full bg-black/50 z-[2147483647] flex items-center justify-center";
-      (event.element as HTMLElement).classList.add("bg-white");
-      container.appendChild(event.element);
-      document.body.appendChild(container);
-      if (next) next();
-    };
-    threeDS!.on("lookup-complete", onLookup);
-    threeDS!.on("authentication-iframe-available", onShown);
-    const sdkVerified = threeDS!.verifyCard(threeDSecureParameters);
-    const verified = Promise.race([sdkVerified, challengeNotShown]).finally(
-      () => {
-        clearTimeout(timer);
-        threeDS!.off("lookup-complete", onLookup);
-        threeDS!.off("authentication-iframe-available", onShown);
-      },
+    const verified = verifier!.verifyCardWithShowTimeout(
+      threeDSecureParameters,
     );
     return verified.then(
-      function (response: any) {
+      function (response) {
         if (response.threeDSecureInfo.status !== "authenticate_successful") {
           const message = `Could not authenticate: ${response.threeDSecureInfo.status}`;
           isLoading(false);
@@ -263,9 +189,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
 
   useEffect(() => {
     if (!client || !threeDS) return;
-    threeDS.on("authentication-modal-close", function () {
-      document.getElementById(THREEDS_CONTAINER_ID)?.remove();
-    });
+    threeDS.on("authentication-modal-close", unmountChallenge);
     isLoading(true);
 
     let hostedFieldsInputs: object = {
@@ -406,6 +330,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           },
         );
 
+        const reporters = { notify, onError, isLoading };
         const submitPayment = (shouldVault: boolean): Promise<void> =>
           new Promise((resolve, reject) => {
             if (emptyInputsRef.current) {
@@ -416,10 +341,9 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
               notify("Error", "Please correct the card details and try again.");
               return reject(new Error("invalid fields"));
             }
-            // A timed-out verification's challenge can still be presented once Songbird is ready,
-            // and this verification's listener would mount it, so wait until the SDK settles it.
-            if (staleVerifyPendingRef.current) {
-              const code = "THREEDS_STILL_LOADING";
+            // A timed-out verification's challenge may still be presented, and this verification
+            // would mount it (see createThreeDSVerifier).
+            if (verifier!.isRetryBlocked()) {
               const message =
                 "3D Secure is still loading. Please try again in a moment.";
               return failSubmit(reporters, reject, message, {

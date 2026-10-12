@@ -36,7 +36,7 @@ export const useBraintreeClient = () => {
           }
         });
 
-        // The challenge iframe is mounted and removed in CreditCardMask.
+        // The challenge iframe is mounted and removed in components/CreditCard/threeDSVerifier.ts.
         setThreeDSecureInstance(threeDSecureInstance);
       })
       .catch(function (err) {

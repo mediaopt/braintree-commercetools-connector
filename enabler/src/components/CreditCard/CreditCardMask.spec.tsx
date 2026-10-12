@@ -68,7 +68,8 @@ jest.mock("../../app/useLoader", () => ({
   useLoader: () => ({ isLoading: mockIsLoading }),
 }));
 
-import { CreditCardMask, CHALLENGE_SHOW_TIMEOUT_MS } from "./CreditCardMask";
+import { CreditCardMask } from "./CreditCardMask";
+import { CHALLENGE_SHOW_TIMEOUT_MS, THREEDS_CONTAINER_ID } from "./constants";
 
 const windowWithCardinal = window as { Cardinal?: unknown };
 
@@ -140,7 +141,7 @@ describe("CreditCardMask — Checkout submit() and onError on 3D Secure and toke
   });
 
   const challengeContainer = () =>
-    document.getElementById("braintree-3ds-container");
+    document.getElementById(THREEDS_CONTAINER_ID);
 
   // A requested challenge that isn't shown in time: submit() rejects, the SDK's verifyCard stays
   // pending until the returned function settles it (as the SDK does once Songbird is ready).
