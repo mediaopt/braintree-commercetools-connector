@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  FC,
-  PropsWithChildren,
-  useRef,
-  RefObject,
-} from "react";
+import { useEffect, FC, PropsWithChildren, useRef, RefObject } from "react";
 import { hostedFields, dataCollector } from "braintree-web";
 
 import { useBraintreeClient } from "../../app/useBraintreeClient";
@@ -28,8 +21,9 @@ import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
 import { CHALLENGE_SHOW_TIMEOUT_MS } from "./constants";
 import {
   ChallengeNotShownError,
-  createThreeDSVerifier,
-  unmountChallenge,
+  isRetryBlocked,
+  setupChallengeContainer,
+  verifyCardWithShowTimeout,
 } from "./threeDSVerifier";
 
 type CreditCardMaskProps = GeneralPayButtonProps & GeneralCreditCardProps;
@@ -62,10 +56,6 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   // state closure there would permanently see deviceData as "" from before the collector resolved.
   const deviceDataRef = useRef("");
   const { client, threeDS } = useBraintreeClient();
-  const verifier = useMemo(
-    () => threeDS && createThreeDSVerifier(threeDS),
-    [threeDS],
-  );
 
   const emptyInputsRef = useRef(true);
   const invalidInputRef = useRef(false);
@@ -114,17 +104,14 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     if (paymentInfo.braintreeShipping) {
       options.shipping = paymentInfo.braintreeShipping;
     }
-    const verified = verifier!.verifyCardWithShowTimeout(
-      threeDSecureParameters,
-    );
-    return verified.then(
+    return verifyCardWithShowTimeout(threeDS!, threeDSecureParameters).then(
       function (response) {
         if (response.threeDSecureInfo.status !== "authenticate_successful") {
           const message = `Could not authenticate: ${response.threeDSecureInfo.status}`;
           isLoading(false);
           notify("Error", "Could not authenticate");
           onError?.({ code: "3DS_AUTHENTICATION_FAILED", message });
-          throw new Error(message);
+          throw codedError("3DS_AUTHENTICATION_FAILED", message);
         }
         if (response.threeDSecureInfo.liabilityShifted) {
           return handleTransactionSale(response.nonce, options);
@@ -189,7 +176,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
 
   useEffect(() => {
     if (!client || !threeDS) return;
-    threeDS.on("authentication-modal-close", unmountChallenge);
+    setupChallengeContainer(threeDS);
     isLoading(true);
 
     let hostedFieldsInputs: object = {
@@ -342,8 +329,8 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
               return reject(new Error("invalid fields"));
             }
             // A timed-out verification's challenge may still be presented, and this verification
-            // would mount it (see createThreeDSVerifier).
-            if (verifier!.isRetryBlocked()) {
+            // would mount it (see isRetryBlocked).
+            if (isRetryBlocked()) {
               const message =
                 "3D Secure is still loading. Please try again in a moment.";
               return failSubmit(reporters, reject, message, {
