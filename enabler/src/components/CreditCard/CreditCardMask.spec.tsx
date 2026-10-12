@@ -419,6 +419,40 @@ describe("CreditCardMask — Checkout submit() and onError on 3D Secure and toke
     });
   });
 
+  it.each([
+    {
+      threeDSecureInfo: {
+        status: "authenticate_successful",
+        liabilityShiftPossible: true,
+      },
+      code: "3DS_LIABILITY_SHIFT_NOT_ACHIEVED",
+      message: "3D Secure liability shift not achieved",
+      toast:
+        "Failed the 3D Secure verification. Please use a different payment method.",
+    },
+    {
+      threeDSecureInfo: { status: "authenticate_successful" },
+      code: "3DS_NOT_AVAILABLE",
+      message: "3D Secure not available for this card",
+      toast:
+        "3D Secure is not available for your card. Please use a different payment method.",
+    },
+  ])(
+    "rejects and reports $code with a warning toast when liability doesn't shift",
+    async ({ threeDSecureInfo, code, message, toast }) => {
+      fillCard();
+      tokenizeSucceeds();
+      verifyCardReturns(threeDSecureInfo);
+
+      await expect(submit()).rejects.toMatchObject({ code, message });
+
+      expect(mockHandleTransactionSale).not.toHaveBeenCalled();
+      expect(mockIsLoading).toHaveBeenLastCalledWith(false);
+      expect(mockNotify).toHaveBeenCalledWith("Warning", toast);
+      expect(mockOnError).toHaveBeenCalledWith({ code, message });
+    },
+  );
+
   it("reports our code with the Braintree code and requestId, never the SDK message, when verifyCard rejects with a lookup error", async () => {
     fillCard();
     tokenizeSucceeds();

@@ -1,7 +1,12 @@
-import { codedError, failSubmit } from "./submitError";
+import { codedError, failSubmit, reportSubmitError } from "./submitError";
 
 describe("submitError", () => {
   const error = { code: "SOME_CODE", message: "Something failed." };
+  const reporters = () => ({
+    notify: jest.fn(),
+    onError: jest.fn(),
+    isLoading: jest.fn(),
+  });
 
   it("codedError keeps the message and adds the code", () => {
     const coded = codedError(error.code, error.message);
@@ -10,22 +15,28 @@ describe("submitError", () => {
     expect(coded).toMatchObject(error);
   });
 
-  it("failSubmit shows the toast, reports to onError, stops the loader and rejects with a coded error", () => {
-    const reporters = {
-      notify: jest.fn(),
-      onError: jest.fn(),
-      isLoading: jest.fn(),
-    };
-    const reject = jest.fn();
+  it("reportSubmitError shows an error toast, reports to onError, stops the loader and returns a coded error", () => {
+    const r = reporters();
 
-    failSubmit(reporters, reject, "Please try again.", error);
+    const reason = reportSubmitError(r, "Please try again.", error);
 
-    expect(reporters.notify).toHaveBeenCalledWith("Error", "Please try again.");
-    expect(reporters.onError).toHaveBeenCalledWith(error);
-    expect(reporters.isLoading).toHaveBeenCalledWith(false);
-    const [reason] = reject.mock.calls[0];
+    expect(r.notify).toHaveBeenCalledWith("Error", "Please try again.");
+    expect(r.onError).toHaveBeenCalledWith(error);
+    expect(r.isLoading).toHaveBeenCalledWith(false);
     expect(reason).toBeInstanceOf(Error);
     expect(reason).toMatchObject(error);
+  });
+
+  it("reportSubmitError with isWarning only changes the toast: onError still hears of the failure", () => {
+    const r = reporters();
+
+    reportSubmitError(r, "Please use a different payment method.", error, true);
+
+    expect(r.notify).toHaveBeenCalledWith(
+      "Warning",
+      "Please use a different payment method.",
+    );
+    expect(r.onError).toHaveBeenCalledWith(error);
   });
 
   it("failSubmit rejects with the given cause instead (onError is optional)", () => {
