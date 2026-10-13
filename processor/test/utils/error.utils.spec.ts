@@ -1,12 +1,13 @@
 import { describe, test, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import {
+  braintreeErrorRef,
   errorMessage,
   warnOnFieldMismatch,
   formatBraintreeSyncContext,
   getCtErrorKind,
   retryCTSync,
 } from '../../src/utils/error.utils';
-import { logger } from 'common-connect/dist';
+import { CustomError, logger, withBraintreeResponse } from 'common-connect/dist';
 
 describe('error.utils', () => {
   afterEach(() => {
@@ -75,6 +76,43 @@ describe('error.utils', () => {
     { err: new Error('test'), expected: 'other' },
   ])('getCtErrorKind($err) is $expected', ({ err, expected }) => {
     expect(getCtErrorKind(err)).toBe(expected);
+  });
+
+  // logs say which Braintree failure it was, never its message (which can echo personal data)
+  describe('braintreeErrorRef', () => {
+    const failed = (message: string, response: object) =>
+      withBraintreeResponse(new CustomError(500, message), { success: false, message, ...response });
+
+    test.each([
+      {
+        description: 'validation error codes',
+        err: failed('Street address is too long: 1 Private Street', {
+          errors: { deepErrors: () => [{ code: '81812' }, { code: '91803' }] },
+        }),
+        expected: 'Braintree error codes: 81812, 91803',
+      },
+      {
+        description: 'a declined transaction',
+        err: failed('Do Not Honor', {
+          errors: { deepErrors: () => [] },
+          transaction: { id: 'tx-1', processorResponseCode: '2000', processorResponseType: 'soft_declined' },
+        }),
+        expected: 'processor response code: 2000, processor response type: soft_declined, transaction: tx-1',
+      },
+      {
+        description: 'a response without codes',
+        err: failed('Something about Jane Doe', {}),
+        expected: 'Braintree error without code',
+      },
+      {
+        description: 'an SDK error without a Braintree response: its name',
+        err: Object.assign(new Error('not found: jane@example.com'), { name: 'notFoundError' }),
+        expected: 'Braintree error: notFoundError',
+      },
+      { description: 'a non-Error', err: 'boom', expected: 'Braintree error: unknown' },
+    ])('$description', ({ err, expected }) => {
+      expect(braintreeErrorRef(err)).toBe(expected);
+    });
   });
 
   describe('retryCTSync', () => {
