@@ -7,7 +7,9 @@ const CT_SYNC_MAX_ATTEMPTS = 3;
 const CT_SYNC_BACKOFF_BASE_MS = 500;
 
 // Never stringifies a non-Error: an SDK error object can carry the full failed request/response with data that should remain private.
+// A Braintree failure is reduced to its codes: its message can echo personal data.
 export const errorMessage = (err: unknown): string => {
+  if (getBraintreeResponse(err)) return braintreeErrorRef(err);
   if (err instanceof Error) return err.message;
   const { code, statusCode, message } = (err ?? {}) as Record<string, unknown>;
   const parts = [code, statusCode, message].filter((part) => typeof part === 'string' || typeof part === 'number');

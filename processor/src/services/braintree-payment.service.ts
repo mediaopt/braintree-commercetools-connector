@@ -74,7 +74,6 @@ import {
   voidTransaction as braintreeVoidTransaction,
   deletePayment as braintreeDeletePayment,
   getTransaction as braintreeGetTransaction,
-  getBraintreeResponse,
   logger,
 } from 'common-connect/dist';
 import {
@@ -795,10 +794,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
         braintreeCustomerId,
       );
     } catch (err) {
-      // a Braintree failure is logged by its codes only, its message can echo personal data
-      logger.error(
-        `createPayment: failed, cartId: ${cartId} — ${getBraintreeResponse(err) ? braintreeErrorRef(err) : errorMessage(err)}`,
-      );
+      // Logged again by the error handler; the duplicate is accepted, as this line gives depersonalized debug data
+      // sufficient to request the necessary details
+      logger.error(`createPayment: failed, cartId: ${cartId} — ${errorMessage(err)}`);
       throw err;
     }
   }
@@ -1719,6 +1717,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
       logger.info(`deleteStoredPaymentMethod: success, cartId: ${cartId}`);
     } catch (err) {
       record(braintreeFailure(err));
+      // Logged again by the error handler; the duplicate is accepted, as this line gives depersonalized debug data
+      // sufficient to request the necessary details
       logger.error(`deleteStoredPaymentMethod: failed, cartId: ${cartId} — ${braintreeErrorRef(err)}`);
       throw err;
     }

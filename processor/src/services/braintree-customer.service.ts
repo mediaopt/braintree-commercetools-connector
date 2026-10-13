@@ -299,6 +299,8 @@ export class BraintreeCustomerService {
       record(response);
       return response;
     } catch (err) {
+      // Logged again by the error handler; the duplicate is accepted, as this line gives depersonalized debug data
+      // sufficient to request the necessary details
       log.error(`vault: Braintree call failed — ${braintreeErrorRef(err)}`);
       record(braintreeFailure(err));
       throw err;
