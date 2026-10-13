@@ -243,8 +243,6 @@ export type UpdateCartShippingRequestSchemaDTO = Static<typeof UpdateCartShippin
 export const AchVaultTokenRequestSchema = Type.Object({
   paymentMethodNonce: Type.String(),
   ctPaymentId: Type.String(),
-  braintreeCustomerId: Type.Optional(Type.String()),
-  ctCustomerId: Type.Optional(Type.String()),
   // Browser-only failure of an earlier attempt (our code and text + Braintree error code/requestId, never an SDK
   // message), logged by getAchVaultToken.
   // Bounded: it is buyer-supplied.

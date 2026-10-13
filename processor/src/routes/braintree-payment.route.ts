@@ -152,7 +152,7 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
       schema: { body: AchVaultTokenRequestSchema, response: { 200: AchVaultTokenResponseSchema } },
     },
     async (request, reply) => {
-      // braintreeCustomerId/ctCustomerId presence is validated in vaultPaymentMethodForCustomer
+      // the customer is taken from the cart, its presence is validated in vaultPaymentMethodForCustomer
       const result = await opts.paymentService.getAchVaultToken(request.body);
       return reply.status(200).send(result);
     },

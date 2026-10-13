@@ -1057,8 +1057,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // payload — otherwise Braintree rejects the whole sale with "Customer ID has already been taken"
     // when that customer already exists.
     let existingBtCustomerId: string | undefined;
+    // the lookup's record, written after the sale together with the link (separate writes would compete with it)
+    let findCustomerRecord: Record<string, string> | undefined;
     if (storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId) {
-      existingBtCustomerId = await this.braintreeCustomerService.findExistingBraintreeCustomerId(ctPayment.customer.id);
+      ({ braintreeCustomerId: existingBtCustomerId, recordFields: findCustomerRecord } =
+        await this.braintreeCustomerService.findExistingBraintreeCustomerId(ctPayment.customer.id));
     }
     const optionalRequestData: Partial<TransactionRequest> = {
       ...(storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId
@@ -1096,6 +1099,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
       response = await transactionSale(transactionRequest);
     } catch (e) {
       logger.error(`transactionSale: Braintree call failed, paymentId: ${ctPaymentId} — ${braintreeErrorRef(e)}`);
+      if (findCustomerRecord)
+        this.braintreeCustomerService.recordCustomerFields(ctPayment.customer!.id, findCustomerRecord, 'findCustomer');
       // Braintree's answer recorded on the payment, no transaction; fire-and-forget, the buyer is waiting
       void this.recordResponse(
         ctPayment,
@@ -1121,7 +1126,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // Fire-and-forget: customer update has no webhook fallback, so retries are handled
     // internally in linkBraintreeCustomerId, but it does not block the transaction response.
     if (storeInVaultOnSuccess && response.customer?.id && ctPayment.customer?.id) {
-      void this.braintreeCustomerService.linkBraintreeCustomerId(ctPayment.customer.id, response.customer.id);
+      void this.braintreeCustomerService.linkBraintreeCustomerId(
+        ctPayment.customer.id,
+        response.customer.id,
+        findCustomerRecord,
+      );
       // Symmetric with linkBraintreeCustomerId above: also register the vaulted method in commercetools'
       // own PaymentMethod resource. Best-effort — Braintree's vault above already succeeded and remains
       // authoritative regardless of whether this succeeds; see the class-level note in abstract-payment.service.ts.
@@ -1138,6 +1147,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
           `transactionSale: could not save commercetools PaymentMethod record for payment ${ctPaymentId}`,
         );
       }
+    } else if (findCustomerRecord) {
+      this.braintreeCustomerService.recordCustomerFields(ctPayment.customer!.id, findCustomerRecord, 'findCustomer');
     }
     // CT sync — Braintree already processed. Awaited so the Authorization transaction (which triggers
     // commercetools Checkout's Order creation) is written before the response; retryCTSync never throws,
@@ -1550,8 +1561,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
   public async getAchVaultToken({
     paymentMethodNonce,
     ctPaymentId,
-    braintreeCustomerId,
-    ctCustomerId,
     logFrontendIssue,
   }: AchVaultTokenRequestSchemaDTO): Promise<AchVaultTokenResponseSchemaDTO> {
     // A session without a Cart (PayPal Express before the click) passes auth, but must never vault
@@ -1560,15 +1569,17 @@ export class BraintreePaymentService extends AbstractPaymentService {
       logger.warn(
         `getAchVaultToken: frontend issue reported on payment ${ctPaymentId} before this attempt: ${logFrontendIssue}`,
       );
-    // Payment and type are read in parallel with the vault, so a payment without the Braintree type can't be refused
+    // The vault goes to the cart's customer, so the cart is read before it (the Braintree customer lookup needs its id).
+    // Payment and type are read in parallel with both, so a payment without the Braintree type can't be refused
     // before Braintree. A failed read must not fail the vault: the type then isn't checked, and syncPayment fetches.
-    const [{ token, verified }, braintreePaymentTypeId, ctPayment] = await Promise.all([
-      this.braintreeCustomerService.vaultPaymentMethodForCustomer({
-        paymentMethodNonce,
-        braintreeCustomerId,
-        ctCustomerId,
-        resolveRecordCustomerId: () => this.ctCartService.getCart({ id: cartId }).then((cart) => cart.customerId),
-      }),
+    const [{ token, verified, ctCustomerId }, braintreePaymentTypeId, ctPayment] = await Promise.all([
+      this.ctCartService.getCart({ id: cartId }).then(async ({ customerId }) => ({
+        ...(await this.braintreeCustomerService.vaultPaymentMethodForCustomer({
+          paymentMethodNonce,
+          ctCustomerId: customerId,
+        })),
+        ctCustomerId: customerId,
+      })),
       getBraintreePaymentTypeId().catch(() => undefined),
       this.ctPaymentService.getPayment({ id: ctPaymentId }).catch(() => undefined),
     ]);
@@ -1576,20 +1587,17 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // Symmetric with linkBraintreeCustomerId (called inside vaultPaymentMethodForCustomer): also register
     // the vaulted method in commercetools' own PaymentMethod resource. Best-effort — Braintree's vault
     // above already succeeded and remains authoritative; see the class-level note in abstract-payment.service.ts.
-    // ctPaymentMethodService requires the CT customer id, which may not be the request body's optional
-    // ctCustomerId (that field can be omitted when the caller only supplied an existing braintreeCustomerId),
-    // so it's resolved from cart context instead, same as getStoredPaymentMethods/deleteStoredPaymentMethod.
-    // Fire-and-forget end-to-end so the cart lookup doesn't add latency to the vault-token response.
-    this.fireAndForgetCtPaymentMethodSync(async () => {
-      const ctCartForVault = await this.ctCartService.getCart({ id: cartId });
-      if (!ctCartForVault.customerId) return;
-      return this.ctPaymentMethodService.save({
-        customerId: ctCartForVault.customerId,
-        method: PaymentMethodType.ACH,
-        paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
-        token,
-      });
-    }, `getAchVaultToken: could not save commercetools PaymentMethod record for payment ${ctPaymentId}`);
+    // Fire-and-forget so it doesn't add latency to the vault-token response.
+    this.fireAndForgetCtPaymentMethodSync(
+      () =>
+        this.ctPaymentMethodService.save({
+          customerId: ctCustomerId!, // the vault requires the cart's customer
+          method: PaymentMethodType.ACH,
+          paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
+          token,
+        }),
+      `getAchVaultToken: could not save commercetools PaymentMethod record for payment ${ctPaymentId}`,
+    );
 
     if (!verified) {
       // The placeholder write needs no custom type, so it still goes ahead; the merchant is told to resolve the type.
