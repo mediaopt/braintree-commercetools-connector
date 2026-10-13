@@ -16,6 +16,7 @@ import {
 import { usePayment } from "../../app/usePayment";
 import { useNotifications } from "../../app/useNotifications";
 import { useLoader } from "../../app/useLoader";
+import { failSubmit, reportSaleFailure } from "../../helpers/submitError";
 
 import {
   GeneralPayButtonProps,
@@ -186,34 +187,10 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   // successful one, otherwise it keeps its loader up forever.
   const submitPayment = (): Promise<void> =>
     new Promise((resolve, reject) => {
-      // Our own code and text, plus the Braintree reference at most (see withBraintreeRef). The rejection
-      // is a fresh Error too: Checkout gets the same sanitized text, never the raw error.
-      const report = (code: string, text: string, err?: unknown): Error => {
-        const error: GenericError = {
-          code,
-          message: withBraintreeRef(text, err),
-        };
-        console.error(`ACH payment failed: ${error.code} — ${error.message}`);
-        onError?.(error);
-        return Object.assign(new Error(error.message), { code });
-      };
+      if (!clientToken) return reject(new Error("No client token"));
 
-      const fail = (code: string, text: string, err?: unknown) => {
-        notify("Error", text);
-        isLoading(false);
-        reject(report(code, text, err));
-      };
-
-      // For failures no processor call sees: the next attempt's vault request carries them, since the
-      // buyer's browser console usually isn't accessible to whoever debugs the payment.
-      const failInBrowser: typeof fail = (code, text, err) => {
-        pendingFrontendIssueRef.current = `${code}: ${withBraintreeRef(text, err)}`;
-        fail(code, text, err);
-      };
-
-      if (!clientToken) {
-        return fail("ACH_NO_CLIENT_TOKEN", "Something went wrong - try again");
-      }
+      const fail = (toast: string, error: GenericError, cause?: unknown) =>
+        failSubmit({ notify, onError, isLoading }, reject, toast, error, cause);
 
       if (formButtonDisabled) {
         notify("Error", "Please fill in all required fields");
@@ -250,9 +227,9 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
         },
         function (clientErr, clientInstance) {
           if (clientErr) {
-            return failInBrowser(
-              "ACH_CLIENT_CREATE_FAILED",
-              "There was an error connecting to Braintree.",
+            return fail(
+              `Error creating client ${clientErr.message}`,
+              { code: clientErr.code, message: clientErr.message },
               clientErr,
             );
           }
@@ -263,10 +240,15 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
             },
             function (usBankAccountErr, usBankAccountInstance) {
               if (usBankAccountErr || !usBankAccountInstance) {
-                return failInBrowser(
-                  "ACH_US_BANK_ACCOUNT_CREATE_FAILED",
-                  "There was an error creating the USBankAccount instance.",
-                  usBankAccountErr,
+                return fail(
+                  toast,
+                  {
+                    code:
+                      usBankAccountErr?.code ?? "US_BANK_ACCOUNT_CREATE_FAILED",
+                    message: usBankAccountErr?.message ?? toast,
+                  },
+                  usBankAccountErr ??
+                  new Error("USBankAccount instance not created"),
                 );
               }
 
@@ -309,9 +291,9 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                   let vaultRequested = false;
                   try {
                     if (tokenizeErr) {
-                      return failInBrowser(
-                        "ACH_TOKENIZE_FAILED",
-                        "There was an error tokenizing the bank details.",
+                      return fail(
+                        `There was an error tokenizing the bank details, ${tokenizeErr}`,
+                        { code: tokenizeErr.code, message: tokenizeErr.message },
                         tokenizeErr,
                       );
                     }
@@ -348,61 +330,51 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                       token: vaultToken,
                       verified,
                       merchantReturnUrl,
-                    } = vaultResponse;
+                      message: vaultErrorMessage,
+                    } = vaultResponse || {};
 
                     // The processor's message is not passed on (see withBraintreeRef); the processor
                     // logs the failure itself.
                     if (!vaultToken) {
-                      return fail(
-                        "ACH_VAULT_FAILED",
-                        "There is an error in vaulting the bank account.",
-                      );
+                      const toast =
+                        "There is an error in vaulting the bank account.";
+                      return fail(toast, {
+                        code: "ACH_VAULT_FAILED",
+                        message: vaultErrorMessage ?? toast,
+                      });
                     }
 
-                    if (verified) {
-                      // Instantly verified (bank login / Plaid): proceed with payment immediately.
-                      try {
-                        await handleTransactionSale("", {
+                  if (verified) {
+                    // Instantly verified (bank login / Plaid): proceed with payment immediately.
+                    try {
+                      await reportSaleFailure(
+                        handleTransactionSale("", {
                           paymentToken: vaultToken,
                           deviceData: deviceDataRef.current,
                           lineItems: paymentInfo.braintreeLineItems,
                           shipping,
                           achMandateText: mandateText,
                           achMandateAcceptedAt: mandateAcceptedAt,
-                        });
-                        resolve();
-                      } catch {
-                        // handleTransactionSale already shows the toast; the processor logs the failure.
-                        reject(
-                          report(
-                            "ACH_TRANSACTION_SALE_FAILED",
-                            "The payment could not be completed.",
-                          ),
-                        );
-                      } finally {
-                        isLoading(false);
-                      }
-                    } else {
-                      // Micro-deposit verification initiated: CT payment already synced to Pending
-                      // by the processor. Redirect to result page — merchant is responsible for
-                      // completing payment once the customer verifies their bank account.
-                      isLoading(false);
-                      if (merchantReturnUrl) {
-                        window.location.href = merchantReturnUrl;
-                      } else {
-                        console.warn(
-                          "ACH micro-deposit verification started but no merchantReturnUrl was returned — check MERCHANT_RETURN_URL",
-                        );
-                        notify("Info", mandateText);
-                      }
+                        }),
+                        onError,
+                      );
                       resolve();
+                    } catch (saleErr) {
+                      reject(saleErr);
+                    } finally {
+                      isLoading(false);
                     }
-                  } catch (err) {
-                    (vaultRequested ? fail : failInBrowser)(
-                      "ACH_UNEXPECTED_ERROR",
-                      "Something went wrong - try again",
-                      err,
-                    );
+                  } else {
+                    // Micro-deposit verification initiated: CT payment already synced to Pending
+                    // by the processor. Redirect to result page — merchant is responsible for
+                    // completing payment once the customer verifies their bank account.
+                    isLoading(false);
+                    if (merchantReturnUrl) {
+                      window.location.href = merchantReturnUrl;
+                    } else {
+                      notify("Info", mandateText);
+                    }
+                    resolve();
                   }
                 },
               );

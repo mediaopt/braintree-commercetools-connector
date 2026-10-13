@@ -31,6 +31,7 @@ import { useNotifications } from "./useNotifications";
 import { useLoader } from "./useLoader";
 import { processorUrls } from "../components/constants";
 import { sessionHeader } from "../helpers/sessionHeader";
+import { codedError } from "../helpers/submitError";
 import { LoadingOverlay } from "../components/LoadingOverlay";
 import { PayPalCheckoutUpdatePaymentOptions } from "braintree-web/paypal-checkout";
 
@@ -282,7 +283,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         notify("Error", errorMessage);
         // Rejects so a Checkout-registered submit() sees the failure (see CreditCardMask). Callers that
         // don't await it end with .catch(() => {}): the toast above already reports the failure.
-        throw new Error(errorMessage);
+        throw codedError("TRANSACTION_SALE_FAILED", errorMessage);
       }
 
       const { message, success, merchantReturnUrl } = response;

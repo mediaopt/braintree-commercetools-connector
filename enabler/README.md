@@ -24,6 +24,53 @@ Every component needs at minimum:
 
 Nearly everything that makes a button look and behave a specific way — colors, labels, `googleMerchantId`, `venmo.profileId`, the vault-checkbox label text, and so on — is **not configured here in the enabler**. It's computed on the processor from the `BRAINTREE_BUTTON_STYLES` and `BRAINTREE_PER_METHOD_CONFIG` environment variables and delivered to the enabler through `GET /operations/config`. See `processor/.env.template` for the full reference, and the root [`README.md`](../README.md#button-customization) for example values and override precedence.
 
+## ACH
+
+You must contact Braintree to enable the required verification method for the checkout flow.
+
+| Value                                     | Status                             |
+| ----------------------------------------- | ---------------------------------- |
+| `instant_verification_account_validation` | Supported                          |
+| `micro_transfers`                         | Open issue if you need this method |
+| `network_check` (the default if unset)    | Supported                          |
+
+Then the relevant value must be submitted to the processor configuration as
+`ach.usBankAccountVerificationMethod` under `BRAINTREE_PER_METHOD_CONFIG` (see the root
+[`README.md`](../README.md#button-customization) for example values).
+
+The ACH mandate text shown to the shopper and sent to Braintree is built automatically using
+`ach.businessName` and `ach.actionLabel` from `BRAINTREE_PER_METHOD_CONFIG` — providing `businessName`
+and keeping `actionLabel` in sync with your checkout button's label (if customized in the merchant
+center) is your responsibility.
+
+To fully replace the mandate text instead, set `ach.mandateText` under `BRAINTREE_BUTTON_STYLES` —
+when present, it's used verbatim. In that case, following
+[Braintree's ACH mandate text requirements](https://developer.paypal.com/braintree/docs/guides/ach/client-side/javascript/v3/)
+is your responsibility.
+
+## Credit Card
+
+3D Secure verification is enabled by default. It can be disabled or reconfigured via your Braintree
+account's [Rules Manager](https://developer.paypal.com/braintree/docs/guides/3d-secure/rules-manager/javascript/v3/).
+
+3D Secure loads Cardinal's Songbird script and frames into your storefront page. If that page sends a
+Content Security Policy, it must allow the hosts Braintree lists for your environment in its
+[Content Security Policy guide](https://braintree.github.io/braintree-web/current/#content-security-policy).
+Otherwise the 3D Secure challenge can't be shown. The connector can't set this policy for you,
+because a CSP applies to the page that loads the scripts, not to the connector's own responses.
+Payments that need no challenge aren't affected by anything below.
+
+- **Challenge not shown in time.** When Braintree requests a challenge and it isn't shown within
+  10 seconds, the payment is rejected: `onError` receives `THREEDS_SONGBIRD_NOT_LOADED` (Cardinal's
+  script didn't load) or `THREEDS_CHALLENGE_NOT_SHOWN`, and the browser console logs the same message.
+- **Challenge that arrives late.** If Cardinal's script was only slow, a challenge that becomes
+  available after that is never shown: the browser console logs a warning if it arrives within
+  10 seconds after 3D Secure has finished loading; a later one is visible only in the browser's
+  network tab.
+- **Retry while 3D Secure is still loading.** Until that late challenge arrives, or for those
+  10 seconds if it doesn't, a new payment attempt is rejected before the card is tokenized: `onError`
+  receives `THREEDS_STILL_LOADING` and the shopper is asked to try again in a moment.
+
 ## Example: how a `processorUrl` becomes real requests
 
 Previously required custom bff endpoints now are handled by the processor. The enabler builds every processor request URL from the single `processorUrl` you pass into `build(...)`, via `processorUrls()` (`src/components/constants.ts`):
