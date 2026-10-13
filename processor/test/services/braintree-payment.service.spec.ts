@@ -53,6 +53,7 @@ import {
   CONCURRENT_CANCEL_AND_SALE_ISSUE,
 } from '../../src/services/braintree-payment.service';
 import * as FastifyContext from '../../src/libs/fastify/context/context';
+import * as StoredPaymentMethodsConfig from '../../src/config/stored-payment-methods.config';
 // import * as StatusHandler from '@commercetools/connect-payments-sdk/dist/api/handlers/status.handler';
 //
 // import { HealthCheckResult } from '@commercetools/connect-payments-sdk';
@@ -406,6 +407,7 @@ describe('braintree-payment.service', () => {
     const braintreePaymentService = new BraintreePaymentService(opts);
 
     beforeEach(() => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue('cart-id');
       (CommonConnect.transactionSale as jest.Mock).mockResolvedValue(mockBraintreeTransaction as never);
       jest.spyOn(paymentSDK.ctPaymentService, 'getPayment').mockResolvedValue(mockGetPaymentResult as never);
     });
@@ -1003,6 +1005,7 @@ describe('braintree-payment.service', () => {
     const braintreePaymentService = new BraintreePaymentService(opts);
 
     beforeEach(() => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue('cart-id');
       jest.spyOn(paymentSDK.ctPaymentService, 'updatePayment').mockResolvedValue({} as never);
       (CommonConnect.transactionSale as jest.Mock).mockResolvedValue(mockBraintreeTransaction as never);
     });
@@ -1834,6 +1837,7 @@ describe('braintree-payment.service', () => {
     const braintreePaymentService = new BraintreePaymentService(opts);
 
     beforeEach(() => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue('cart-id');
       jest.spyOn(BraintreeCustomerService.prototype, 'vaultPaymentMethodForCustomer').mockResolvedValue({
         token: 'ach-token-123',
         verified: true,
@@ -2147,12 +2151,22 @@ describe('braintree-payment.service', () => {
       });
     });
 
-    test('no cart-bound session: fallback to anonymous', async () => {
-      // getCartIdFromContext's real return type is always `string` — the "no session" fallback
-      // is triggered by it (or the subsequent getCart call) throwing, not by returning undefined.
-      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockImplementation(() => {
-        throw new Error('no cart-bound session');
+    test('session without a cart: anonymous token, no cart lookup', async () => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(undefined);
+      const getCartSpy = jest.spyOn(paymentSDK.ctCartService, 'getCart');
+      (CommonConnect.getClientToken as jest.Mock).mockResolvedValue('anon-client-token' as never);
+
+      const result = await braintreePaymentService.getExpressClientToken();
+
+      expect(getCartSpy).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        braintreeData: { clientToken: 'anon-client-token', braintreeCustomerId: undefined },
       });
+    });
+
+    test('cart lookup fails: fallback to anonymous', async () => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue('cart-id');
+      jest.spyOn(paymentSDK.ctCartService, 'getCart').mockRejectedValue(new Error('CT unavailable'));
       (CommonConnect.getClientToken as jest.Mock).mockResolvedValue('anon-client-token' as never);
 
       const result = await braintreePaymentService.getExpressClientToken();
@@ -2474,6 +2488,86 @@ describe('braintree-payment.service', () => {
           builderType: undefined,
         } as never),
       ).rejects.toThrow('cart lookup failed');
+    });
+  });
+
+  // PayPal Express's session may have no Cart before the click
+  describe('session without a cart', () => {
+    const braintreePaymentService = new BraintreePaymentService(opts);
+    let getCartSpy: jest.SpiedFunction<typeof paymentSDK.ctCartService.getCart>;
+
+    beforeEach(() => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(undefined);
+      getCartSpy = jest.spyOn(paymentSDK.ctCartService, 'getCart');
+    });
+
+    test('stored payment methods are reported as disabled, without a cart lookup', async () => {
+      jest
+        .spyOn(StoredPaymentMethodsConfig, 'getStoredPaymentMethodsConfig')
+        .mockReturnValue({ enabled: true, config: { paymentInterface: 'braintree' } });
+
+      await expect(braintreePaymentService.isStoredPaymentMethodsEnabled()).resolves.toBe(false);
+      expect(getCartSpy).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      {
+        operation: 'createPayment',
+        run: () =>
+          braintreePaymentService.createPayment({
+            paymentMethodType: PaymentMethodType.PAYPAL,
+            builderType: 'express',
+          } as never),
+      },
+      {
+        operation: 'updateCartShipping',
+        run: () => braintreePaymentService.updateCartShipping({ newShippingMethodId: 'method-1' }),
+      },
+      { operation: 'getStoredPaymentMethods', run: () => braintreePaymentService.getStoredPaymentMethods() },
+    ])('$operation refuses with "no cart found"', async ({ run }) => {
+      const result = run();
+
+      await expect(result).rejects.toThrow(ErrorInvalidOperation);
+      await expect(result).rejects.toThrow('no cart found for the checkout session');
+      expect(getCartSpy).not.toHaveBeenCalled();
+    });
+
+    test('deleteStoredPaymentMethod refuses before the Braintree delete', async () => {
+      await expect(braintreePaymentService.deleteStoredPaymentMethod('pm-token-123')).rejects.toThrow(
+        'no cart found for the checkout session',
+      );
+      expect(CommonConnect.deletePayment).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      { flow: 'Express after a shipping change', braintreePaymentDetails: { expressShippingChanged: true } },
+      { flow: 'without a shipping change', braintreePaymentDetails: undefined },
+    ])('transactionSale ($flow) refuses before Braintree', async ({ braintreePaymentDetails }) => {
+      jest.spyOn(paymentSDK.ctPaymentService, 'getPayment').mockResolvedValue(mockGetPaymentResult as never);
+
+      await expect(
+        braintreePaymentService.transactionSale({
+          ctPaymentId: mockGetPaymentResult.id,
+          paymentMethodType: PaymentMethodType.PAYPAL,
+          paymentMethodNonce: 'fake-paypal-billing-agreement-nonce',
+          braintreePaymentDetails,
+        }),
+      ).rejects.toThrow(`no cart found for ${mockGetPaymentResult.id}`);
+      expect(CommonConnect.transactionSale).not.toHaveBeenCalled();
+    });
+
+    test('getAchVaultToken refuses before the Braintree vault', async () => {
+      const vaultSpy = jest.spyOn(BraintreeCustomerService.prototype, 'vaultPaymentMethodForCustomer');
+
+      await expect(
+        braintreePaymentService.getAchVaultToken({
+          ctPaymentId: 'payment-123',
+          paymentMethodNonce: 'ach-nonce',
+          braintreeCustomerId: 'bt-cust-123',
+        }),
+      ).rejects.toThrow('no cart found for payment-123');
+      expect(vaultSpy).not.toHaveBeenCalled();
+      expect(getCartSpy).not.toHaveBeenCalled();
     });
   });
 });

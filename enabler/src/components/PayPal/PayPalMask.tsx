@@ -84,6 +84,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   // please open an issue if you are interested in vaulting a new PayPal account.
   onExpressPayButtonClick,
   onPaymentSubmit,
+  onError,
 }) => {
   // useRef, not useState: handleOnApprove is bound once when the effect below runs and handed
   // straight to the PayPal Buttons SDK (not React-managed), so a state closure there can
@@ -422,24 +423,44 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
 
                         createOrder: async () => {
                           if (onExpressPayButtonClick) {
-                            // Deferred mode: Checkout creates the real cart and rebinds the
-                            // session to it inside onPayButtonClick — see
+                            // Deferred mode: Checkout creates the real cart inside onPayButtonClick
+                            // and resolves with the session bound to it — see
                             // https://docs.commercetools.com/checkout/browser-sdk#use-the-onpaybuttonclick-hook.
-                            // createExpressPayment then creates the CT Payment for real, against
-                            // that cart, since the session now resolves to it.
-                            await onExpressPayButtonClick();
-                            const result = await createExpressPayment();
-                            deferredResultRef.current = result;
-                            const real = result.paymentInfo;
-                            return paypalCheckoutInstance.createPayment(
-                              buildExpressCreatePaymentOptions({
-                                braintreeLineItems: real.braintreeLineItems,
-                                shippingOptions: real.shippingOptions,
-                                countryCode: real.countryCode,
-                                amount: real.braintreeAmount,
-                                currency: real.currency,
-                              }),
-                            );
+                            // createExpressPayment switches every later processor call to that
+                            // session, then creates the CT Payment for real, against that cart.
+                            let clickPaymentId: string | undefined;
+                            try {
+                              const clickResult =
+                                await onExpressPayButtonClick();
+                              const result = await createExpressPayment(
+                                clickResult?.sessionId,
+                              );
+                              deferredResultRef.current = result;
+                              const real = result.paymentInfo;
+                              clickPaymentId = real.ctPaymentId;
+                              return await paypalCheckoutInstance.createPayment(
+                                buildExpressCreatePaymentOptions({
+                                  braintreeLineItems: real.braintreeLineItems,
+                                  shippingOptions: real.shippingOptions,
+                                  countryCode: real.countryCode,
+                                  amount: real.braintreeAmount,
+                                  currency: real.currency,
+                                }),
+                              );
+                            } catch (error) {
+                              // Checkout already started its transaction in onPayButtonClick; this is
+                              // its only failure signal. Our own text only: the error may carry the
+                              // processor's or Braintree's message.
+                              onError?.(
+                                {
+                                  code: "EXPRESS_CREATE_ORDER_FAILED",
+                                  message:
+                                    "The PayPal Express order could not be created.",
+                                },
+                                { paymentReference: clickPaymentId },
+                              );
+                              throw error;
+                            }
                           }
                           return paypalCheckoutInstance.createPayment(
                             buildExpressCreatePaymentOptions({

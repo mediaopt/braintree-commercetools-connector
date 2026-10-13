@@ -63,6 +63,7 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
           !!configJson.storedPaymentMethodsConfig?.isEnabled,
         enableVaulting: !!configJson.enableVaulting,
         perMethodConfig: configJson.perMethodConfig,
+        onError: options.onError,
         purchaseCallback:
           configJson.purchaseCallback ||
           options.onComplete ||
