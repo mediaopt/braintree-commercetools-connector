@@ -23,8 +23,8 @@ PURE_VAULT_DISABLED end */
 import { log } from '../libs/logger';
 
 import { getConfig } from '../config/config';
-import { errorMessage } from '../utils/error.utils';
-import { getTypeId } from '../utils/customEntities.utils';
+import { braintreeErrorRef, errorMessage } from '../utils/error.utils';
+import { braintreeFailure, buildCallFields, getTypeId } from '../utils/customEntities.utils';
 
 import { DefaultCommercetoolsAPI } from '@commercetools/connect-payments-sdk/dist/commercetools/api/root-api';
 
@@ -39,6 +39,9 @@ const buildAchVaultOptions = () => ({
     getConfig().perMethodConfig?.ach?.usBankAccountVerificationMethod ??
     VAULT_BRAINTREE_OPTIONS.usBankAccountVerificationMethod,
 });
+
+const CUSTOMER_WRITE_ATTEMPTS = 3;
+const CUSTOMER_WRITE_RETRY_DELAY_MS = 1000; //timing selected based on permitted time for resolve for payment connector operations
 
 export class BraintreeCustomerService {
   private ctAPI: DefaultCommercetoolsAPI;
@@ -85,48 +88,81 @@ export class BraintreeCustomerService {
    * abstract-payment.service.ts.
    */
   public async linkBraintreeCustomerId(ctCustomerId: string, braintreeCustomerId: string): Promise<void> {
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY_MS = 1000; //timing selected based on permitted time for resolve for payment connector operations
+    const written = await this.setBraintreeCustomerFields(
+      ctCustomerId,
+      { braintreeCustomerId },
+      'linkBraintreeCustomerId',
+      (ctCustomer) => !!ctCustomer.custom?.fields?.braintreeCustomerId,
+    );
+    if (!written)
+      log.error(
+        `linkBraintreeCustomerId: all ${CUSTOMER_WRITE_ATTEMPTS} attempts failed for customer ${ctCustomerId}. ` +
+          `Braintree customer ID "${braintreeCustomerId}" was not persisted to CT — stored payment methods will not be visible for this customer until resolved manually.`,
+      );
+  }
+
+  /**
+   * Records a customer-level Braintree call on the CT customer ({messageName}ProcessorRequest + {messageName}Response,
+   * as the payment-level calls are recorded on the payment). Fire-and-forget, best effort: a log, never required for
+   * the operation itself.
+   */
+  public recordCustomerCall(ctCustomerId: string, messageName: string, request: unknown, response: unknown): void {
+    void this.setBraintreeCustomerFields(
+      ctCustomerId,
+      buildCallFields(messageName, request, response),
+      `recordCustomerCall:${messageName}`,
+    )
+      .then((written) => {
+        if (!written) log.warn(`recordCustomerCall: ${messageName} not recorded on customer ${ctCustomerId}`);
+      })
+      .catch((err) =>
+        log.warn(`recordCustomerCall: ${messageName} not recorded on customer ${ctCustomerId} — ${errorMessage(err)}`),
+      );
+  }
+
+  /**
+   * Writes fields of the Braintree customer type on a CT customer, retried with a fresh read (a concurrent write of the
+   * same customer fails on its version). A customer without a type gets the Braintree customer type; one with another
+   * type is left alone — braintree-extension doesn't act on such a customer either, and the self-heal lookup
+   * (findExistingBraintreeCustomerId) still finds the Braintree customer (same id). Resolves false only when every
+   * attempt failed; nothing to do (no customer, `skip`, another type) counts as done.
+   */
+  private async setBraintreeCustomerFields(
+    ctCustomerId: string,
+    fields: Record<string, string>,
+    methodName: string,
+    skip: (ctCustomer: Customer) => boolean = () => false,
+  ): Promise<boolean> {
     const { customerTypeKey } = getConfig();
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    for (let attempt = 1; attempt <= CUSTOMER_WRITE_ATTEMPTS; attempt++) {
       const [ctCustomer, customerTypeId] = await Promise.all([
         this.getCtCustomer(ctCustomerId),
         getTypeId(customerTypeKey).catch((err) => {
-          log.warn(
-            `linkBraintreeCustomerId: could not resolve the customer type ${customerTypeKey} — ${errorMessage(err)}`,
-          );
+          log.warn(`${methodName}: could not resolve the customer type ${customerTypeKey} — ${errorMessage(err)}`);
           return undefined;
         }),
       ]);
-      if (!ctCustomer || ctCustomer.custom?.fields?.braintreeCustomerId) return;
-      // Never replace a merchant's own customer type — braintree-extension doesn't act on such a customer either;
-      // the self-heal lookup (findExistingBraintreeCustomerId) still finds the Braintree customer (same id)
+      if (!ctCustomer || skip(ctCustomer)) return true;
       if (customerTypeId && ctCustomer.custom && ctCustomer.custom.type.id !== customerTypeId) {
         log.warn(
-          `linkBraintreeCustomerId: customer ${ctCustomerId} has another custom type, braintreeCustomerId not stored`,
+          `${methodName}: customer ${ctCustomerId} has another custom type, ${Object.keys(fields).join(', ')} not stored`,
         );
-        return;
+        return true;
       }
       // No custom type yet (e.g. braintree-extension not installed): set the Braintree customer type
-      const action: CustomerUpdateAction = ctCustomer.custom
-        ? { action: 'setCustomField', name: 'braintreeCustomerId', value: braintreeCustomerId }
-        : {
-            action: 'setCustomType',
-            type: { typeId: 'type', key: customerTypeKey },
-            fields: { braintreeCustomerId },
-          };
+      const actions: CustomerUpdateAction[] = ctCustomer.custom
+        ? Object.entries(fields).map(([name, value]) => ({ action: 'setCustomField', name, value }))
+        : [{ action: 'setCustomType', type: { typeId: 'type', key: customerTypeKey }, fields }];
       // setCustomType uses the type's key; only an existing type needs its id (unresolved → can't tell, retry)
       const result =
         (!ctCustomer.custom || customerTypeId) &&
-        (await this.updateCtCustomer(ctCustomer.id, ctCustomer.version, [action]));
-      if (result) return;
-      log.warn(`linkBraintreeCustomerId: attempt ${attempt}/${MAX_RETRIES} failed for customer ${ctCustomerId}`);
-      if (attempt < MAX_RETRIES) await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+        (await this.updateCtCustomer(ctCustomer.id, ctCustomer.version, actions));
+      if (result) return true;
+      log.warn(`${methodName}: attempt ${attempt}/${CUSTOMER_WRITE_ATTEMPTS} failed for customer ${ctCustomerId}`);
+      if (attempt < CUSTOMER_WRITE_ATTEMPTS)
+        await new Promise((resolve) => setTimeout(resolve, CUSTOMER_WRITE_RETRY_DELAY_MS));
     }
-    log.error(
-      `linkBraintreeCustomerId: all ${MAX_RETRIES} attempts failed for customer ${ctCustomerId}. ` +
-        `Braintree customer ID "${braintreeCustomerId}" was not persisted to CT — stored payment methods will not be visible for this customer until resolved manually.`,
-    );
+    return false;
   }
 
   /**
@@ -139,9 +175,16 @@ export class BraintreeCustomerService {
    * deciding whether to embed a Braintree "create customer" payload.
    */
   public async findExistingBraintreeCustomerId(ctCustomerId: string): Promise<string | undefined> {
+    const request = { customerId: ctCustomerId };
     return findCustomer(ctCustomerId)
-      .then((c) => c.id)
-      .catch(() => undefined);
+      .then((c) => {
+        this.recordCustomerCall(ctCustomerId, 'findCustomer', request, c);
+        return c.id;
+      })
+      .catch((err) => {
+        this.recordCustomerCall(ctCustomerId, 'findCustomer', request, braintreeFailure(err));
+        return undefined;
+      });
   }
 
   /**
@@ -158,10 +201,13 @@ export class BraintreeCustomerService {
     paymentMethodNonce,
     braintreeCustomerId,
     ctCustomerId,
+    resolveRecordCustomerId,
   }: {
     paymentMethodNonce: string;
     braintreeCustomerId?: string;
     ctCustomerId?: string;
+    // the CT customer to record the vault call on when ctCustomerId isn't given; called only then, after the vault
+    resolveRecordCustomerId?: () => Promise<string | undefined>;
   }): Promise<{ token: string; verified: boolean }> {
     if (!braintreeCustomerId && !ctCustomerId) {
       throw new ErrorInvalidOperation('ctCustomerId is required when no Braintree customer exists');
@@ -196,10 +242,12 @@ export class BraintreeCustomerService {
       } else {
         // Creates a new Braintree customer and vaults the payment method in one call.
         // createCustomer already unwraps response.customer — returns BraintreeCustomer directly.
-        const btCustomer = (await createCustomer({
-          ...mapCTCustomerToNewBraintreeCustomer(ctCustomer),
-          paymentMethodNonce,
-        })) as BraintreeCustomer;
+        const btCustomer = (await this.recordVault(
+          { ...mapCTCustomerToNewBraintreeCustomer(ctCustomer), paymentMethodNonce },
+          createCustomer,
+          ctCustomerId,
+          resolveRecordCustomerId,
+        )) as BraintreeCustomer;
         paymentMethod = btCustomer.paymentMethods?.[0] as PaymentMethod;
         resolvedCustomerId = btCustomer.id;
       }
@@ -218,17 +266,43 @@ export class BraintreeCustomerService {
 
     // createCustomer above already vaults the nonce as part of customer creation; every other path
     // (found-existing or already-known customer) still needs this explicit call.
-    paymentMethod ??= (await createPaymentMethod({
-      customerId: resolvedCustomerId,
-      paymentMethodNonce,
-      options: buildAchVaultOptions(),
-    })) as PaymentMethod;
+    paymentMethod ??= (await this.recordVault(
+      { customerId: resolvedCustomerId, paymentMethodNonce, options: buildAchVaultOptions() },
+      createPaymentMethod,
+      ctCustomerId,
+      resolveRecordCustomerId,
+    )) as PaymentMethod;
 
     if (!paymentMethod) throw new ErrorInvalidOperation('Braintree did not return a payment method after vaulting');
 
     // `verified` is a runtime field on UsBankAccount; @types/braintree does not declare it on PaymentMethod.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return { token: paymentMethod.token, verified: (paymentMethod as any).verified === true };
+  }
+
+  /**
+   * The vault call (createCustomer with the nonce, or createPaymentMethod), recorded on the CT customer as `vault` —
+   * braintree-extension's name for the same step, so vaultResponse is shared with it.
+   */
+  private async recordVault<Request, Response>(
+    request: Request,
+    call: (request: Request) => Promise<Response>,
+    ctCustomerId: string | undefined,
+    resolveRecordCustomerId: (() => Promise<string | undefined>) | undefined,
+  ): Promise<Response> {
+    const record = (response: unknown) =>
+      void (ctCustomerId ? Promise.resolve(ctCustomerId) : (resolveRecordCustomerId?.() ?? Promise.resolve(undefined)))
+        .then((id) => id && this.recordCustomerCall(id, 'vault', request, response))
+        .catch((err) => log.warn(`vault: customer to record on not resolved — ${errorMessage(err)}`));
+    try {
+      const response = await call(request);
+      record(response);
+      return response;
+    } catch (err) {
+      log.error(`vault: Braintree call failed — ${braintreeErrorRef(err)}`);
+      record(braintreeFailure(err));
+      throw err;
+    }
   }
 
   /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable

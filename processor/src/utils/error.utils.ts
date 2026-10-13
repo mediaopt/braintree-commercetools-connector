@@ -1,4 +1,4 @@
-import { logger } from 'common-connect/dist';
+import { getBraintreeResponse, logger } from 'common-connect/dist';
 import { Transaction } from 'braintree';
 
 // Backoff sleeps 500 + 1000 ms over 3 attempts — sized for buyer-facing calls (e.g. transactionSale), where the whole
@@ -12,6 +12,33 @@ export const errorMessage = (err: unknown): string => {
   const { code, statusCode, message } = (err ?? {}) as Record<string, unknown>;
   const parts = [code, statusCode, message].filter((part) => typeof part === 'string' || typeof part === 'number');
   return parts.length ? parts.join(' ') : 'unknown error';
+};
+
+type BraintreeFailureResponse = {
+  errors?: { deepErrors?: () => Array<{ code?: string }> };
+  transaction?: { id?: string; processorResponseCode?: string; processorResponseType?: string };
+};
+
+/**
+ * What a log may say about a failed Braintree call: Braintree's error codes, processor response code/type and
+ * transaction id, or the SDK error's name when Braintree sent no response. Never the message, which can echo personal
+ * data — the full response is recorded on the payment or customer instead.
+ */
+export const braintreeErrorRef = (err: unknown): string => {
+  const response = getBraintreeResponse(err) as BraintreeFailureResponse | undefined;
+  if (!response) return `Braintree error: ${err instanceof Error ? err.name : 'unknown'}`;
+  const codes = response.errors?.deepErrors?.().map(({ code }) => code) ?? [];
+  const { id, processorResponseCode, processorResponseType } = response.transaction ?? {};
+  return (
+    [
+      codes.length && `Braintree error codes: ${codes.join(', ')}`,
+      processorResponseCode && `processor response code: ${processorResponseCode}`,
+      processorResponseType && `processor response type: ${processorResponseType}`,
+      id && `transaction: ${id}`,
+    ]
+      .filter(Boolean)
+      .join(', ') || 'Braintree error without code'
+  );
 };
 
 // Logs a warning for each field whose enabler-sent value diverges from what Braintree's own
