@@ -25,6 +25,7 @@ jest.mock('common-connect/dist', () => ({
   refund: jest.fn(),
   voidTransaction: jest.fn(),
   getTransaction: jest.fn(),
+  findPaymentMethod: jest.fn(),
 }));
 import * as CommonConnect from 'common-connect/dist';
 // import { DefaultPaymentService } from '@commercetools/connect-payments-sdk/dist/commercetools/services/ct-payment.service';
@@ -120,7 +121,7 @@ describe('braintree-payment.service', () => {
   const achPlaceholder = transaction({
     id: 'placeholder-1',
     state: 'Pending',
-    interactionId: buildPlaceholderInteractionId(mockGetPaymentResult.id),
+    interactionId: buildPlaceholderInteractionId('vault-token'),
   });
   // A failed Braintree call is recorded on the payment in one raw CT call — what was sent and what Braintree answered,
   // as both call fields + the interaction pair, never a transaction (handleBraintreeFailure → recordResponse).
@@ -145,7 +146,7 @@ describe('braintree-payment.service', () => {
   const amountOf = (centAmount: number) => ({ ...mockGetPaymentResult.amountPlanned, centAmount });
   const cancelOf = (interactionId: string) =>
     transaction({ id: `cancel-${interactionId}`, type: 'CancelAuthorization', interactionId });
-  const cancelledPlaceholder = cancelOf(buildPlaceholderInteractionId(mockGetPaymentResult.id));
+  const cancelledPlaceholder = cancelOf(achPlaceholder.interactionId!);
   // every write after createPayment: setCustomField per field, in the raw CT call
   const setCustomFieldWrites = () =>
     rawActionCalls()
@@ -1317,7 +1318,7 @@ describe('braintree-payment.service', () => {
 
     test.each([
       ['a Charge', [authorization, transaction({ id: 'charge-1', type: 'Charge', interactionId: 'txn-x' })], 'txn-x'],
-      ['a placeholder', [authorization, achPlaceholder], buildPlaceholderInteractionId(mockGetPaymentResult.id)],
+      ['a placeholder', [authorization, achPlaceholder], achPlaceholder.interactionId],
       ['not on the payment', [authorization], 'unknown'],
     ])(
       'merchantReference that is %s: rejected without calling Braintree',
@@ -1358,7 +1359,6 @@ describe('braintree-payment.service', () => {
     });
 
     test.each([
-      ['the only Authorization is a placeholder', [achPlaceholder]],
       ['no Authorization exists', [transaction({ id: 'charge-1', type: 'Charge', interactionId: undefined })]],
       ['the Authorization has no interactionId', [transaction({ id: 'auth-1' })]],
       ['the Authorization failed (declined sale)', [{ ...authorization, state: 'Failure' as const }]],
@@ -1612,7 +1612,8 @@ describe('braintree-payment.service', () => {
         {
           type: 'CancelAuthorization',
           state: 'Success',
-          interactionId: buildPlaceholderInteractionId(payment.id),
+          // the placeholder's own marker, so the cancel pairs with it
+          interactionId: achPlaceholder.interactionId,
           amount: { centAmount: achPlaceholder.amount.centAmount, currencyCode: achPlaceholder.amount.currencyCode },
         },
       ]);
@@ -1918,6 +1919,135 @@ describe('braintree-payment.service', () => {
     });
   });
 
+  // docs/Intents.md "ACH micro-deposit verification"
+  describe('settlement of an ACH micro-deposit placeholder', () => {
+    const braintreePaymentService = new BraintreePaymentService(opts);
+    const customerPayment = (
+      transactions: Transaction[] = [achPlaceholder],
+      customerId: string | null = 'ct-cust-1',
+    ) => ({
+      ...mockGetPaymentResult,
+      customer: customerId ? { typeId: 'customer' as const, id: customerId } : undefined,
+      transactions,
+    });
+    const bankAccount = { token: 'vault-token', customerId: 'ct-cust-1', routingNumber: '011000015', verified: true };
+    const achSale = { ...mockBraintreeTransaction, id: 'txn-ach', status: 'settlement_pending' };
+
+    beforeEach(() => {
+      (CommonConnect.findPaymentMethod as jest.Mock).mockClear().mockResolvedValue(bankAccount as never);
+      (CommonConnect.transactionSale as jest.Mock).mockClear().mockResolvedValue(achSale as never);
+      (CommonConnect.submitForSettlement as jest.Mock).mockClear();
+    });
+
+    test('sells with the vault token from the marker and overwrites the placeholder in place', async () => {
+      const payment = customerPayment();
+
+      const result = await braintreePaymentService.settlement({ payment, amount: payment.amountPlanned });
+
+      expect(CommonConnect.findPaymentMethod).toHaveBeenCalledWith('vault-token');
+      expect(CommonConnect.submitForSettlement).not.toHaveBeenCalled();
+      const [saleRequest] = (CommonConnect.transactionSale as jest.Mock).mock.calls[0] as [Record<string, unknown>];
+      expect(saleRequest).toMatchObject({
+        paymentMethodToken: 'vault-token',
+        amount: '1200.00',
+        options: expect.objectContaining({ submitForSettlement: true }),
+      });
+      expect(saleRequest.paymentMethodNonce).toBeUndefined();
+      // settlement_pending → Pending → received
+      expect(result).toEqual({ outcome: PaymentModificationStatus.RECEIVED });
+      expect(rawActions('changeTransactionInteractionId')).toEqual([
+        { action: 'changeTransactionInteractionId', transactionId: achPlaceholder.id, interactionId: 'txn-ach' },
+      ]);
+      // the placeholder became the Authorization; the Charge Braintree's status maps to is added
+      expect(addedTransactions()).toEqual([expect.objectContaining({ type: 'Charge', interactionId: 'txn-ach' })]);
+      expect(recordedRequest('transactionSale')).toMatchObject({ paymentMethodToken: 'vault-token' });
+    });
+
+    test('a Braintree customer id other than the CT id: matched through braintreeCustomerId', async () => {
+      (CommonConnect.findPaymentMethod as jest.Mock).mockResolvedValue({
+        ...bankAccount,
+        customerId: 'bt-cust-1',
+      } as never);
+      jest
+        .spyOn(BraintreeCustomerService.prototype, 'getCtCustomer')
+        .mockResolvedValue({ custom: { fields: { braintreeCustomerId: 'bt-cust-1' } } } as never);
+      const payment = customerPayment();
+
+      await braintreePaymentService.settlement({ payment, amount: payment.amountPlanned });
+
+      expect(CommonConnect.transactionSale).toHaveBeenCalled();
+    });
+
+    test.each([
+      ['the payment was cancelled before verification', [achPlaceholder, cancelledPlaceholder], 120000],
+      ['the amount is partial', [achPlaceholder], 50000],
+    ])('rejects without calling Braintree when %s', async (_, transactions, centAmount) => {
+      const payment = customerPayment(transactions);
+
+      const result = await braintreePaymentService.settlement({ payment, amount: amountOf(centAmount) });
+
+      expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
+      expect(CommonConnect.findPaymentMethod).not.toHaveBeenCalled();
+      expect(CommonConnect.transactionSale).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      ['the bank account is not verified yet', { ...bankAccount, verified: false }, 'ct-cust-1'],
+      [
+        'the token is not a bank account',
+        { token: 'vault-token', customerId: 'ct-cust-1', verified: true },
+        'ct-cust-1',
+      ],
+      ['the bank account belongs to another customer', { ...bankAccount, customerId: 'someone-else' }, 'ct-cust-1'],
+      ['the payment has no customer (guest)', bankAccount, null],
+    ])('rejects before the sale when %s', async (_, paymentMethod, customerId) => {
+      (CommonConnect.findPaymentMethod as jest.Mock).mockResolvedValue(paymentMethod as never);
+      jest.spyOn(BraintreeCustomerService.prototype, 'getCtCustomer').mockResolvedValue(undefined as never);
+      const payment = customerPayment([achPlaceholder], customerId);
+
+      const result = await braintreePaymentService.settlement({ payment, amount: payment.amountPlanned });
+
+      expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
+      expect(CommonConnect.transactionSale).not.toHaveBeenCalled();
+    });
+
+    test('bank account lookup fails: rejected, failure recorded as findPaymentMethod', async () => {
+      (CommonConnect.findPaymentMethod as jest.Mock).mockRejectedValue(braintreeDeclineError() as never);
+      const payment = customerPayment();
+
+      const result = await braintreePaymentService.settlement({ payment, amount: payment.amountPlanned });
+
+      expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
+      expect(CommonConnect.transactionSale).not.toHaveBeenCalled();
+      expectFailureRecorded('findPaymentMethod', { token: 'vault-token' }, braintreeDecline);
+    });
+
+    test('sale fails: rejected, failure recorded as transactionSale, placeholder kept', async () => {
+      (CommonConnect.transactionSale as jest.Mock).mockRejectedValue(braintreeDeclineError() as never);
+      const payment = customerPayment();
+
+      const result = await braintreePaymentService.settlement({ payment, amount: payment.amountPlanned });
+
+      expect(result).toEqual({ outcome: PaymentModificationStatus.REJECTED });
+      expect(rawActions('changeTransactionInteractionId')).toEqual([]);
+      expect(addedTransactions()).toEqual([]);
+      expect(recordedRequest('transactionSale')).toMatchObject({ paymentMethodToken: 'vault-token' });
+    });
+
+    test('a merchantReference targets that Braintree transaction, not the placeholder', async () => {
+      const payment = customerPayment();
+
+      await braintreePaymentService.settlement({
+        payment,
+        amount: payment.amountPlanned,
+        merchantReference: 'txn-foreign',
+      });
+
+      expect(CommonConnect.findPaymentMethod).not.toHaveBeenCalled();
+      expect(CommonConnect.transactionSale).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getAchVaultToken', () => {
     const braintreePaymentService = new BraintreePaymentService(opts);
 
@@ -1946,6 +2076,22 @@ describe('braintree-payment.service', () => {
         BraintreeCustomerService.prototype.vaultPaymentMethodForCustomer as jest.Mock
       ).mock.calls[0] as [{ resolveRecordCustomerId: () => Promise<string | undefined> }];
       await expect(resolveRecordCustomerId()).resolves.toBe('ct-cust-1');
+    });
+
+    test('a request without a cart is refused, but still logs the frontend issue it reports', async () => {
+      jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(undefined);
+      const warnSpy = jest.spyOn(CommonConnect.logger, 'warn');
+
+      await expect(
+        braintreePaymentService.getAchVaultToken({
+          ctPaymentId: 'payment-123',
+          paymentMethodNonce: 'ach-nonce',
+          logFrontendIssue: 'ACH_TOKENIZE_FAILED',
+        }),
+      ).rejects.toThrow(/no cart found/);
+
+      expect(warnSpy.mock.calls.flat().join('\n')).toContain('ACH_TOKENIZE_FAILED');
+      expect(BraintreeCustomerService.prototype.vaultPaymentMethodForCustomer).not.toHaveBeenCalled();
     });
 
     test('verified/instant path: no Pending sync side effect', async () => {
@@ -1995,7 +2141,7 @@ describe('braintree-payment.service', () => {
         {
           type: 'Authorization',
           state: 'Pending',
-          interactionId: 'BraintreePlaceholder: payment-123',
+          interactionId: 'ACH: ach-token-456',
           amount: {
             centAmount: mockGetPaymentResultWithoutTransactions.amountPlanned.centAmount,
             currencyCode: mockGetPaymentResultWithoutTransactions.amountPlanned.currencyCode,

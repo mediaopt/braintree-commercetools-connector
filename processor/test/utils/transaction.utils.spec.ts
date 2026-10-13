@@ -5,6 +5,7 @@ import {
   addPlaceholderActions,
   buildPlaceholderInteractionId,
   isPlaceholderInteractionId,
+  placeholderVaultToken,
   withoutPlaceholders,
   findActiveCharges,
   isFailedOrVoided,
@@ -34,28 +35,36 @@ const paymentWith = (transactions: Transaction[]): Payment => ({
 
 describe('transaction.utils', () => {
   describe('placeholder interactionId marker', () => {
-    test('builds a prefixed marker from the commercetools payment id', () => {
-      expect(buildPlaceholderInteractionId('payment-123')).toBe('BraintreePlaceholder: payment-123');
+    test('builds a prefixed marker from the vaulted bank account token', () => {
+      expect(buildPlaceholderInteractionId('vault-token')).toBe('ACH: vault-token');
     });
 
     test('recognizes only its own marker', () => {
-      expect(isPlaceholderInteractionId(buildPlaceholderInteractionId('payment-123'))).toBe(true);
+      expect(isPlaceholderInteractionId(buildPlaceholderInteractionId('vault-token'))).toBe(true);
       expect(isPlaceholderInteractionId('txn-test-1')).toBe(false);
       expect(isPlaceholderInteractionId(undefined)).toBe(false);
+    });
+
+    test('placeholderVaultToken reads the token back, only from a placeholder', () => {
+      expect(placeholderVaultToken(transaction({ interactionId: buildPlaceholderInteractionId('vault-token') }))).toBe(
+        'vault-token',
+      );
+      expect(placeholderVaultToken(transaction({ interactionId: buildPlaceholderInteractionId('') }))).toBeUndefined();
+      expect(placeholderVaultToken(transaction({ interactionId: 'txn-test-1' }))).toBeUndefined();
     });
   });
 
   describe('addPlaceholderActions', () => {
-    test('adds a Pending Authorization with the marker id and the planned amount', () => {
+    test('adds a Pending Authorization with the token marker and the planned amount', () => {
       const payment = paymentWith([]);
 
-      expect(addPlaceholderActions(payment)).toEqual([
+      expect(addPlaceholderActions(payment, 'vault-token')).toEqual([
         {
           action: 'addTransaction',
           transaction: {
             type: 'Authorization',
             state: 'Pending',
-            interactionId: buildPlaceholderInteractionId(payment.id),
+            interactionId: 'ACH: vault-token',
             amount: { centAmount: 120000, currencyCode: 'GBP' },
           },
         },
@@ -70,13 +79,13 @@ describe('transaction.utils', () => {
       },
       { description: 'a real Authorization', existing: { interactionId: 'bt-1' } },
     ] as const)('nothing when the payment already has $description', ({ existing }) => {
-      expect(addPlaceholderActions(paymentWith([transaction(existing)]))).toEqual([]);
+      expect(addPlaceholderActions(paymentWith([transaction(existing)]), 'vault-token')).toEqual([]);
     });
 
     test('other transaction types do not count', () => {
-      expect(addPlaceholderActions(paymentWith([transaction({ type: 'Charge', interactionId: 'bt-1' })]))).toHaveLength(
-        1,
-      );
+      expect(
+        addPlaceholderActions(paymentWith([transaction({ type: 'Charge', interactionId: 'bt-1' })]), 'vault-token'),
+      ).toHaveLength(1);
     });
   });
 

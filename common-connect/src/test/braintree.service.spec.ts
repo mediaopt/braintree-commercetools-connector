@@ -18,6 +18,7 @@ import {
   addPackageTracking,
   submitForSettlement,
   findCustomer,
+  findPaymentMethod,
   createCustomer,
   createPaymentMethod,
   deleteCustomer,
@@ -71,6 +72,7 @@ beforeEach(() => {
       create: jest.fn(),
       delete: jest.fn(),
       update: jest.fn(),
+      find: jest.fn(),
     },
   };
   MockBraintreeGateway.mockClear();
@@ -319,6 +321,22 @@ describe("findCustomer", () => {
     mockGatewayInstance.customer.find.mockResolvedValue(mockCustomer);
     const result = await findCustomer("cust-1");
     expect(result).toBe(mockCustomer);
+  });
+});
+
+describe("findPaymentMethod", () => {
+  test("returns the payment method from gateway", async () => {
+    const mockMethod = { token: "vault-token", customerId: "cust-1" };
+    mockGatewayInstance.paymentMethod.find.mockResolvedValue(mockMethod);
+    const result = await findPaymentMethod("vault-token");
+    expect(mockGatewayInstance.paymentMethod.find).toHaveBeenCalledWith("vault-token");
+    expect(result).toBe(mockMethod);
+  });
+
+  test("passes on the SDK's not-found error", async () => {
+    const notFound = Object.assign(new Error("not found"), { name: "notFoundError" });
+    mockGatewayInstance.paymentMethod.find.mockRejectedValue(notFound);
+    await expect(findPaymentMethod("unknown")).rejects.toBe(notFound);
   });
 });
 
