@@ -68,7 +68,8 @@ type PaymentContextT = {
     address?: ChangeShippingRequest["address"],
   ) => Promise<UpdateCartShippingResult>;
   braintreeCustomerId: string;
-  requestHeader: RequestHeader;
+  // A function, not a value: the memoized context would otherwise keep the mount-time session (see sessionIdRef)
+  currentRequestHeader: () => RequestHeader;
 };
 
 // mirrors UpdateCartShippingResponseSchemaDTO in processor/src/dtos/braintree-payment.dto.ts — all amounts are computed
@@ -107,7 +108,7 @@ const PaymentContext = createContext<PaymentContextT>({
       shippingAmount: "0.00",
     }),
   braintreeCustomerId: "",
-  requestHeader: {},
+  currentRequestHeader: () => ({}),
 });
 
 export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
@@ -160,8 +161,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
     updateCartShippingUrl,
     getStoredPaymentMethodsURL,
   } = processorUrls(processorUrl);
-  // Mount-time session, exposed in the context for ACHMask (no session switch there).
-  const requestHeader = sessionHeader(sessionId);
   // The session can change after mount: in Express deferred mode, Checkout's onPayButtonClick
   // resolves with the session every later processor call must use (see createExpressPayment).
   // Read it per request through the ref — the memoized context below would keep the old one.
@@ -372,7 +371,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
     };
 
     return {
-      sessionId,
       gettingClientToken: initializingPayment,
       clientToken,
       handleTransactionSale,
@@ -383,7 +381,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       handleGetVaultedPaymentMethods,
       updateCartShipping,
       braintreeCustomerId,
-      requestHeader,
+      currentRequestHeader,
     };
   }, [clientToken, initializingPayment]);
 

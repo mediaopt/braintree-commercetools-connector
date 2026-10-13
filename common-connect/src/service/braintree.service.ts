@@ -185,6 +185,16 @@ export const findCustomer = async (customerId: string): Promise<Customer> => {
   return response;
 };
 
+// Throws (the SDK's notFoundError) when no payment method has this token
+export const findPaymentMethod = async (
+  token: string,
+): Promise<PaymentMethod> => {
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
+  const response = await gateway.paymentMethod.find(token);
+  logger.info(`findPaymentMethod response: customerId: ${response.customerId}`);
+  return response;
+};
+
 export const createCustomer = async (
   request: CustomerCreateRequest,
 ): Promise<Customer> => {

@@ -19,7 +19,7 @@ import {
   CartSetShippingAddressAction,
   CartSetShippingMethodAction,
 } from '@commercetools/platform-sdk';
-import { Transaction, TransactionRequest } from 'braintree';
+import { PaymentMethod, Transaction, TransactionRequest } from 'braintree';
 
 import {
   CancelPaymentRequest,
@@ -74,6 +74,7 @@ import {
   voidTransaction as braintreeVoidTransaction,
   deletePayment as braintreeDeletePayment,
   getTransaction as braintreeGetTransaction,
+  findPaymentMethod,
   getBraintreeResponse,
   logger,
 } from 'common-connect/dist';
@@ -122,6 +123,7 @@ import {
   hasPlaceholder,
   isFailedOrVoided,
   isPlaceholder,
+  placeholderVaultToken,
   remainingOnOnlyCharge,
   withoutPlaceholders,
 } from '../utils/transaction.utils';
@@ -1177,6 +1179,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // because capturePayment has no transactionId — see docs/Intents.md "Call parameters"
     // (https://docs.commercetools.com/checkout/payment-intents-api)
     const transactionId = merchantReference ?? findTransactionIdOrUndefined(ctPayment, 'Authorization');
+    // ACH micro-deposit: no Braintree transaction yet, only the verified bank account — docs/Intents.md
+    // "ACH micro-deposit verification"
+    const placeholder = !transactionId && ctPayment.transactions.find((t) => isPlaceholder(t, 'Authorization'));
+    if (placeholder) return this.settlePlaceholder(ctPayment, placeholder, amount);
     if (!transactionId)
       return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'no transaction suitable for settlement');
     const authorization = withoutPlaceholders(ctPayment).transactions.find(
@@ -1228,6 +1234,88 @@ export class BraintreePaymentService extends AbstractPaymentService {
     });
     logger.info(`settlement: success, paymentId: ${ctPayment.id}`);
     return this.toPaymentIntentResponse(response);
+  }
+
+  /**
+   * Capture of an ACH micro-deposit payment once its bank account is verified: a sale with the vaulted token carried by
+   * the placeholder's marker, which then overwrites the placeholder in place — see docs/Intents.md
+   * "ACH micro-deposit verification". The mandate needs no resending: Braintree keeps it on the vaulted account.
+   */
+  private async settlePlaceholder(
+    ctPayment: Payment,
+    placeholder: Payment['transactions'][number],
+    amount: ModifyPaymentWithTransactionRequest['amount'],
+  ): Promise<PaymentIntentResponseSchemaDTO> {
+    if (hasCancelledPlaceholder(ctPayment))
+      return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'the payment was cancelled before verification');
+    // One sale settles the whole bank debit, so nothing would be left to capture after a partial one
+    if (placeholder.amount.centAmount !== amount.centAmount)
+      return this.rejectPaymentIntent(
+        ctPayment.id,
+        'settlement',
+        'a partial capture of an ACH micro-deposit payment is not supported',
+      );
+    const token = placeholderVaultToken(placeholder)!;
+    let paymentMethod: PaymentMethod;
+    try {
+      paymentMethod = await findPaymentMethod(token);
+    } catch (err) {
+      return await this.handleBraintreeFailure({
+        ctPayment,
+        operation: 'settlement',
+        messageName: 'findPaymentMethod',
+        request: { token },
+        err,
+      });
+    }
+    // @types/braintree declares no UsBankAccount; only a bank account has a routingNumber
+    if (!('routingNumber' in paymentMethod) || !(await this.isPaymentCustomer(ctPayment, paymentMethod)))
+      return this.rejectPaymentIntent(
+        ctPayment.id,
+        'settlement',
+        "the placeholder's bank account doesn't belong to the payment's customer",
+        'error',
+      );
+    // `verified` is a runtime field on UsBankAccount; @types/braintree does not declare it
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((paymentMethod as any).verified !== true)
+      return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'the bank account is not verified yet');
+    const transactionRequest = mapRequestToBraintreeTransactionSale(ctPayment, false, false, undefined, token);
+    // options.submitForSettlement is required to be true for ACH
+    transactionRequest.options!.submitForSettlement = true;
+    let response: Transaction;
+    try {
+      response = await transactionSale(transactionRequest);
+    } catch (err) {
+      return await this.handleBraintreeFailure({
+        ctPayment,
+        operation: 'settlement',
+        messageName: 'transactionSale',
+        request: transactionRequest,
+        err,
+      });
+    }
+    // Same recording as transactionSale: the Authorization overwrites the placeholder in place, and the Charge Braintree's
+    // settlement_pending maps to is recorded too (see updatePaymentWithTransaction)
+    await this.updatePaymentWithTransaction({
+      messageName: 'transactionSale',
+      request: transactionRequest,
+      ctPayment,
+      response,
+      transactionTypeOverride: 'Authorization',
+      methodName: 'settlement',
+    });
+    logger.info(`settlement: ACH sale success, paymentId: ${ctPayment.id}`);
+    return this.toPaymentIntentResponse(response);
+  }
+
+  // The Braintree customer id equals the CT customer id by construction; braintreeCustomerId is only read when they differ
+  private async isPaymentCustomer(ctPayment: Payment, paymentMethod: PaymentMethod): Promise<boolean> {
+    const ctCustomerId = ctPayment.customer?.id;
+    if (!ctCustomerId) return false;
+    if (paymentMethod.customerId === ctCustomerId) return true;
+    const ctCustomer = await this.braintreeCustomerService.getCtCustomer(ctCustomerId).catch(() => undefined);
+    return paymentMethod.customerId === ctCustomer?.custom?.fields?.braintreeCustomerId;
   }
 
   /**
@@ -1359,7 +1447,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
                   transaction: {
                     type: 'CancelAuthorization',
                     state: 'Success',
-                    interactionId: buildPlaceholderInteractionId(ctPayment.id),
+                    interactionId: placeholder?.interactionId ?? buildPlaceholderInteractionId(''),
                     amount: { centAmount: amount.centAmount, currencyCode: amount.currencyCode },
                   },
                 },
@@ -1545,9 +1633,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
    *    business days. CT payment is synced to Pending here (awaited, before responding) so the merchant's
    *    order management reflects the intent. The enabler redirects to the result page immediately using the
    *    returned merchantReturnUrl.
-   *    MERCHANT RESPONSIBILITY: when the customer completes micro-deposit verification, Braintree
-   *    sends a webhook. The merchant must listen for it and call transactionSale with the stored
-   *    vault token to complete the payment. This connector does not handle that step automatically.
+   *    MERCHANT RESPONSIBILITY: Braintree sends no verification webhook. The merchant confirms the micro-transfer
+   *    amounts (usBankAccountVerification.confirmMicroTransferAmounts) and then captures through the Payment Intents
+   *    API (settlement, a sale with the vault token in the placeholder's marker — see docs/Intents.md
+   *    "ACH micro-deposit verification"). The transaction_* webhooks in braintree-notifications then track that
+   *    sale's settlement.
    */
   public async getAchVaultToken({
     paymentMethodNonce,
@@ -1556,12 +1646,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
     ctCustomerId,
     logFrontendIssue,
   }: AchVaultTokenRequestSchemaDTO): Promise<AchVaultTokenResponseSchemaDTO> {
-    // A session without a Cart (PayPal Express before the click) passes auth, but must never vault
-    const cartId = this.requireCartIdFromContext(ctPaymentId);
+    // Before the cart guard, so a rejected request still logs the issue it reports
     if (logFrontendIssue)
       logger.warn(
         `getAchVaultToken: frontend issue reported on payment ${ctPaymentId} before this attempt: ${logFrontendIssue}`,
       );
+    // A session without a Cart (PayPal Express before the click) passes auth, but must never vault
+    const cartId = this.requireCartIdFromContext(ctPaymentId);
     // Payment and type are read in parallel with the vault, so a payment without the Braintree type can't be refused
     // before Braintree. A failed read must not fail the vault: the type then isn't checked, and syncPayment fetches.
     const [{ token, verified }, braintreePaymentTypeId, ctPayment] = await Promise.all([
@@ -1608,7 +1699,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           // interfaceText follows the project convention: short Braintree status string (same as response.status in
           // updatePaymentWithTransaction and common-connect/src/utils/response.utils.ts)
           ...buildStatusActions('settlement_pending', 'us_bank_account'),
-          ...addPlaceholderActions(payment),
+          ...addPlaceholderActions(payment, token),
         ],
         'getAchVaultToken:pendingSync',
         'settlement_pending',

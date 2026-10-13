@@ -2,13 +2,20 @@ import { Payment } from '@commercetools/connect-payments-sdk';
 import { PaymentUpdateAction, Transaction, TransactionType } from '@commercetools/platform-sdk';
 import { findSuitableTransactionId } from 'common-connect/dist';
 
-const PLACEHOLDER_PREFIX = 'BraintreePlaceholder: ';
+const PLACEHOLDER_PREFIX = 'ACH: ';
 
 // Marker interactionId of the ACH micro-deposit placeholder (addPlaceholderActions below and
-// cancelPlaceholderPayment, braintree-payment.service.ts), built from the commercetools payment id since Braintree
-// has no transaction yet. It is never a Braintree id, so it must never be sent to Braintree — find/exclude it via
-// isPlaceholderInteractionId() below.
-export const buildPlaceholderInteractionId = (ctPaymentId: string): string => `${PLACEHOLDER_PREFIX}${ctPaymentId}`;
+// cancelPlaceholderPayment, braintree-payment.service.ts): the vaulted bank account's token, since Braintree has no
+// transaction yet — settlement() charges it once the account is verified (docs/Intents.md). It is never a Braintree
+// transaction id, so it must never be sent to Braintree as one — find/exclude it via isPlaceholderInteractionId()
+// below — and, carrying a payment method token, never logged.
+export const buildPlaceholderInteractionId = (vaultToken: string): string => `${PLACEHOLDER_PREFIX}${vaultToken}`;
+
+// The vaulted bank account token carried by a placeholder's marker
+export const placeholderVaultToken = (t: Transaction): string | undefined =>
+  isPlaceholderInteractionId(t.interactionId)
+    ? t.interactionId!.slice(PLACEHOLDER_PREFIX.length) || undefined
+    : undefined;
 
 /**
  * Adds the ACH micro-deposit placeholder: an Authorization with the marker interactionId, which
@@ -22,7 +29,7 @@ export const buildPlaceholderInteractionId = (ctPaymentId: string): string => `$
  * payment: a declined sale makes the shared transactionSale throw (Braintree success: false) before anything is
  * written to commercetools.
  */
-export const addPlaceholderActions = (payment: Payment): PaymentUpdateAction[] =>
+export const addPlaceholderActions = (payment: Payment, vaultToken: string): PaymentUpdateAction[] =>
   payment.transactions.some((t) => t.type === 'Authorization')
     ? []
     : [
@@ -31,7 +38,7 @@ export const addPlaceholderActions = (payment: Payment): PaymentUpdateAction[] =
           transaction: {
             type: 'Authorization',
             state: 'Pending',
-            interactionId: buildPlaceholderInteractionId(payment.id),
+            interactionId: buildPlaceholderInteractionId(vaultToken),
             amount: { centAmount: payment.amountPlanned.centAmount, currencyCode: payment.amountPlanned.currencyCode },
           },
         },
