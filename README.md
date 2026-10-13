@@ -135,7 +135,7 @@ To use the connector you need to have the following:
   - private key (BRAINTREE_PRIVATE_KEY)
   - environment (BRAINTREE_ENVIRONMENT) - the environment of your Braintree API client (production or sandbox)
 
-Please keep in mind, that the parameter [merchant account id](https://developer.paypal.com/braintree/articles/control-panel/important-gateway-credentials#merchant-account-id-versus-merchant-id) (BRAINTREE_MERCHANT_ACCOUNT) differs from merchant ID and is optional.
+Please keep in mind, that the parameter [merchant account id](https://developer.paypal.com/braintree/articles/control-panel/important-gateway-credentials#merchant-account-id-versus-merchant-id) (BRAINTREE_MERCHANT_ACCOUNT) differs from merchant ID and is optional. Without it, local payment methods are not available.
 
 Please set the following parameters according to your project requirements:
 
