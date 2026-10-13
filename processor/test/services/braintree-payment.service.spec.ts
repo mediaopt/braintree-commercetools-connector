@@ -2207,15 +2207,6 @@ describe('braintree-payment.service', () => {
       fractionDigits: 2,
     };
 
-    test('throws when merchant account missing for local payment type', async () => {
-      await expect(
-        braintreePaymentService.createPayment({
-          paymentMethodType: LocalPaymentMethodType.IDEAL,
-          builderType: undefined,
-        } as never),
-      ).rejects.toThrow('braintreeMerchantAccount');
-    });
-
     test('happy path: creates new payment (non-express, no existing customer)', async () => {
       const cart = { ...baseCart(), customerId: undefined };
       const newPayment = {
@@ -2234,10 +2225,7 @@ describe('braintree-payment.service', () => {
       jest.spyOn(paymentSDK.ctPaymentService, 'updatePayment').mockResolvedValue({} as never);
       (CommonConnect.getClientToken as jest.Mock).mockResolvedValue('new-client-token' as never);
 
-      const result = await braintreePaymentService.createPayment({
-        paymentMethodType: PaymentMethodType.CREDIT_CARD,
-        builderType: undefined,
-      } as never);
+      const result = await braintreePaymentService.createPayment({});
 
       expect(result.payment.ctPaymentId).toBe('new-payment-id');
       expect(result.braintreeData.clientToken).toBe('new-client-token');
@@ -2266,11 +2254,7 @@ describe('braintree-payment.service', () => {
       transactions: [],
       custom,
     });
-    const createCreditCardPayment = () =>
-      braintreePaymentService.createPayment({
-        paymentMethodType: PaymentMethodType.CREDIT_CARD,
-        builderType: undefined,
-      } as never);
+    const createStandardPayment = () => braintreePaymentService.createPayment({});
 
     // createPayment establishes the type with the SDK's setCustomType, keeping the reused payment's fields
     test('reused-payment branch: reuses existing payment when amount unchanged and no transactions', async () => {
@@ -2278,7 +2262,7 @@ describe('braintree-payment.service', () => {
       mockExistingPaymentOnCart(existingPaymentWith(custom));
       const createPaymentSpy = jest.spyOn(paymentSDK.ctPaymentService, 'createPayment');
 
-      const result = await createCreditCardPayment();
+      const result = await createStandardPayment();
 
       expect(createPaymentSpy).not.toHaveBeenCalled();
       expect(result.payment.ctPaymentId).toBe('existing-payment-id');
@@ -2301,7 +2285,7 @@ describe('braintree-payment.service', () => {
         amountPlanned,
       } as never);
 
-      const result = await createCreditCardPayment();
+      const result = await createStandardPayment();
 
       expect(createPaymentSpy).toHaveBeenCalled();
       expect(result.payment.ctPaymentId).toBe('new-payment-id');
@@ -2318,7 +2302,7 @@ describe('braintree-payment.service', () => {
         amountPlanned,
       } as never);
 
-      const result = await createCreditCardPayment();
+      const result = await createStandardPayment();
 
       expect(result.payment.ctPaymentId).toBe('new-payment-id');
       expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('could not look up the Braintree payment type'));
@@ -2345,10 +2329,7 @@ describe('braintree-payment.service', () => {
       const updatePaymentSpy = jest.spyOn(paymentSDK.ctPaymentService, 'updatePayment');
       (CommonConnect.getClientToken as jest.Mock).mockResolvedValue('reused-client-token' as never);
 
-      await braintreePaymentService.createPayment({
-        paymentMethodType: PaymentMethodType.CREDIT_CARD,
-        builderType: undefined,
-      } as never);
+      await braintreePaymentService.createPayment({});
 
       expect(updatePaymentSpy).not.toHaveBeenCalled();
     });
@@ -2385,10 +2366,7 @@ describe('braintree-payment.service', () => {
       jest.spyOn(paymentSDK.ctPaymentService, 'updatePayment').mockResolvedValue({} as never);
       (CommonConnect.getClientToken as jest.Mock).mockResolvedValue('fresh-client-token' as never);
 
-      const result = await braintreePaymentService.createPayment({
-        paymentMethodType: PaymentMethodType.CREDIT_CARD,
-        builderType: undefined,
-      } as never);
+      const result = await braintreePaymentService.createPayment({});
 
       expect(createPaymentSpy).toHaveBeenCalled();
       expect(result.payment.ctPaymentId).toBe('new-payment-id');
@@ -2421,7 +2399,6 @@ describe('braintree-payment.service', () => {
         (paymentSDK.ctAPI as any).client = { shippingMethods: jest.fn().mockReturnValue({ get }) };
 
         const result = await braintreePaymentService.createPayment({
-          paymentMethodType: PaymentMethodType.PAYPAL,
           builderType: 'express',
         } as never);
 
@@ -2438,12 +2415,7 @@ describe('braintree-payment.service', () => {
       jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cart.id);
       jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart as never);
 
-      await expect(
-        braintreePaymentService.createPayment({
-          paymentMethodType: PaymentMethodType.CREDIT_CARD,
-          builderType: undefined,
-        } as never),
-      ).rejects.toThrow('Required data missing');
+      await expect(braintreePaymentService.createPayment({})).rejects.toThrow('Required data missing');
     });
 
     test('customer branch: forwards existing braintreeCustomerId', async () => {
@@ -2469,10 +2441,7 @@ describe('braintree-payment.service', () => {
       } as unknown as Customer);
       (CommonConnect.getClientToken as jest.Mock).mockResolvedValue('customer-token' as never);
 
-      const result = await braintreePaymentService.createPayment({
-        paymentMethodType: PaymentMethodType.CREDIT_CARD,
-        builderType: undefined,
-      } as never);
+      const result = await braintreePaymentService.createPayment({});
 
       expect(CommonConnect.getClientToken).toHaveBeenCalledWith(expect.objectContaining({ customerId: 'bt-cust-1' }));
       expect(result.braintreeData.braintreeCustomerId).toBe('bt-cust-1');
@@ -2482,12 +2451,7 @@ describe('braintree-payment.service', () => {
       jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue('cart-err');
       jest.spyOn(paymentSDK.ctCartService, 'getCart').mockRejectedValue(new Error('cart lookup failed'));
 
-      await expect(
-        braintreePaymentService.createPayment({
-          paymentMethodType: PaymentMethodType.CREDIT_CARD,
-          builderType: undefined,
-        } as never),
-      ).rejects.toThrow('cart lookup failed');
+      await expect(braintreePaymentService.createPayment({})).rejects.toThrow('cart lookup failed');
     });
   });
 
@@ -2515,7 +2479,6 @@ describe('braintree-payment.service', () => {
         operation: 'createPayment',
         run: () =>
           braintreePaymentService.createPayment({
-            paymentMethodType: PaymentMethodType.PAYPAL,
             builderType: 'express',
           } as never),
       },

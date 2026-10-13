@@ -109,6 +109,36 @@ describe("usePayment — PayPal Express session switch", () => {
   });
 });
 
+describe("usePayment — payment shared by BraintreePaymentEnabler", () => {
+  it("uses it instead of creating a payment on mount", async () => {
+    mockedProcessorRequest.mockReset().mockResolvedValue({ success: true });
+    let payment: ReturnType<typeof usePayment> | undefined;
+    const Consumer = () => {
+      payment = usePayment();
+      return null;
+    };
+    render(
+      <PaymentProvider
+        processorUrl={PROCESSOR_URL}
+        sessionId="session-id"
+        paymentMethodType="CreditCard"
+        purchaseCallback={jest.fn()}
+        initialPayment={createPaymentResponse}
+      >
+        <Consumer />
+      </PaymentProvider>,
+    );
+    await waitFor(() => expect(payment?.clientToken).toBe("click-token"));
+    expect(mockedProcessorRequest).not.toHaveBeenCalled();
+
+    await act(() => payment!.handleTransactionSale("nonce"));
+
+    expect(mockedProcessorRequest.mock.calls[0][2]).toMatchObject({
+      ctPaymentId: "click-payment",
+    });
+  });
+});
+
 describe("usePayment — handleTransactionSale", () => {
   let handleTransactionSale:
     ReturnType<typeof usePayment>["handleTransactionSale"] | undefined;
