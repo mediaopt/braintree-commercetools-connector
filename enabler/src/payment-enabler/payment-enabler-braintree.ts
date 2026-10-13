@@ -21,13 +21,50 @@ import { BraintreeStoredBuilder } from "../components/Builder/BraintreeStoredBui
 import { sessionHeader } from "../helpers/sessionHeader";
 import { BraintreePaymentMethodExpressType } from "../components/Builder/types";
 import { toBraintreePaymentMethodType } from "../components/Builder/paymentMethodTypeMapping";
+import { processorRequest } from "../services/processorRequest";
+import { CreatePaymentRequest } from "../services/types";
+import { CreatePaymentResponse } from "../types";
+import { processorUrls } from "../components/constants";
 
 export class BraintreePaymentEnabler implements PaymentEnabler {
   setupData: Promise<{ baseOptions: BaseOptions }>;
+  private standardSetup?: Promise<{ baseOptions: BaseOptions }>;
 
   constructor(options: BaseOptions) {
     this.setupData = BraintreePaymentEnabler._Setup(options);
   }
+
+  // One commercetools Payment and Braintree client token for every standard/stored component,
+  // created when the first one is requested; Express creates its own (see usePayment).
+  // A failed creation isn't kept, so the next builder request retries it.
+  private getStandardSetup(): Promise<{ baseOptions: BaseOptions }> {
+    if (!this.standardSetup) {
+      const setup = this.setupData.then(BraintreePaymentEnabler._SetupPayment);
+      setup.catch(() => {
+        if (this.standardSetup === setup) this.standardSetup = undefined;
+      });
+      this.standardSetup = setup;
+    }
+    return this.standardSetup;
+  }
+
+  // No paymentMethodType: the payment and client token are the same for every method
+  private static _SetupPayment = async ({
+    baseOptions,
+  }: {
+    baseOptions: BaseOptions;
+  }): Promise<{ baseOptions: BaseOptions }> => {
+    const initialPayment = await processorRequest<
+      CreatePaymentRequest,
+      CreatePaymentResponse
+    >(
+      sessionHeader(baseOptions.sessionId),
+      processorUrls(baseOptions.processorUrl).createPaymentUrl,
+      {},
+    );
+    if (!initialPayment) throw new Error("Could not create payment");
+    return { baseOptions: { ...baseOptions, initialPayment } };
+  };
 
   private static _Setup = async (
     options: EnablerOptions,
@@ -62,7 +99,9 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
         storedPaymentMethodsEnabled:
           !!configJson.storedPaymentMethodsConfig?.isEnabled,
         enableVaulting: !!configJson.enableVaulting,
+        hasMerchantAccount: !!configJson.hasMerchantAccount,
         perMethodConfig: configJson.perMethodConfig,
+        onError: options.onError,
         purchaseCallback:
           configJson.purchaseCallback ||
           options.onComplete ||
@@ -80,7 +119,7 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     type: string,
   ): Promise<PaymentComponentBuilder | never> {
     const normalizedType = toBraintreePaymentMethodType(type);
-    const { baseOptions } = await this.setupData;
+    const { baseOptions } = await this.getStandardSetup();
     return Promise.resolve(
       new BraintreeBuilder(normalizedType, baseOptions, undefined),
     );
@@ -120,7 +159,7 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     type: string,
   ): Promise<StoredComponentBuilder | never> {
     const normalizedType = toBraintreePaymentMethodType(type);
-    const { baseOptions } = await this.setupData;
+    const { baseOptions } = await this.getStandardSetup();
     if (normalizedType === "CreditCard")
       return new BraintreeStoredBuilder("CreditCardStored", baseOptions);
     /* PAYPAL_STORED_DISABLED / ACH_STORED_DISABLED start — reusing a saved PayPal account or ACH

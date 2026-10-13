@@ -11,6 +11,7 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
   // PAYPAL_VAULT_DISABLED: enableVaulting, vaultLabel,
   onExpressPayButtonClick,
   onPaymentSubmit,
+  onError,
   fullWidth = true,
   flow,
   buttonLabel,
@@ -57,6 +58,7 @@ export const PayPalButton: FC<PayPalButtonProps> = ({
       // PAYPAL_VAULT_DISABLED: enableVaulting={enableVaulting} vaultLabel={vaultLabel}
       onExpressPayButtonClick={onExpressPayButtonClick}
       onPaymentSubmit={onPaymentSubmit}
+      onError={onError}
     />
   );
 };

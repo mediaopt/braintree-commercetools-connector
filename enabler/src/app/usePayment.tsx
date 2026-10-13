@@ -6,6 +6,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
 } from "react";
 import { processorRequest } from "../services/processorRequest";
 import { Result } from "../components/Result";
@@ -58,7 +59,7 @@ type PaymentContextT = {
   clientToken?: string;
   handleTransactionSale: HandleTransactionSaleType;
   // PURE_VAULT_DISABLED handlePureVault: (paymentNonce: string) => Promise<void>;
-  createExpressPayment: () => Promise<DeferredPaymentResult>;
+  createExpressPayment: (sessionId?: string) => Promise<DeferredPaymentResult>;
   paymentInfo: PaymentInfo;
   vaultedPaymentMethods: StoredPaymentMethod[];
   handleGetVaultedPaymentMethods: () => Promise<StoredPaymentMethod[]>;
@@ -112,12 +113,12 @@ const PaymentContext = createContext<PaymentContextT>({
 export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   processorUrl,
   sessionId,
-  merchantAccountId,
   purchaseCallback,
   paymentMethodType,
   builderType,
   deferredPaymentCreation,
   initialAmount,
+  initialPayment,
   children,
 }) => {
   // PURE_VAULT_DISABLED const isPureVault = false;
@@ -126,19 +127,26 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   const [resultSuccess, setResultSuccess] = useState<boolean>();
   const [resultMessage, setResultMessage] = useState<string>();
 
-  const [clientToken, setClientToken] = useState<string>();
-  const [braintreeCustomerId, setBraintreeCustomerId] = useState("");
+  // Standard/stored components start from the payment shared by BraintreePaymentEnabler
+  const [clientToken, setClientToken] = useState<string | undefined>(
+    initialPayment?.braintreeData.clientToken,
+  );
+  const [braintreeCustomerId, setBraintreeCustomerId] = useState(
+    initialPayment?.braintreeData.braintreeCustomerId ?? "",
+  );
   // In deferred mode, no real payment exists yet — seed just enough (currency/amount) from
   // initialAmount for PayPalMask's SDK bootstrap (loadPayPalSDK) to initialize with.
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>(
-    deferredPaymentCreation && initialAmount
-      ? {
-          ctPaymentId: "",
-          braintreeAmount:
-            initialAmount.centAmount / 10 ** initialAmount.fractionDigits,
-          currency: initialAmount.currencyCode,
-        }
-      : PaymentInfoInitialObject,
+    initialPayment
+      ? initialPayment.payment
+      : deferredPaymentCreation && initialAmount
+        ? {
+            ctPaymentId: "",
+            braintreeAmount:
+              initialAmount.centAmount / 10 ** initialAmount.fractionDigits,
+            currency: initialAmount.currencyCode,
+          }
+        : PaymentInfoInitialObject,
   );
 
   const [vaultedPaymentMethods, setVaultedPaymentMethods] = useState<
@@ -152,7 +160,13 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
     updateCartShippingUrl,
     getStoredPaymentMethodsURL,
   } = processorUrls(processorUrl);
+  // Mount-time session, exposed in the context for ACHMask (no session switch there).
   const requestHeader = sessionHeader(sessionId);
+  // The session can change after mount: in Express deferred mode, Checkout's onPayButtonClick
+  // resolves with the session every later processor call must use (see createExpressPayment).
+  // Read it per request through the ref — the memoized context below would keep the old one.
+  const sessionIdRef = useRef(sessionId);
+  const currentRequestHeader = () => sessionHeader(sessionIdRef.current);
 
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
@@ -161,12 +175,26 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   // request, different result handling (one throws on failure, the other sets state + notifies).
   const fetchCreatePaymentResult = () =>
     processorRequest<CreatePaymentRequest, CreatePaymentResponse>(
-      requestHeader,
+      currentRequestHeader(),
       createPaymentUrl,
-      { builderType, paymentMethodType, merchantAccountId },
+      { builderType },
     );
 
-  const createExpressPayment = async (): Promise<DeferredPaymentResult> => {
+  const createExpressPayment = async (
+    clickSessionId?: string,
+  ): Promise<DeferredPaymentResult> => {
+    if (clickSessionId) {
+      sessionIdRef.current = clickSessionId;
+    } else if (!sessionIdRef.current) {
+      // Without any session the processor refuses createPayment anyway — fail here with a clear reason
+      throw new Error(
+        "PayPal Express: onPayButtonClick resolved without a sessionId and there is no current session.",
+      );
+    } else {
+      console.warn(
+        "PayPal Express: onPayButtonClick resolved without a sessionId, continuing with the current session.",
+      );
+    }
     const result = await fetchCreatePaymentResult();
     if (!result) throw new Error("Could not create express payment");
     return {
@@ -177,6 +205,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   };
 
   useEffect(() => {
+    if (initialPayment) return;
     const handleInitPayment = async () => {
       setInitializingPayment(true);
       isLoading(true);
@@ -187,7 +216,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
           const tokenResult = await processorRequest<
             undefined,
             ExpressClientTokenResponse
-          >(requestHeader, expressClientTokenUrl, undefined, "GET");
+          >(currentRequestHeader(), expressClientTokenUrl, undefined, "GET");
           if (tokenResult) {
             setClientToken(tokenResult.braintreeData.clientToken);
             setBraintreeCustomerId(
@@ -234,7 +263,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       const result = await processorRequest<
         undefined,
         StoredPaymentMethodsResponse
-      >(requestHeader, getStoredPaymentMethodsURL, undefined, "GET");
+      >(currentRequestHeader(), getStoredPaymentMethodsURL, undefined, "GET");
       const methods = result ? result.storedPaymentMethods : [];
       setVaultedPaymentMethods(methods);
       return methods;
@@ -271,7 +300,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
 
       isLoading(true);
       const response = (await processorRequest<TransactionSaleRequest>(
-        requestHeader,
+        currentRequestHeader(),
         transactionSaleUrl,
         requestBody,
       )) as PaymentActionResponseData;
@@ -336,7 +365,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       address?: ChangeShippingRequest["address"],
     ) => {
       return (await processorRequest<ChangeShippingRequest>(
-        requestHeader,
+        currentRequestHeader(),
         updateCartShippingUrl,
         { newShippingMethodId, address },
       )) as UpdateCartShippingResult;

@@ -62,7 +62,9 @@ export type GeneralPayButtonProps = {
   // Restores PaymentComponent.isValid()/showValidation() for form-based methods (CreditCard, ACH) —
   // these are stubbed to always-valid/no-op in BraintreeBuilder.ts unless a component registers here.
   onRegisterValidation?: (handlers: ValidationHandlers) => void;
-  onError?: (error: GenericError) => void;
+  // commercetools Checkout's EnablerOptions.onError (captured in BraintreePaymentEnabler._Setup), unless the
+  // component was built with its own ComponentOptions.onError
+  onError?: (error: GenericError, context?: OnErrorContext) => void;
 } & UseKount &
   LineItemsShipping;
 
@@ -83,6 +85,8 @@ export type PaymentProviderProps = RequiredSessionData & {
   // PayPal Express deferred-cart-creation mode — see enabler/src/app/usePayment.tsx
   deferredPaymentCreation?: boolean;
   initialAmount?: CTAmount;
+  // The one payment shared by every standard/stored component, created once by BraintreePaymentEnabler
+  initialPayment?: CreatePaymentResponse;
 };
 
 export type GeneralComponentsProps = PaymentProviderProps &
@@ -246,7 +250,8 @@ export type PayPalProps = {
   // PAYPAL_VAULT_DISABLED: enableVaulting?: boolean; vaultLabel?: string; — see PayPalMask.tsx's
   // showVaultCheckbox; please open an issue if you are interested in vaulting a new PayPal account.
   // PayPal Express deferred-cart-creation mode — see enabler/src/app/usePayment.tsx
-  onExpressPayButtonClick?: () => Promise<void>;
+  // resolves with the session every later processor call must use — see ExpressOptions.onPayButtonClick
+  onExpressPayButtonClick?: () => Promise<{ sessionId: string }>;
   // PayPal Express final address/email sync — see ExpressOptions.onPaymentSubmit
   onPaymentSubmit?: (opts: {
     shippingAddress: ExpressAddressData;
@@ -292,6 +297,8 @@ export type VenmoTypes = {
 export type ApplePayTypes = {
   applePayDisplayName: string;
 };
+
+export type OnErrorContext = { paymentReference?: string };
 
 export type GenericError = {
   code: string;

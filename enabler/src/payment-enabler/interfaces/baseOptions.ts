@@ -10,8 +10,9 @@ export type BaseOptions = Omit<
   braintreeEnvironment?: string;
   storedPaymentMethodsEnabled?: boolean;
   enableVaulting?: boolean;
+  // Local payment methods need a Braintree merchant account; without one they are unavailable
+  hasMerchantAccount?: boolean;
   perMethodConfig?: PerMethodConfig;
-  //todo - clarify if implement onError here makes sense
   //optional
   // countryCode?: string;
   // currencyCode?: string;
@@ -19,7 +20,6 @@ export type BaseOptions = Omit<
   // paymentMethodConfig?: { [key: string]: string };
   // locale?: string;
   // onComplete: (result: PaymentResult) => void;
-  // onError: (error: any, context?: { paymentReference?: string }) => void;
   // getStorePaymentDetails: () => boolean;
   // setStorePaymentDetails: (enabled: boolean) => void;
 };

@@ -40,6 +40,7 @@ import {
   PaymentUpdateResponseSchemaDTO,
   PaymentMethodType,
   LocalPaymentMethodType,
+  CustomBuilderType,
   PaymentRequestSchemaDTO,
   PaymentResponseSchemaDTO,
   // PURE_VAULT_DISABLED: PureVaultRequestSchemaDTO,
@@ -73,14 +74,14 @@ import {
   voidTransaction as braintreeVoidTransaction,
   deletePayment as braintreeDeletePayment,
   getTransaction as braintreeGetTransaction,
+  getBraintreeResponse,
   logger,
 } from 'common-connect/dist';
 import {
   handleCustomTransactionFields,
-  handleCustomFieldResponse,
-  buildPspInteractions,
   buildResponseActions,
-  withBraintreeType,
+  braintreeFailure,
+  braintreePaymentCustom,
   getBraintreePaymentTypeId,
   isBraintreePayment,
   notBraintreePaymentMessage,
@@ -95,6 +96,7 @@ import {
 } from '../utils/lineItem.utils';
 import { relevantDiscountAmount, relevantShippingAmount, toNum } from '../utils/money.utils';
 import {
+  braintreeErrorRef,
   errorMessage,
   getCtErrorKind,
   retryCTSync,
@@ -368,6 +370,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           isEnabled: await this.isStoredPaymentMethodsEnabled(),
         },
         enableVaulting: config.enableVaulting,
+        hasMerchantAccount: !!config.merchantAccountId,
         buttonStyleOverrides: config.buttonStyleOverrides,
         perMethodConfig: config.perMethodConfig,
       };
@@ -437,7 +440,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
-   * Failed Braintree call → recorded on the payment ({messageName}Response + pspInteractions), logged as error,
+   * Failed Braintree call → Braintree's answer recorded on the payment (both call fields + pspInteractions), logged as error,
    * rejected — see docs/Intents.md "How this connector answers".
    */
   private async handleBraintreeFailure({
@@ -453,14 +456,24 @@ export class BraintreePaymentService extends AbstractPaymentService {
     request: string | object;
     err: unknown;
   }): Promise<PaymentIntentResponseSchemaDTO> {
-    const message = `Braintree call failed: ${errorMessage(err)}`;
-    const failure = { success: false, message };
-    await this.recordResponse(ctPayment, messageName, request, failure, `${messageName}:failureRecord`, '');
-    return this.rejectPaymentIntent(ctPayment.id, operation, message, 'error');
+    await this.recordResponse(
+      ctPayment,
+      messageName,
+      request,
+      braintreeFailure(err),
+      `${messageName}:failureRecord`,
+      '',
+    );
+    return this.rejectPaymentIntent(
+      ctPayment.id,
+      operation,
+      `Braintree call failed: ${braintreeErrorRef(err)}`,
+      'error',
+    );
   }
 
   /**
-   * Records a Braintree call that leaves no transaction on the payment ({messageName}Response + pspInteractions), in
+   * Records a Braintree call that leaves no transaction on the payment (both call fields + pspInteractions), in
    * one raw CT call (see syncPayment). Returns the updated payment, so a caller writing again starts from the current
    * version.
    */
@@ -485,9 +498,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
       return false;
     }
 
-    const ctCart = await this.ctCartService.getCart({
-      id: getCartIdFromContext(),
-    });
+    // PayPal Express's session may have no Cart before the click
+    const cartId = getCartIdFromContext();
+    if (!cartId) {
+      return false;
+    }
+    const ctCart = await this.ctCartService.getCart({ id: cartId });
 
     return ctCart.customerId !== undefined;
   }
@@ -626,22 +642,27 @@ export class BraintreePaymentService extends AbstractPaymentService {
    *
    * This token is a throwaway bootstrap value: it is never persisted, and createPayment (below) fetches
    * an entirely independent client token once the real CT Payment exists — that later token, not this
-   * one, is what actually gets stored via handleCustomFieldResponse('getClientToken', ...).
+   * one, is what actually gets stored on the payment (createPayment's getClientToken record).
    */
   public async getExpressClientToken(): Promise<{
     braintreeData: { clientToken: string; braintreeCustomerId?: string };
   }> {
     const merchantAccountId = getConfig().merchantAccountId;
     let braintreeCustomerId: string | undefined;
-    try {
-      const cartId = getCartIdFromContext();
-      const ctCart = await this.ctCartService.getCart({ id: cartId });
-      const customer = ctCart.customerId
-        ? await this.braintreeCustomerService.getCtCustomer(ctCart.customerId)
-        : undefined;
-      braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
-    } catch (err) {
-      logger.info(`getExpressClientToken: no cart-bound session, issuing anonymous token — ${errorMessage(err)}`);
+    // PayPal Express's session may have no Cart before the click: anonymous token
+    const cartId = getCartIdFromContext();
+    if (cartId) {
+      try {
+        const ctCart = await this.ctCartService.getCart({ id: cartId });
+        const customer = ctCart.customerId
+          ? await this.braintreeCustomerService.getCtCustomer(ctCart.customerId)
+          : undefined;
+        braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
+      } catch (err) {
+        logger.warn(
+          `getExpressClientToken: customer lookup failed for cart ${cartId}, issuing anonymous token — ${errorMessage(err)}`,
+        );
+      }
     }
     const clientToken = await getClientToken({ merchantAccountId, customerId: braintreeCustomerId });
     return { braintreeData: { clientToken, braintreeCustomerId } };
@@ -657,16 +678,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * @returns Promise with mocking data containing operation status and PSP reference
    */
 
-  public async createPayment({
-    builderType,
-    paymentMethodType,
-  }: PaymentRequestSchemaDTO): Promise<PaymentResponseSchemaDTO> {
+  public async createPayment({ builderType }: PaymentRequestSchemaDTO): Promise<PaymentResponseSchemaDTO> {
     const merchantAccountId = getConfig().merchantAccountId;
-    this.validatePaymentMethod(paymentMethodType, merchantAccountId);
     // PURE_VAULT_DISABLED: isPureVault detection disabled; feature cancelled
     const isPureVault = false;
-    const isExpress = paymentMethodType === 'PayPal' && builderType === 'express';
-    const cartId = getCartIdFromContext();
+    const isExpress = builderType === CustomBuilderType.EXPRESS; // the Express builder is PayPal-only
+    const cartId = this.requireCartIdFromContext();
     try {
       const ctCart = await this.ctCartService.getCart({
         id: cartId,
@@ -711,8 +728,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
       const braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
       const shippingMethods = shippingMethodsResult || [];
+      const clientTokenRequest = { merchantAccountId, customerId: braintreeCustomerId };
 
-      const { payment: reusedPayment, tokenRecentlyUpdated } = this.existingPaymentAndToken(
+      const reusedPayment = this.reusablePayment(
         // only this connector's payment is reused — the cart may hold other connectors' payments (e.g. gift cards)
         existingPayment && braintreePaymentTypeId && isBraintreePayment(existingPayment, braintreePaymentTypeId)
           ? existingPayment
@@ -720,44 +738,49 @@ export class BraintreePaymentService extends AbstractPaymentService {
         amountPlanned,
       );
 
-      const [newPayment, clientToken] = await Promise.all([
-        reusedPayment
-          ? Promise.resolve()
-          : this.ctPaymentService.createPayment({
-              amountPlanned,
-              paymentMethodInfo: { paymentInterface: getConfig().paymentInterface },
-              ...customerPaymentInfo,
-              paymentStatus: { interfaceCode: 'Initial', interfaceText: 'Initial' },
-              checkoutTransactionItemId: getCheckoutTransactionItemIdFromContext(),
-            }),
-        getClientToken({ merchantAccountId, customerId: braintreeCustomerId }),
+      // A new payment is created with the Braintree type, so the token is recorded by setCustomField like every other
+      // record — setCustomType would overwrite every custom field
+      const [paymentResult, tokenResult] = await Promise.allSettled([
+        reusedPayment ??
+          this.ctPaymentService.createPayment({
+            amountPlanned,
+            paymentMethodInfo: { paymentInterface: getConfig().paymentInterface },
+            ...customerPaymentInfo,
+            paymentStatus: { interfaceCode: 'Initial', interfaceText: 'Initial' },
+            checkoutTransactionItemId: getCheckoutTransactionItemIdFromContext(),
+            custom: braintreePaymentCustom({}),
+          }),
+        getClientToken(clientTokenRequest),
       ]);
-
-      const ctPayment = reusedPayment ?? newPayment;
+      if (tokenResult.status === 'rejected') {
+        // Braintree's answer recorded on the payment if it exists; fire-and-forget, the buyer is waiting
+        if (paymentResult.status === 'fulfilled')
+          void this.recordResponse(
+            paymentResult.value,
+            'getClientToken',
+            clientTokenRequest,
+            braintreeFailure(tokenResult.reason),
+            'getClientToken:failureRecord',
+            '',
+          );
+        throw tokenResult.reason;
+      }
+      if (paymentResult.status === 'rejected') throw paymentResult.reason;
+      const ctPayment = paymentResult.value;
+      const clientToken = tokenResult.value;
       if (!ctPayment || !clientToken)
         throw new ErrorInvalidOperation(
           `Payment or token resolution failed, payment id ${ctPayment?.id}, cart id: ${ctCart.id}`,
         );
 
       await Promise.all([
-        newPayment && !isPureVault // PURE_VAULT_DISABLED: unreachable
+        !reusedPayment && !isPureVault // PURE_VAULT_DISABLED: unreachable
           ? this.ctCartService.addPayment({
               resource: { id: ctCart.id, version: ctCart.version },
-              paymentId: newPayment.id,
+              paymentId: ctPayment.id,
             }) //it is not possible to add the payment to empty cart via checkout API, but for the pure vault all relevant data will be saved on customer anyway
           : Promise.resolve(),
-        !tokenRecentlyUpdated
-          ? this.ctPaymentService.updatePayment({
-              id: ctPayment.id,
-              customFields: withBraintreeType(handleCustomFieldResponse('getClientToken', clientToken), ctPayment),
-
-              pspInteractions: buildPspInteractions(
-                'getClientToken',
-                { merchantAccountId, isPureVault, builderType, paymentMethodType }, // PURE_VAULT_DISABLED: unreachable
-                clientToken,
-              ),
-            })
-          : Promise.resolve(),
+        this.recordResponse(ctPayment, 'getClientToken', clientTokenRequest, clientToken, 'getClientToken:record', ''),
       ]);
 
       logger.info(`createPayment: success, cartId: ${cartId}`);
@@ -772,32 +795,25 @@ export class BraintreePaymentService extends AbstractPaymentService {
         braintreeCustomerId,
       );
     } catch (err) {
-      logger.error(`createPayment: failed, cartId: ${cartId ?? 'unavailable'} — ${errorMessage(err)}`);
+      // a Braintree failure is logged by its codes only, its message can echo personal data
+      logger.error(
+        `createPayment: failed, cartId: ${cartId} — ${getBraintreeResponse(err) ? braintreeErrorRef(err) : errorMessage(err)}`,
+      );
       throw err;
     }
   }
 
-  private existingPaymentAndToken(
+  private reusablePayment(
     existingPayment: Payment | undefined,
     amountPlanned: { centAmount: number; currencyCode: string },
-  ): { payment: Payment | undefined; tokenRecentlyUpdated: boolean } {
-    if (!existingPayment) return { payment: undefined, tokenRecentlyUpdated: false };
+  ): Payment | undefined {
+    if (!existingPayment) return undefined;
 
     const isAmountMismatch =
       existingPayment.amountPlanned.centAmount !== amountPlanned.centAmount ||
       existingPayment.amountPlanned.currencyCode !== amountPlanned.currencyCode;
 
-    if (isAmountMismatch || existingPayment.transactions.length > 0) {
-      return { payment: undefined, tokenRecentlyUpdated: false };
-    }
-
-    const tokenRecentlyUpdated = existingPayment.interfaceInteractions.some(
-      (i) =>
-        i.fields?.type === 'getClientTokenResponse' &&
-        Date.now() - new Date(i.fields.timestamp as string).getTime() < 2 * 60 * 1000,
-    );
-
-    return { payment: existingPayment, tokenRecentlyUpdated };
+    return isAmountMismatch || existingPayment.transactions.length > 0 ? undefined : existingPayment;
   }
 
   private buildCreatePaymentResponse(
@@ -865,7 +881,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     newShippingMethodId,
     address,
   }: UpdateCartShippingRequestSchemaDTO): Promise<UpdateCartShippingResponseSchemaDTO> {
-    const cartId = getCartIdFromContext();
+    const cartId = this.requireCartIdFromContext();
     try {
       const ctCart = await this.ctCartService.getCart({
         id: cartId,
@@ -942,7 +958,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           : undefined,
       };
     } catch (err) {
-      logger.error(`updateCartShipping: failed, cartId: ${cartId ?? 'unavailable'} — ${errorMessage(err)}`);
+      logger.error(`updateCartShipping: failed, cartId: ${cartId} — ${errorMessage(err)}`);
       throw err;
     }
   }
@@ -963,6 +979,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     achMandateText,
     achMandateAcceptedAt,
   }: TransactionSaleRequestSchemaDTO): Promise<PaymentUpdateResponseSchemaDTO> {
+    // A session without a Cart (PayPal Express before the click) passes auth, but must never charge
+    const cartId = this.requireCartIdFromContext(ctPaymentId);
     this.validateTransactionSaleParams(
       paymentMethodType,
       paymentMethodNonce,
@@ -977,7 +995,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const [updatedExpress, ctPayment, braintreePaymentTypeId] = await Promise.all([
       braintreePaymentDetails?.expressShippingChanged
         ? this.ctCartService
-            .getCart({ id: getCartIdFromContext() })
+            .getCart({ id: cartId })
             .then(async (cart) => cart && { cart, amountPlanned: await this.expressCartAmount(cart) })
         : Promise.resolve(undefined),
       this.ctPaymentService.getPayment({ id: ctPaymentId }),
@@ -1079,8 +1097,17 @@ export class BraintreePaymentService extends AbstractPaymentService {
     try {
       response = await transactionSale(transactionRequest);
     } catch (e) {
-      logger.error(`transactionSale: Braintree call failed, paymentId: ${ctPaymentId} — ${errorMessage(e)}`);
-      // Braintree's message is logged above, not sent back: this message reaches the browser.
+      logger.error(`transactionSale: Braintree call failed, paymentId: ${ctPaymentId} — ${braintreeErrorRef(e)}`);
+      // Braintree's answer recorded on the payment, no transaction; fire-and-forget, the buyer is waiting
+      void this.recordResponse(
+        ctPayment,
+        'transactionSale',
+        transactionRequest,
+        braintreeFailure(e),
+        'transactionSale:failureRecord',
+        '',
+      );
+      // Braintree's answer is recorded, not sent back: this message reaches the browser.
       throw new ErrorInvalidOperation(`transactionSale failed for payment ${ctPaymentId}`);
     }
     warnOnFieldMismatch(ctPaymentId, [
@@ -1231,6 +1258,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const braintreeAmount = amount
       ? mapCommercetoolsMoneyToBraintreeMoney({ ...ctPayment.amountPlanned, ...amount })
       : undefined;
+    // what is sent to Braintree; same shape as the extension's refund request
+    const braintreeRequest = { transactionId: relevantTransactionId, amount: braintreeAmount };
     let response: Transaction;
     try {
       response = await braintreeRefund(relevantTransactionId, braintreeAmount);
@@ -1239,14 +1268,14 @@ export class BraintreePaymentService extends AbstractPaymentService {
         ctPayment,
         operation,
         messageName: 'refund',
-        request: { relevantTransactionId, amount },
+        request: braintreeRequest,
         err,
       });
     }
     // CT sync — Braintree already refunded; awaited (retryCTSync never throws), no notifications fallback
     await this.updatePaymentWithTransaction({
       messageName: 'refund',
-      request: { relevantTransactionId, amount },
+      request: braintreeRequest,
       ctPayment,
       response,
       methodName: operation,
@@ -1368,6 +1397,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
       return this.rejectPaymentIntent(ctPayment.id, 'reversePayment', 'already fully refunded');
     if (isFailedOrVoided(ctPayment, transactionId))
       return this.rejectPaymentIntent(ctPayment.id, 'reversePayment', 'the transaction already failed or was voided');
+    // Recorded as findTransaction, though the call is Braintree's transaction.find by id (common-connect's
+    // getTransaction): backward compatibility, findTransactionResponse is the extension's field name for its lookup
     let braintreeTransaction: Transaction;
     try {
       braintreeTransaction = await braintreeGetTransaction(transactionId);
@@ -1525,6 +1556,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     ctCustomerId,
     logFrontendIssue,
   }: AchVaultTokenRequestSchemaDTO): Promise<AchVaultTokenResponseSchemaDTO> {
+    // A session without a Cart (PayPal Express before the click) passes auth, but must never vault
+    const cartId = this.requireCartIdFromContext(ctPaymentId);
     if (logFrontendIssue)
       logger.warn(
         `getAchVaultToken: frontend issue reported on payment ${ctPaymentId} before this attempt: ${logFrontendIssue}`,
@@ -1536,6 +1569,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         paymentMethodNonce,
         braintreeCustomerId,
         ctCustomerId,
+        resolveRecordCustomerId: () => this.ctCartService.getCart({ id: cartId }).then((cart) => cart.customerId),
       }),
       getBraintreePaymentTypeId().catch(() => undefined),
       this.ctPaymentService.getPayment({ id: ctPaymentId }).catch(() => undefined),
@@ -1548,19 +1582,16 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // ctCustomerId (that field can be omitted when the caller only supplied an existing braintreeCustomerId),
     // so it's resolved from cart context instead, same as getStoredPaymentMethods/deleteStoredPaymentMethod.
     // Fire-and-forget end-to-end so the cart lookup doesn't add latency to the vault-token response.
-    this.fireAndForgetCtPaymentMethodSync(
-      () =>
-        this.ctCartService.getCart({ id: getCartIdFromContext() }).then((ctCartForVault) => {
-          if (!ctCartForVault.customerId) return;
-          return this.ctPaymentMethodService.save({
-            customerId: ctCartForVault.customerId,
-            method: PaymentMethodType.ACH,
-            paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
-            token,
-          });
-        }),
-      `getAchVaultToken: could not save commercetools PaymentMethod record for payment ${ctPaymentId}`,
-    );
+    this.fireAndForgetCtPaymentMethodSync(async () => {
+      const ctCartForVault = await this.ctCartService.getCart({ id: cartId });
+      if (!ctCartForVault.customerId) return;
+      return this.ctPaymentMethodService.save({
+        customerId: ctCartForVault.customerId,
+        method: PaymentMethodType.ACH,
+        paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
+        token,
+      });
+    }, `getAchVaultToken: could not save commercetools PaymentMethod record for payment ${ctPaymentId}`);
 
     if (!verified) {
       // The placeholder write needs no custom type, so it still goes ahead; the merchant is told to resolve the type.
@@ -1592,7 +1623,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   public async getStoredPaymentMethods(): Promise<StoredPaymentMethodsResponse> {
-    const ctCart = await this.ctCartService.getCart({ id: getCartIdFromContext() });
+    const ctCart = await this.ctCartService.getCart({ id: this.requireStoredPaymentMethodsCartId() });
     if (!ctCart.customerId) {
       logger.warn('getStoredPaymentMethods: cart has no customerId, returning empty');
       return { storedPaymentMethods: [] };
@@ -1608,6 +1639,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const gateway = await getBraintreeGateway();
     try {
       const btCustomer = await gateway.customer.find(braintreeCustomerId);
+      this.braintreeCustomerService.recordCustomerCall(
+        ctCart.customerId,
+        'findCustomer',
+        { customerId: braintreeCustomerId },
+        btCustomer,
+      );
       // commercetools Checkout's own UI only supports displaying/reusing stored credit cards —
       // PayPal and ACH bank accounts remain vaulted in Braintree but are not surfaced as stored
       // payment methods here. Please open an issue if you are interested.
@@ -1648,22 +1685,41 @@ export class BraintreePaymentService extends AbstractPaymentService {
       );
       return { storedPaymentMethods: [...creditCards] };
     } catch (e) {
-      logger.warn(`Could not find Braintree customer ${braintreeCustomerId}: ${errorMessage(e)}`);
+      logger.warn(`Could not find Braintree customer ${braintreeCustomerId}: ${braintreeErrorRef(e)}`);
+      this.braintreeCustomerService.recordCustomerCall(
+        ctCart.customerId,
+        'findCustomer',
+        { customerId: braintreeCustomerId },
+        braintreeFailure(e),
+      );
       return { storedPaymentMethods: [] };
     }
   }
 
   public async deleteStoredPaymentMethod(token: string): Promise<void> {
-    const cartId = getCartIdFromContext();
+    // Before the Braintree delete starts: the cart read below runs in parallel with it
+    const cartId = this.requireStoredPaymentMethodsCartId();
+    const cartRead = this.ctCartService.getCart({ id: cartId }).catch(() => undefined);
+    // recorded on the cart's customer; Braintree answers a delete with no body
+    const record = (response: unknown) =>
+      void cartRead.then(
+        (cart) =>
+          cart?.customerId &&
+          this.braintreeCustomerService.recordCustomerCall(
+            cart.customerId,
+            'deletePaymentMethod',
+            { paymentMethodToken: token },
+            response,
+          ),
+      );
     let ctCart: Cart | undefined;
     try {
-      [, ctCart] = await Promise.all([
-        braintreeDeletePayment(token),
-        this.ctCartService.getCart({ id: cartId }).catch(() => undefined),
-      ]);
-      logger.info(`deleteStoredPaymentMethod: success, cartId: ${ctCart?.id ?? 'unavailable'}`);
+      [, ctCart] = await Promise.all([braintreeDeletePayment(token), cartRead]);
+      record({ success: true });
+      logger.info(`deleteStoredPaymentMethod: success, cartId: ${cartId}`);
     } catch (err) {
-      logger.error(`deleteStoredPaymentMethod: failed, cartId: ${cartId ?? 'unavailable'} — ${errorMessage(err)}`);
+      record(braintreeFailure(err));
+      logger.error(`deleteStoredPaymentMethod: failed, cartId: ${cartId} — ${braintreeErrorRef(err)}`);
       throw err;
     }
 
@@ -1704,6 +1760,22 @@ export class BraintreePaymentService extends AbstractPaymentService {
     void operation().catch((e) => logger.warn(`${logContext}: ${errorMessage(e)}`));
   }
 
+  // Stored payment methods aren't supported for commercetools Express Checkout, whose session may
+  // have no Cart. Supporting them would need commercetools to support it as well. Please open an
+  // issue if you are interested in stored payment methods for Express Checkout.
+  private requireStoredPaymentMethodsCartId(): string {
+    return this.requireCartIdFromContext();
+  }
+
+  // For flows that can't work without a Cart; paymentId only identifies the failing request
+  private requireCartIdFromContext(paymentId?: string): string {
+    const cartId = getCartIdFromContext();
+    if (!cartId) {
+      throw new ErrorInvalidOperation(`no cart found for ${paymentId ?? 'the checkout session'}`);
+    }
+    return cartId;
+  }
+
   private validateCartRequiredData(ctCart: Cart, isCartCheckout?: boolean): void {
     if (!isCartCheckout) return;
     if (!ctCart.customerEmail || !ctCart.billingAddress || !ctCart.shippingAddress)
@@ -1732,12 +1804,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
       if (paymentMethodType === PaymentMethodType.VENMO && !venmoUsername)
         throw new ErrorRequiredField('venmoUsername');
     }
-  }
-
-  private validatePaymentMethod(paymentMethodType: PaymentMethodType, braintreeMerchantAccount?: string): void {
-    const localPaymentTypes = new Set<string>(Object.values(LocalPaymentMethodType));
-    if (localPaymentTypes.has(paymentMethodType) && !braintreeMerchantAccount)
-      throw new ErrorRequiredField('braintreeMerchantAccount');
   }
 
   /* PURE_VAULT_DISABLED start

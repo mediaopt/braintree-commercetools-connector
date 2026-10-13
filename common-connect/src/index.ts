@@ -1,4 +1,8 @@
-export { CustomError } from "./errors/custom.error";
+export {
+  CustomError,
+  withBraintreeResponse,
+  getBraintreeResponse,
+} from "./errors/custom.error";
 export { TransactionGateway } from "./interfaces/transaction.interface";
 export * from "./service";
 export * from "./types/index.types";
