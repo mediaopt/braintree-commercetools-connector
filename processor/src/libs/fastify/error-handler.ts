@@ -2,6 +2,7 @@ import { FastifyError, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import { FastifySchemaValidationError } from 'fastify/types/schema';
 import { log } from '../logger';
+import { errorMessage } from '../../utils/error.utils';
 import {
   ErrorAuthErrorResponse,
   ErrorGeneral,
@@ -63,10 +64,12 @@ const transformErrorxToHTTPModel = (errors: Errorx[]): TErrorObject[] => {
   const errorObjectList: TErrorObject[] = [];
 
   for (const err of errors) {
+    // Not the error object itself: its cause can carry the full failed Braintree/commercetools request/response.
+    const logMessage = `${err.code} (${err.httpErrorStatus}): ${err.message}${err.cause ? ` — ${errorMessage(err.cause)}` : ''}`;
     if (err.skipLog) {
-      log.debug(err.message, err);
+      log.debug(logMessage);
     } else {
-      log.error(err.message, err);
+      log.error(logMessage);
     }
 
     const tErrObj: TErrorObject = {

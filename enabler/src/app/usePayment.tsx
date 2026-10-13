@@ -31,6 +31,7 @@ import { useNotifications } from "./useNotifications";
 import { useLoader } from "./useLoader";
 import { processorUrls } from "../components/constants";
 import { sessionHeader } from "../helpers/sessionHeader";
+import { codedError } from "../helpers/submitError";
 import { LoadingOverlay } from "../components/LoadingOverlay";
 import { PayPalCheckoutUpdatePaymentOptions } from "braintree-web/paypal-checkout";
 
@@ -211,7 +212,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         }
       } catch (error) {
         notify("Error", "Something went wrong.Please try again later!");
-        console.error(error);
+        console.error("Payment initialization failed.");
         setClientToken(undefined);
       } finally {
         setInitializingPayment(false);
@@ -276,8 +277,13 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       )) as PaymentActionResponseData;
       isLoading(false);
       if (!response?.success) {
-        notify("Error", response.message ?? "An error occurred");
-        return;
+        // Not the processor's message: it may carry Braintree's, which can echo payment data. The
+        // processor logs the details.
+        const errorMessage = "The payment could not be completed.";
+        notify("Error", errorMessage);
+        // Rejects so a Checkout-registered submit() sees the failure (see CreditCardMask). Callers that
+        // don't await it end with .catch(() => {}): the toast above already reports the failure.
+        throw codedError("TRANSACTION_SALE_FAILED", errorMessage);
       }
 
       const { message, success, merchantReturnUrl } = response;

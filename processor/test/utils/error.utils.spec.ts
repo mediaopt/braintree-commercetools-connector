@@ -15,10 +15,14 @@ describe('error.utils', () => {
 
   test.each([
     { description: 'uses the message of an Error', err: new Error('test error'), expected: 'test error' },
-    { description: 'stringifies non-Error objects', err: { code: 'ENOTFOUND' }, expected: '{"code":"ENOTFOUND"}' },
-    { description: 'stringifies null', err: null, expected: 'null' },
-    // JSON.stringify(undefined) returns the actual `undefined` value, not the string "undefined"
-    { description: 'returns undefined for undefined', err: undefined, expected: undefined },
+    { description: 'keeps the code of a non-Error object', err: { code: 'ENOTFOUND' }, expected: 'ENOTFOUND' },
+    {
+      description: 'keeps code, status and message of a non-Error object but never its body',
+      err: { statusCode: 409, message: 'Conflict', body: { actions: [{ address: '1 Private Street' }] } },
+      expected: '409 Conflict',
+    },
+    { description: 'falls back for null', err: null, expected: 'unknown error' },
+    { description: 'falls back for undefined', err: undefined, expected: 'unknown error' },
   ])('errorMessage $description', ({ err, expected }) => {
     expect(errorMessage(err)).toBe(expected);
   });

@@ -9,6 +9,7 @@ import {
   useCallback,
   useEffect,
 } from "react";
+import { createPortal } from "react-dom";
 import { NotificationType } from "../components/Notifications";
 import { NotificationTypeBanner } from "../components/Notifications/NotificationTypeBanner";
 
@@ -65,18 +66,22 @@ export const NotificationsProvider: FC<PropsWithChildren> = ({ children }) => {
     };
   }, [notifications, removeNotification]);
 
+  //z-1000000001 is for render exactly above checkout
   return (
     <NotificationContext.Provider value={value}>
-      <div className="fixed bottom-0 left-0 right-0 z-150 w-full">
-        {notifications.map((n) => (
-          <NotificationTypeBanner
-            key={n.id}
-            type={n.type}
-            text={n.text}
-            onClose={() => removeNotification(n.id)}
-          />
-        ))}
-      </div>
+      {createPortal(
+        <div className="fixed bottom-0 left-0 right-0 z-1000000001 w-full">
+          {notifications.map((n) => (
+            <NotificationTypeBanner
+              key={n.id}
+              type={n.type}
+              text={n.text}
+              onClose={() => removeNotification(n.id)}
+            />
+          ))}
+        </div>,
+        document.body,
+      )}
       {children}
     </NotificationContext.Provider>
   );

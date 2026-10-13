@@ -6,7 +6,13 @@ import { Transaction } from 'braintree';
 const CT_SYNC_MAX_ATTEMPTS = 3;
 const CT_SYNC_BACKOFF_BASE_MS = 500;
 
-export const errorMessage = (err: unknown): string => (err instanceof Error ? err.message : JSON.stringify(err));
+// Never stringifies a non-Error: an SDK error object can carry the full failed request/response with data that should remain private.
+export const errorMessage = (err: unknown): string => {
+  if (err instanceof Error) return err.message;
+  const { code, statusCode, message } = (err ?? {}) as Record<string, unknown>;
+  const parts = [code, statusCode, message].filter((part) => typeof part === 'string' || typeof part === 'number');
+  return parts.length ? parts.join(' ') : 'unknown error';
+};
 
 // Logs a warning for each field whose enabler-sent value diverges from what Braintree's own
 // response reports for it (e.g. localPaymentId, venmoUsername). A field is skipped if either side

@@ -58,22 +58,28 @@ To use the checkout compatible connector please create a checkout application in
 
 | Category | Method              | previous name (npm client)         | checkout reference | Country requirement                                           | Currency requirement           | Recommended predicates                                                                                   |
 | -------- | ------------------- | ---------------------------------- | ------------------ | ------------------------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| Standard | Credit Card         | `CreditCard`                       | `card`             | None enforced by the connector                                | None enforced by the connector | None needed                                                                                              |
+| Standard | Credit Card¹        | `CreditCard`                       | `card`             | None enforced by the connector                                | None enforced by the connector | None needed                                                                                              |
 | Standard | PayPal              | `PayPal`                           | `paypal`           | None enforced by the connector                                | None enforced by the connector | None needed                                                                                              |
 | Standard | Google Pay          | `GooglePay`                        | `googlepay`        | None enforced by the connector                                | None enforced by the connector | None needed                                                                                              |
 | Standard | Apple Pay           | `ApplePay`                         | `applepay`         | None enforced by the connector                                | None enforced by the connector | None needed                                                                                              |
-| Standard | Venmo               | `Venmo`                            | *Venmo*¹           | None enforced by the connector                                | None enforced by the connector | None needed                                                                                              |
-| Standard | ACH                 | `ACH`                              | *ACH*¹             | US bank account by design; no country code is checked in code | None enforced by the connector | `customerId != null and billingAddress.country = "US"` (ACH requires a logged-in, vaultable customer)    |
+| Standard | Venmo²              | `Venmo`                            | *Venmo*³           | None enforced by the connector                                | None enforced by the connector | None needed                                                                                              |
+| Standard | ACH⁴                | `ACH`                              | *ACH*³             | US bank account by design; no country code is checked in code | None enforced by the connector | `customerId != null and billingAddress.country = "US"` (ACH requires a logged-in, vaultable customer)    |
 | Stored   | Credit Card (saved) | `CreditCardStored`                 | `card`             | None enforced by the connector                                | None enforced by the connector | None needed                                                                                              |
 | Express  | PayPal Buy Now      | `PayPal` (via the express builder) | `paypal`           | None enforced by the connector                                | None enforced by the connector | None needed                                                                                              |
 | Local    | Bancontact          | `bancontact`                       | `bancontactcard`   | BE                                                            | EUR                            | `billingAddress.country = "BE" and totalPrice.currencyCode = "EUR"`                                      |
 | Local    | Blik                | `blik`                             | `blik`             | PL                                                            | PLN                            | `billingAddress.country = "PL" and totalPrice.currencyCode = "PLN"`                                      |
 | Local    | EPS                 | `eps`                              | `eps`              | AT                                                            | EUR                            | `billingAddress.country = "AT" and totalPrice.currencyCode = "EUR"`                                      |
 | Local    | iDEAL               | `ideal`                            | `ideal`            | NL                                                            | EUR                            | `billingAddress.country = "NL" and totalPrice.currencyCode = "EUR"`                                      |
-| Local    | MyBank              | `mybank`                           | *mybank*¹          | IT                                                            | EUR                            | `billingAddress.country = "IT" and totalPrice.currencyCode = "EUR"`                                      |
+| Local    | MyBank              | `mybank`                           | *mybank*³          | IT                                                            | EUR                            | `billingAddress.country = "IT" and totalPrice.currencyCode = "EUR"`                                      |
 | Local    | Przelewy24          | `p24`                              | `przelewy24`       | PL                                                            | EUR or PLN                     | `billingAddress.country = "PL" and (totalPrice.currencyCode = "EUR" or totalPrice.currencyCode = "PLN")` |
 
-¹ Venmo, ACH, and MyBank don't have a commercetools Checkout key yet, so no UI defaults are provided at the moment in merchant center. These methods are supposed to be included in future commercetools releases and when the proper key will be available the merchant center reference will be set to match.
+¹ 3D Secure verification is enabled by default. For configuring see the enabler [`README.md`](enabler/README.md#credit-card).
+
+² Displaying the Venmo username in the checkout UI is the merchant's responsibility. After a successful Venmo payment, venmoUsername is appended to the merchantReturnUrl as a query parameter. The merchant's return page should read this value from the URL.
+
+³ Venmo, ACH, and MyBank don't have a commercetools Checkout key yet, so no UI defaults are provided at the moment in merchant center. These methods are supposed to be included in future commercetools releases and when the proper key will be available the merchant center reference will be set to match.
+
+⁴ You must contact Braintree to enable the required verification method for the checkout flow. For configuring see the enabler [`README.md`](enabler/README.md#ach).
 
 This is your responsibility to configure in the merchant center → checkout application → payment integration the relevant payment methods based on your Braintree account settings, using [payment integration predicates](https://docs.commercetools.com/checkout/payment-integration-predicates#predicate-syntax). The "Recommended predicates" column above shows a starting point for each method: for local payment methods, it's the country/currency pairing the method is fixed to; for ACH, it restricts the method to logged-in customers, since ACH requires vaulting to a Braintree customer and a guest checkout can't complete it even though this connector doesn't block guests from seeing the option.
 
@@ -108,36 +114,6 @@ BRAINTREE_BUTTON_STYLES={"paypal":{"buttonColor":"gold","buttonLabel":"pay","sha
 
 BRAINTREE_PER_METHOD_CONFIG={"googlePay":{"googleMerchantId":"[your-google-merchant-id]","acquirerCountryCode":"[merchant-country-code]"},"venmo":{"profileId":"[optional-venmo-profile-id]"},"creditCard":{"vaultLabel":"Save my card"},"ach":{"businessName":"[your business name here]","actionLabel":"COMPLETE CHECKOUT","usBankAccountVerificationMethod":"network_check"}}
 ```
-
-##### ACH
-
-You must contact Braintree to enable the required verification method for the checkout flow.
-
-| Value                                     | Status                             |
-| ----------------------------------------- | ---------------------------------- |
-| `instant_verification_account_validation` | Supported                          |
-| `micro_transfers`                         | Open issue if you need this method |
-| `network_check` (the default if unset)    | Supported                          |
-
-Than the relevant value must be submitted to processor configuration as `ach.usBankAccountVerificationMethod`.
-
-The ACH mandate text shown to the shopper and sent to Braintree is built automatically using
-`businessName` and `actionLabel` above — providing `businessName` and keeping `actionLabel` in sync
-with your checkout button's label (if customized in the merchant center) is your responsibility.
-
-To fully replace the mandate text instead, set `ach.mandateText` under `BRAINTREE_BUTTON_STYLES` —
-when present, it's used verbatim. In that case, following
-[Braintree's ACH mandate text requirements](https://developer.paypal.com/braintree/docs/guides/ach/client-side/javascript/v3/)
-is your responsibility.
-
-##### Credit Card
-
-3D Secure verification is enabled by default. It can be disabled or reconfigured via your Braintree
-account's [Rules Manager](https://developer.paypal.com/braintree/docs/guides/3d-secure/rules-manager/javascript/v3/).
-
-##### Venmo
-
-Displaying the Venmo username in the checkout UI is the merchant's responsibility. After a successful Venmo payment, venmoUsername is appended to the merchantReturnUrl as a query parameter. The merchant's return page should read this value from the URL.
 
 ## Prerequisites
 

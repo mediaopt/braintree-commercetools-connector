@@ -14,8 +14,20 @@ import {
 } from "../../types";
 
 import { HOSTED_FIELDS_LABEL, HOSTED_FIELDS } from "../../styles";
+import { withBraintreeRef } from "../../helpers/braintreeErrorRef";
+import {
+  reportSaleFailure,
+  reportSubmitError,
+} from "../../helpers/submitError";
 import { HostedFieldsHostedFieldsFieldName } from "braintree-web/hosted-fields";
 import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
+import { CHALLENGE_SHOW_TIMEOUT_MS } from "./constants";
+import {
+  ChallengeNotShownError,
+  isRetryBlocked,
+  setupChallengeContainer,
+  verifyCardWithShowTimeout,
+} from "./threeDSVerifier";
 
 type CreditCardMaskProps = GeneralPayButtonProps & GeneralCreditCardProps;
 
@@ -46,7 +58,6 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
   // onRegisterSubmit inside the [client, threeDS] effect below, which only ever fires once — a
   // state closure there would permanently see deviceData as "" from before the collector resolved.
   const deviceDataRef = useRef("");
-
   const { client, threeDS } = useBraintreeClient();
 
   const emptyInputsRef = useRef(true);
@@ -72,10 +83,15 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     postalCode: ccPostalRef,
   };
 
+  const reporters = { notify, onError, isLoading };
+
+  // Resolves only once the whole 3DS + transactionSale flow is done and rejects on every failure:
+  // Checkout only has submit()'s promise to tell a failed payment apart from a successful one,
+  // otherwise it keeps its loader up forever.
   const verifyCardAndHandlePurchase = (
     threeDSecureParameters: ThreeDSecureVerifyOptions,
     shouldVault?: boolean,
-  ) => {
+  ): Promise<void> => {
     const options: {
       deviceData: string;
       storeInVaultOnSuccess?: boolean;
@@ -93,65 +109,77 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     if (paymentInfo.braintreeShipping) {
       options.shipping = paymentInfo.braintreeShipping;
     }
-    threeDS!
-      .verifyCard(threeDSecureParameters)
-      .then(function (response: any) {
+    const sale = (nonce: string) =>
+      reportSaleFailure(handleTransactionSale(nonce, options), onError);
+    return verifyCardWithShowTimeout(threeDS!, threeDSecureParameters).then(
+      function (response) {
         if (response.threeDSecureInfo.status !== "authenticate_successful") {
-          isLoading(false);
-          notify("Error", "Could not authenticate");
-          onError?.({
+          throw reportSubmitError(reporters, "Could not authenticate", {
             code: "3DS_AUTHENTICATION_FAILED",
             message: `Could not authenticate: ${response.threeDSecureInfo.status}`,
           });
-          return;
         }
         if (response.threeDSecureInfo.liabilityShifted) {
-          handleTransactionSale(response.nonce, options);
+          return sale(response.nonce);
         } else if (response.threeDSecureInfo.liabilityShiftPossible) {
           if (continueOnLiabilityShiftPossible) {
-            handleTransactionSale(response.nonce, options);
-          } else {
-            notify(
-              "Warning",
-              "Failed the 3D Secure verification. Please use a different payment method.",
-            );
+            return sale(response.nonce);
           }
+          throw reportSubmitError(
+            reporters,
+            "Failed the 3D Secure verification. Please use a different payment method.",
+            {
+              code: "3DS_LIABILITY_SHIFT_NOT_ACHIEVED",
+              message: "3D Secure liability shift not achieved",
+            },
+            true,
+          );
         } else {
           if (continueOnNoThreeDS) {
-            handleTransactionSale(response.nonce, options);
-          } else {
-            notify(
-              "Warning",
-              "3D Secure is not available for your card. Please use a different payment method.",
-            );
+            return sale(response.nonce);
           }
+          throw reportSubmitError(
+            reporters,
+            "3D Secure is not available for your card. Please use a different payment method.",
+            {
+              code: "3DS_NOT_AVAILABLE",
+              message: "3D Secure not available for this card",
+            },
+            true,
+          );
         }
-      })
-      .catch(function (error) {
-        isLoading(false);
-        if (error?.code.indexOf("THREEDS_LOOKUP") === 0) {
-          if (error.code === "THREEDS_LOOKUP_TOKENIZED_CARD_NOT_FOUND_ERROR") {
-            notify("Error", "Payment nonce does not exist or was already used");
-          } else if (error.code.indexOf("THREEDS_LOOKUP_VALIDATION") === 0) {
-            notify(
-              "Error",
-              "Validation error - check your input or try a different payment",
-            );
-          } else {
-            notify("Error", "Something went wrong - try again");
-          }
+      },
+      function (error) {
+        // `?.`: an error without a code (e.g. a TypeError) must still reach notify/onError.
+        const braintreeCode: string | undefined = error?.code;
+        const toast =
+          braintreeCode === "THREEDS_LOOKUP_TOKENIZED_CARD_NOT_FOUND_ERROR"
+            ? "Payment nonce does not exist or was already used"
+            : braintreeCode?.startsWith("THREEDS_LOOKUP_VALIDATION")
+              ? "Validation error - check your input or try a different payment"
+              : "Something went wrong - try again";
+        // Our own challenge-not-shown error keeps its code and text; anything else gets only our text
+        // plus the Braintree reference (see withBraintreeRef). Checkout gets the same sanitized error.
+        let sanitized: { code: string; message: string };
+        if (error instanceof ChallengeNotShownError) {
+          console.error(
+            `${error.message} If Songbird becomes ready later, the challenge is still not displayed; if it comes more than ${CHALLENGE_SHOW_TIMEOUT_MS / 1000} s after the 3D Secure SDK settled, it isn't logged either, but its requests remain visible in the browser's network tab.`,
+          );
+          sanitized = { code: error.code, message: error.message };
         } else {
-          notify("Error", "Something went wrong - try again");
+          sanitized = {
+            code: "THREEDS_VERIFY_FAILED",
+            message: withBraintreeRef("3D Secure verification failed.", error),
+          };
         }
-        onError?.({
-          code: error?.code ?? "THREEDS_VERIFY_FAILED",
-          message: error?.message ?? "Something went wrong - try again",
-        });
-      });
+        throw reportSubmitError(reporters, toast, sanitized);
+      },
+    );
   };
 
   useEffect(() => {
     if (!client || !threeDS) return;
+    setupChallengeContainer(threeDS);
     isLoading(true);
 
     let hostedFieldsInputs: object = {
@@ -216,8 +244,12 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
         if (err) {
           isLoading(false);
           notify("Error", "Something went wrong.");
-          console.error(err);
-          onError?.({ code: err.code, message: err.message });
+          const message = withBraintreeRef(
+            "Credit card fields could not be created.",
+            err,
+          );
+          console.error(message);
+          onError?.({ code: "HOSTED_FIELDS_CREATE_FAILED", message });
           return;
         }
 
@@ -298,23 +330,36 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
               notify("Error", "Please correct the card details and try again.");
               return reject(new Error("invalid fields"));
             }
+            // A timed-out verification's challenge may still be presented, and this verification
+            // would mount it (see isRetryBlocked).
+            if (isRetryBlocked()) {
+              const message =
+                "3D Secure is still loading. Please try again in a moment.";
+              return reject(
+                reportSubmitError(reporters, message, {
+                  code: "THREEDS_STILL_LOADING",
+                  message,
+                }),
+              );
+            }
             isLoading(true);
             hostedFieldsInstance.tokenize(
               { vault: shouldVault },
               function (err, payload) {
                 if (err || !payload) {
-                  isLoading(false);
-                  notify(
-                    "Error",
-                    "Something went wrong. Check your card details and try again.",
-                  );
-                  onError?.({
-                    code: err?.code ?? "TOKENIZE_FAILED",
-                    message:
-                      err?.message ??
+                  return reject(
+                    reportSubmitError(
+                      reporters,
                       "Something went wrong. Check your card details and try again.",
-                  });
-                  return reject(err);
+                      {
+                        code: "TOKENIZE_FAILED",
+                        message: withBraintreeRef(
+                          "Card details could not be tokenized.",
+                          err,
+                        ),
+                      },
+                    ),
+                  );
                 }
 
                 /* PURE_VAULT_DISABLED start — pure vault cancelled; uncomment to re-enable
@@ -335,8 +380,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
                   verifyCardAndHandlePurchase(
                     threeDSecureParameters,
                     shouldVault,
-                  );
-                  resolve();
+                  ).then(resolve, reject);
                 }
                 // PURE_VAULT_DISABLED: } (closing else removed)
               },
@@ -344,7 +388,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
           });
 
         onRegisterSubmit?.((storePaymentDetails) =>
-        submitPayment(
+          submitPayment(
             (storePaymentDetails ?? false) ||
               ccVaultCheckbox.current?.checked === true,
           ),

@@ -25,6 +25,7 @@ export const makeRequest = <ResponseType, T>(
     requestData.body = JSON.stringify(data);
   }
 
+  // Never logs the error itself: a JSON parse error quotes part of the response body.
   return fetch(url, requestData)
     .then((response) => {
       return response.json();
@@ -32,5 +33,5 @@ export const makeRequest = <ResponseType, T>(
     .then((responseData) => {
       return responseData as ResponseType;
     })
-    .catch((error) => console.warn(error));
+    .catch(() => console.warn(`Processor request to ${url} failed.`));
 };

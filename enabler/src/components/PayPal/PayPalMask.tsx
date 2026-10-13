@@ -269,6 +269,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                           });
                         }
 
+                        // Failure is already notified inside handleTransactionSale; its rejection is only for submit()-driven callers.
                         handleTransactionSale(payload.nonce, {
                           deviceData: deviceDataRef.current,
                           paypalOrderId: data.paymentId,
@@ -285,7 +286,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               Boolean(payload.shippingOptionId), //set only in express mode, where shipping is submitted separately from line items
                           },
                           ctPaymentIdOverride: real?.ctPaymentId,
-                        });
+                        }).catch(() => {});
                       }
                       // PURE_VAULT_DISABLED: } (closing else removed)
                     },
