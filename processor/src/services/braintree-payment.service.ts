@@ -1240,6 +1240,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * Capture of an ACH micro-deposit payment once its bank account is verified: a sale with the vaulted token carried by
    * the placeholder's marker, which then overwrites the placeholder in place — see docs/Intents.md
    * "ACH micro-deposit verification". The mandate needs no resending: Braintree keeps it on the vaulted account.
+   * NOT OFFICIALLY SUPPORTED: kept so that a payment left by getAchVaultToken's unverified path
+   * doesn't get stuck at a dead end without any resolution. Merchants who want the micro-deposit flow MUST open an
+   * issue to get full support (enabler/README.md#ach).
    */
   private async settlePlaceholder(
     ctPayment: Payment,
@@ -1638,6 +1641,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
    *    API (settlement, a sale with the vault token in the placeholder's marker — see docs/Intents.md
    *    "ACH micro-deposit verification"). The transaction_* webhooks in braintree-notifications then track that
    *    sale's settlement.
+   *    NOT OFFICIALLY SUPPORTED: this path (requested with micro_transfers) is kept so that an unverified bank account
+   *    doesn't leave the payment stuck at a dead end without any resolution. Merchants who want the micro-deposit flow
+   *    MUST open an issue to get full support (enabler/README.md#ach).
    */
   public async getAchVaultToken({
     paymentMethodNonce,
