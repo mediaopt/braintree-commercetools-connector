@@ -65,9 +65,10 @@ Full shape of an action, as sent to the Payment Intents API:
 The outcome values are defined by commercetools (see the link above). This connector answers as follows:
 
 - **A Braintree call failed**, including a decline, since a Braintree response with `success: false` counts as a
-  failure. The answer is rejected and logged with `logger.error`. The failure is recorded on the payment as the
-  custom field named after the Braintree call (`submitForSettlementResponse`, `refundResponse`, `voidResponse`,
-  `findTransactionResponse`) plus pspInteractions, best effort: if that commercetools write fails, the answer is
+  failure. The answer is rejected and logged with `logger.error` (Braintree's error codes only, not its message). The
+  failure is recorded on the payment like a success: the request sent in `{call}ProcessorRequest` and Braintree's own
+  response in `{call}Response` (`submitForSettlement`, `refund`, `void`, `findTransaction`), plus pspInteractions,
+  best effort: if that commercetools write fails, the answer is
   still rejected and only the log remains. The Braintree call isn't retried, and there's no follow-up lookup on
   Braintree.
 - **The payment doesn't carry the Braintree payment custom type**, which this connector sets when it creates a
