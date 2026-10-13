@@ -1173,10 +1173,9 @@ describe('braintree-payment.service', () => {
 
       await sale(payment.id);
 
-      // submitted_for_settlement maps to Pending
-      expect(rawActions('changeTransactionState')).toEqual([
-        { action: 'changeTransactionState', transactionId: 'placeholder-1', state: 'Pending' },
-      ]);
+      // submitted_for_settlement maps to Pending, the placeholder's own state: commercetools rejects a change to the
+      // current state, which would fail the whole update
+      expect(rawActions('changeTransactionState')).toEqual([]);
       expect(rawActions('changeTransactionInteractionId')).toEqual([
         {
           action: 'changeTransactionInteractionId',
@@ -1189,6 +1188,21 @@ describe('braintree-payment.service', () => {
       expect(paymentSDK.ctPaymentService.getPayment).toHaveBeenCalledTimes(1);
       // no duplicate Authorization; only Braintree's real state is added next to it
       expect(addedTransactions()).toEqual([expect.objectContaining({ type: 'Charge' })]);
+    });
+
+    test('placeholder present, sale in another state: the placeholder takes that state', async () => {
+      const payment = { ...mockGetPaymentResult, transactions: [achPlaceholder] };
+      jest.spyOn(paymentSDK.ctPaymentService, 'getPayment').mockResolvedValue(payment as never);
+      (CommonConnect.transactionSale as jest.Mock).mockResolvedValue({
+        ...mockBraintreeTransaction,
+        status: 'settled',
+      } as never);
+
+      await sale(payment.id);
+
+      expect(rawActions('changeTransactionState')).toEqual([
+        { action: 'changeTransactionState', transactionId: 'placeholder-1', state: 'Success' },
+      ]);
     });
 
     test('placeholder cancelled while the sale ran (cancel and capture concurrently): logged as merchant issue, still overwritten', async () => {
@@ -1958,6 +1972,8 @@ describe('braintree-payment.service', () => {
       expect(rawActions('changeTransactionInteractionId')).toEqual([
         { action: 'changeTransactionInteractionId', transactionId: achPlaceholder.id, interactionId: 'txn-ach' },
       ]);
+      // settlement_pending maps to Pending, the placeholder's own state: no change commercetools would reject
+      expect(rawActions('changeTransactionState')).toEqual([]);
       // the placeholder became the Authorization; the Charge Braintree's status maps to is added
       expect(addedTransactions()).toEqual([expect.objectContaining({ type: 'Charge', interactionId: 'txn-ach' })]);
       expect(recordedRequest('transactionSale')).toMatchObject({ paymentMethodToken: 'vault-token' });

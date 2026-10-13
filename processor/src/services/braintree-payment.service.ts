@@ -340,7 +340,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
     return payment.transactions.flatMap((t): PaymentUpdateAction[] => {
       if (isOwnPlaceholder(t))
         return [
-          { action: 'changeTransactionState', transactionId: t.id, state: transaction.state },
+          // commercetools rejects a change to the current state, which would fail the whole update: an ACH sale's
+          // settlement_pending maps to Pending, the placeholder's own state
+          ...(t.state === transaction.state
+            ? []
+            : [{ action: 'changeTransactionState' as const, transactionId: t.id, state: transaction.state }]),
           { action: 'changeTransactionInteractionId', transactionId: t.id, interactionId: response.id },
         ];
       if (isVoidedPending(t)) return [{ action: 'changeTransactionState', transactionId: t.id, state: 'Failure' }];
