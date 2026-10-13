@@ -105,6 +105,59 @@ describe("ACHMask — Checkout submit() always settles", () => {
     );
   });
 
+  it("rejects with ACH_TOKENIZE_FAILED without the Braintree message, and the next vault request carries it", async () => {
+    mockTokenize.mockImplementationOnce((_options, cb) =>
+      cb({ code: "US_BANK_ACCOUNT_TOKENIZE_FAILED", message: "bank 1000000000" }),
+    );
+
+    await expect(submit()).rejects.toMatchObject({
+      code: "ACH_TOKENIZE_FAILED",
+    });
+
+    expect(mockNotify).toHaveBeenCalledWith(
+      "Error",
+      "There was an error tokenizing the bank details.",
+    );
+    const reported = mockOnError.mock.calls[0][0];
+    expect(reported.code).toBe("ACH_TOKENIZE_FAILED");
+    expect(reported.message).not.toContain("1000000000");
+
+    mockTokenize.mockImplementationOnce((_options, cb) =>
+      cb(undefined, { nonce: "bank-nonce" }),
+    );
+    mockProcessorRequest.mockResolvedValue(undefined);
+    await expect(submit()).rejects.toMatchObject({
+      code: "ACH_VAULT_REQUEST_FAILED",
+    });
+    expect(mockProcessorRequest.mock.calls[0][2].logFrontendIssue).toMatch(
+      /^ACH_TOKENIZE_FAILED: /,
+    );
+  });
+
+  it("reports a failed instant-verified sale to onError and rejects with its coded error", async () => {
+    mockTokenize.mockImplementation((_options, cb) =>
+      cb(undefined, { nonce: "bank-nonce" }),
+    );
+    mockProcessorRequest.mockResolvedValue({
+      status: true,
+      token: "vault-token",
+      verified: true,
+    });
+    mockHandleTransactionSale.mockRejectedValue(
+      Object.assign(new Error("Payment failed"), {
+        code: "TRANSACTION_SALE_FAILED",
+      }),
+    );
+
+    await expect(submit()).rejects.toMatchObject({
+      code: "TRANSACTION_SALE_FAILED",
+    });
+    expect(mockOnError).toHaveBeenCalledWith({
+      code: "TRANSACTION_SALE_FAILED",
+      message: "Payment failed",
+    });
+  });
+
   it("rejects with ACH_UNEXPECTED_ERROR when something throws inside the tokenize callback", async () => {
     mockTokenize.mockImplementation((_options, cb) =>
       cb(undefined, { nonce: "bank-nonce" }),
