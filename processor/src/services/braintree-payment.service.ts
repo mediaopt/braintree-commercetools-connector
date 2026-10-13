@@ -40,6 +40,7 @@ import {
   PaymentUpdateResponseSchemaDTO,
   PaymentMethodType,
   LocalPaymentMethodType,
+  CustomBuilderType,
   PaymentRequestSchemaDTO,
   PaymentResponseSchemaDTO,
   // PURE_VAULT_DISABLED: PureVaultRequestSchemaDTO,
@@ -368,6 +369,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           isEnabled: await this.isStoredPaymentMethodsEnabled(),
         },
         enableVaulting: config.enableVaulting,
+        hasMerchantAccount: !!config.merchantAccountId,
         buttonStyleOverrides: config.buttonStyleOverrides,
         perMethodConfig: config.perMethodConfig,
       };
@@ -665,15 +667,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * @returns Promise with mocking data containing operation status and PSP reference
    */
 
-  public async createPayment({
-    builderType,
-    paymentMethodType,
-  }: PaymentRequestSchemaDTO): Promise<PaymentResponseSchemaDTO> {
+  public async createPayment({ builderType }: PaymentRequestSchemaDTO): Promise<PaymentResponseSchemaDTO> {
     const merchantAccountId = getConfig().merchantAccountId;
-    this.validatePaymentMethod(paymentMethodType, merchantAccountId);
     // PURE_VAULT_DISABLED: isPureVault detection disabled; feature cancelled
     const isPureVault = false;
-    const isExpress = paymentMethodType === 'PayPal' && builderType === 'express';
+    const isExpress = builderType === CustomBuilderType.EXPRESS; // the Express builder is PayPal-only
     const cartId = this.requireCartIdFromContext();
     try {
       const ctCart = await this.ctCartService.getCart({
@@ -719,6 +717,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
       const braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
       const shippingMethods = shippingMethodsResult || [];
+      const clientTokenRequest = { merchantAccountId, customerId: braintreeCustomerId };
 
       const { payment: reusedPayment, tokenRecentlyUpdated } = this.existingPaymentAndToken(
         // only this connector's payment is reused — the cart may hold other connectors' payments (e.g. gift cards)
@@ -738,7 +737,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
               paymentStatus: { interfaceCode: 'Initial', interfaceText: 'Initial' },
               checkoutTransactionItemId: getCheckoutTransactionItemIdFromContext(),
             }),
-        getClientToken({ merchantAccountId, customerId: braintreeCustomerId }),
+        getClientToken(clientTokenRequest),
       ]);
 
       const ctPayment = reusedPayment ?? newPayment;
@@ -759,11 +758,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
               id: ctPayment.id,
               customFields: withBraintreeType(handleCustomFieldResponse('getClientToken', clientToken), ctPayment),
 
-              pspInteractions: buildPspInteractions(
-                'getClientToken',
-                { merchantAccountId, isPureVault, builderType, paymentMethodType }, // PURE_VAULT_DISABLED: unreachable
-                clientToken,
-              ),
+              pspInteractions: buildPspInteractions('getClientToken', clientTokenRequest, clientToken),
             })
           : Promise.resolve(),
       ]);
@@ -1758,12 +1753,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
       if (paymentMethodType === PaymentMethodType.VENMO && !venmoUsername)
         throw new ErrorRequiredField('venmoUsername');
     }
-  }
-
-  private validatePaymentMethod(paymentMethodType: PaymentMethodType, braintreeMerchantAccount?: string): void {
-    const localPaymentTypes = new Set<string>(Object.values(LocalPaymentMethodType));
-    if (localPaymentTypes.has(paymentMethodType) && !braintreeMerchantAccount)
-      throw new ErrorRequiredField('braintreeMerchantAccount');
   }
 
   /* PURE_VAULT_DISABLED start

@@ -10,6 +10,8 @@ export type BaseOptions = Omit<
   braintreeEnvironment?: string;
   storedPaymentMethodsEnabled?: boolean;
   enableVaulting?: boolean;
+  // Local payment methods need a Braintree merchant account; without one they are unavailable
+  hasMerchantAccount?: boolean;
   perMethodConfig?: PerMethodConfig;
   //optional
   // countryCode?: string;

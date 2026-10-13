@@ -117,7 +117,6 @@ export type ExpressClientTokenResponseSchemaDTO = Static<typeof ExpressClientTok
 export const PaymentOutcomeSchema = Type.Enum(PaymentOutcome);
 
 export const InitPaymentRequestSchema = Type.Object({
-  paymentMethodType: Type.Enum(PaymentMethodType),
   builderType: Type.Optional(Type.Enum(CustomBuilderType)),
 
   // paymentMethod: Type.Object({

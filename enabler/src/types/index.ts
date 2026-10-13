@@ -85,6 +85,8 @@ export type PaymentProviderProps = RequiredSessionData & {
   // PayPal Express deferred-cart-creation mode — see enabler/src/app/usePayment.tsx
   deferredPaymentCreation?: boolean;
   initialAmount?: CTAmount;
+  // The one payment shared by every standard/stored component, created once by BraintreePaymentEnabler
+  initialPayment?: CreatePaymentResponse;
 };
 
 export type GeneralComponentsProps = PaymentProviderProps &

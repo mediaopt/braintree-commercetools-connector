@@ -11,6 +11,7 @@ import { RenderTemplate } from "../RenderTemplate";
 import { BuilderType, ValidationHandlers } from "../../types";
 import { isApplePaySupported } from "../ApplePay/applePayAvailability";
 import { isVenmoSupported } from "../Venmo/venmoAvailability";
+import { LOCAL_PAYMENT_COUNTRIES_AND_CURRENCIES } from "../LocalPaymentMethods/constants";
 
 // Per-method device/browser-capability checks for isAvailable() below. Methods not listed here
 // are always considered available — most payment methods don't need a precheck. Add a new entry
@@ -85,6 +86,15 @@ class BraintreeComponent implements PaymentComponent {
   }
 
   async isAvailable(): Promise<boolean> {
+    if (
+      this.paymentMethodType in LOCAL_PAYMENT_COUNTRIES_AND_CURRENCIES &&
+      !this.baseOptions.hasMerchantAccount
+    ) {
+      console.warn(
+        `${this.paymentMethodType} not available — no Braintree merchant account configured`,
+      );
+      return false;
+    }
     return AVAILABILITY_CHECKS[this.paymentMethodType]?.() ?? true;
   }
 
