@@ -22,6 +22,7 @@ export type TransactionSaleOptions = {
     braintreeLineItems?: BraintreeLineItem[];
     expressShippingChanged?: boolean;
     braintreeShipping?: BraintreeShipping;
+    express?: boolean; // the processor compares amount and line items with the cart except for Express
   };
   shipping?: BraintreeShipping;
   lineItems?: BraintreeLineItem[];

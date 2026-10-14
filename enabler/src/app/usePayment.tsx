@@ -294,6 +294,7 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
           braintreeShipping:
             incomingDetails?.braintreeShipping ?? paymentInfo.braintreeShipping,
           expressShippingChanged: incomingDetails?.expressShippingChanged,
+          express: builderType === "express" || undefined,
         },
         ...rest,
       };

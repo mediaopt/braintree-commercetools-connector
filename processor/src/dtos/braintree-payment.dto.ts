@@ -177,6 +177,8 @@ export const TransactionSaleRequestSchema = Type.Object({
       braintreeLineItems: Type.Optional(Type.Array(BraintreeLineItemSchema)),
       // set after an Express shipping change: transactionSale then takes line items and shipping from the refetched cart
       expressShippingChanged: Type.Optional(Type.Boolean()),
+      // set by the Express builder: transactionSale doesn't compare its amount and line items with the cart
+      express: Type.Optional(Type.Boolean()),
       braintreeShipping: Type.Optional(BraintreeShippingSchema),
     }),
   ),
