@@ -6,6 +6,8 @@ jest.mock("../services/processorRequest", () => ({
 
 import { processorRequest } from "../services/processorRequest";
 import { PaymentProvider, usePayment } from "./usePayment";
+import { BuilderType } from "../types";
+import { TransactionSaleRequest } from "../services/types";
 
 const mockedProcessorRequest = processorRequest as jest.MockedFunction<
   typeof processorRequest
@@ -148,7 +150,7 @@ describe("usePayment — handleTransactionSale", () => {
     return null;
   };
 
-  beforeEach(async () => {
+  const renderSale = async (builderType?: BuilderType) => {
     handleTransactionSale = undefined;
     mockedProcessorRequest
       .mockReset()
@@ -157,16 +159,25 @@ describe("usePayment — handleTransactionSale", () => {
       <PaymentProvider
         processorUrl={PROCESSOR_URL}
         sessionId="session-id"
-        paymentMethodType="CreditCard"
+        paymentMethodType={builderType ? "PayPal" : "CreditCard"}
+        builderType={builderType}
         purchaseCallback={jest.fn()}
       >
         <CaptureSale />
       </PaymentProvider>,
     );
     await waitFor(() => expect(handleTransactionSale).toBeDefined());
-  });
+  };
+  // braintreePaymentDetails of the transactionSale request
+  const sentPaymentDetails = () =>
+    (
+      mockedProcessorRequest.mock.calls.find(([, url]) =>
+        url.endsWith("/transactionSale"),
+      )?.[2] as TransactionSaleRequest | undefined
+    )?.braintreePaymentDetails;
 
   it("rejects with TRANSACTION_SALE_FAILED, not the processor's message, when the sale fails", async () => {
+    await renderSale();
     mockedProcessorRequest.mockResolvedValueOnce({
       success: false,
       message: "Declined for 1 Private Street",
@@ -176,5 +187,22 @@ describe("usePayment — handleTransactionSale", () => {
       code: "TRANSACTION_SALE_FAILED",
       message: "The payment could not be completed.",
     });
+  });
+
+  // the processor compares a non-Express sale's amount and line items with the cart
+  it.each([
+    { description: "Express", builderType: "express" as const, express: true },
+    {
+      description: "a standard component",
+      builderType: undefined,
+      express: undefined,
+    },
+  ])("marks the sale of $description", async ({ builderType, express }) => {
+    await renderSale(builderType);
+    mockedProcessorRequest.mockResolvedValueOnce({ success: true });
+
+    await act(() => handleTransactionSale!("nonce"));
+
+    expect(sentPaymentDetails()).toEqual(expect.objectContaining({ express }));
   });
 });

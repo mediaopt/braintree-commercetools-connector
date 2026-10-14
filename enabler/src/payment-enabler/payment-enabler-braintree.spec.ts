@@ -73,6 +73,16 @@ describe("BraintreePaymentEnabler", () => {
       expect(JSON.parse(createPaymentCalls()[0][1].body)).toEqual({});
     });
 
+    it("is not created for an unsupported stored payment method type", async () => {
+      const enabler = buildEnabler();
+
+      await expect(
+        enabler.createStoredPaymentMethodBuilder("paypal"),
+      ).rejects.toThrow("Unsupported stored payment method type: paypal");
+
+      expect(createPaymentCalls()).toHaveLength(0);
+    });
+
     it("is not created for Express", async () => {
       await buildEnabler().createExpressBuilder("paypal");
 

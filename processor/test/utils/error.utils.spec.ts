@@ -7,7 +7,8 @@ import {
   getCtErrorKind,
   retryCTSync,
 } from '../../src/utils/error.utils';
-import { CustomError, logger, withBraintreeResponse } from 'common-connect/dist';
+import { CustomError, withBraintreeResponse } from 'common-connect/dist';
+import { log } from '../../src/libs/logger';
 
 describe('error.utils', () => {
   afterEach(() => {
@@ -24,20 +25,30 @@ describe('error.utils', () => {
     },
     { description: 'falls back for null', err: null, expected: 'unknown error' },
     { description: 'falls back for undefined', err: undefined, expected: 'unknown error' },
+    // the Fastify error handler logs a rethrown Braintree failure through errorMessage too
+    {
+      description: "reduces a Braintree failure to its codes, never Braintree's message",
+      err: withBraintreeResponse(new CustomError(500, 'Street address is too long: 1 Private Street'), {
+        success: false,
+        message: 'Street address is too long: 1 Private Street',
+        errors: { deepErrors: () => [{ code: '81812' }] },
+      }),
+      expected: 'Braintree error codes: 81812',
+    },
   ])('errorMessage $description', ({ err, expected }) => {
     expect(errorMessage(err)).toBe(expected);
   });
 
   test('warnOnFieldMismatch logs only fields present on both sides with different values', () => {
-    jest.spyOn(logger, 'warn').mockImplementation(() => logger);
+    jest.spyOn(log, 'warn').mockImplementation(() => log);
     warnOnFieldMismatch('payment-123', [
       { fieldName: 'matching', enablerValue: 'val1', braintreeValue: 'val1' },
       { fieldName: 'different', enablerValue: 'val2', braintreeValue: 'val3' },
       { fieldName: 'enablerMissing', enablerValue: undefined, braintreeValue: 'val4' },
       { fieldName: 'braintreeMissing', enablerValue: 'val5', braintreeValue: undefined },
     ]);
-    expect(logger.warn).toHaveBeenCalledTimes(1);
-    expect(logger.warn).toHaveBeenCalledWith('different mismatch for payment payment-123');
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(log.warn).toHaveBeenCalledWith('different mismatch for payment payment-123');
   });
 
   test.each([
@@ -118,9 +129,9 @@ describe('error.utils', () => {
   describe('retryCTSync', () => {
     beforeEach(() => {
       jest.useFakeTimers();
-      jest.spyOn(logger, 'info').mockImplementation(() => logger);
-      jest.spyOn(logger, 'warn').mockImplementation(() => logger);
-      jest.spyOn(logger, 'error').mockImplementation(() => logger);
+      jest.spyOn(log, 'info').mockImplementation(() => log);
+      jest.spyOn(log, 'warn').mockImplementation(() => log);
+      jest.spyOn(log, 'error').mockImplementation(() => log);
     });
 
     afterEach(() => {
@@ -132,7 +143,7 @@ describe('error.utils', () => {
       const fn = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
       await retryCTSync(fn, 'testMethod', 'payment-123', 'status: authorized', 3);
       expect(fn).toHaveBeenCalledTimes(1);
-      expect(logger.info).not.toHaveBeenCalled();
+      expect(log.info).not.toHaveBeenCalled();
     });
 
     test('retries and succeeds on second attempt', async () => {
@@ -144,7 +155,7 @@ describe('error.utils', () => {
       await jest.advanceTimersByTimeAsync(500);
       await promise;
       expect(fn).toHaveBeenCalledTimes(2);
-      expect(logger.info).toHaveBeenCalledWith('testMethod: CT sync succeeded on retry 2, paymentId: payment-123');
+      expect(log.info).toHaveBeenCalledWith('testMethod: CT sync succeeded on retry 2, paymentId: payment-123');
     });
 
     test('exhausts retry attempts', async () => {
@@ -154,7 +165,7 @@ describe('error.utils', () => {
       await jest.advanceTimersByTimeAsync(500 * 2 + 500 * 4 + 1000);
       await promise;
       expect(fn).toHaveBeenCalledTimes(3);
-      expect(logger.error).toHaveBeenCalledWith(
+      expect(log.error).toHaveBeenCalledWith(
         'testMethod: CT sync exhausted all 3 attempts, paymentId: payment-123 [Braintree: status: authorized]',
       );
     });
@@ -163,7 +174,7 @@ describe('error.utils', () => {
       const fn = jest.fn<() => Promise<void>>().mockRejectedValueOnce({ httpErrorStatus: 401 });
       await retryCTSync(fn, 'testMethod', 'payment-123', 'status: authorized', 3);
       expect(fn).toHaveBeenCalledTimes(1);
-      expect(logger.warn).toHaveBeenCalledWith(
+      expect(log.warn).toHaveBeenCalledWith(
         'testMethod: CT sync skipping retry (auth error), paymentId: payment-123 [Braintree: status: authorized]',
       );
     });
@@ -172,7 +183,7 @@ describe('error.utils', () => {
       const fn = jest.fn<() => Promise<void>>().mockRejectedValueOnce({ httpErrorStatus: 404 });
       await retryCTSync(fn, 'testMethod', 'payment-123', 'status: authorized', 3);
       expect(fn).toHaveBeenCalledTimes(1);
-      expect(logger.error).toHaveBeenCalledWith(
+      expect(log.error).toHaveBeenCalledWith(
         'testMethod: CT payment not found after Braintree operation completed (404), paymentId: payment-123 — CT state is permanently inconsistent [Braintree: status: authorized]',
       );
     });
@@ -184,7 +195,7 @@ describe('error.utils', () => {
       await jest.advanceTimersByTimeAsync(500 + 1000);
       await promise;
       expect(fn).toHaveBeenCalledTimes(2);
-      expect(logger.error).toHaveBeenCalledWith('testMethod: CT sync exhausted all 2 attempts, paymentId: payment-123');
+      expect(log.error).toHaveBeenCalledWith('testMethod: CT sync exhausted all 2 attempts, paymentId: payment-123');
     });
   });
 });

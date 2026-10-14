@@ -38,7 +38,6 @@ jest.mock("../../app/usePayment", () => {
       streetNumber: "1",
       postalCode: "10001",
     },
-    braintreeCustomerId: undefined,
   };
   return { usePayment: () => payment };
 });
@@ -103,6 +102,32 @@ describe("ACHMask — Checkout submit() always settles", () => {
     expect(mockOnError).toHaveBeenCalledWith(
       expect.objectContaining({ code: "ACH_TOKENIZE_NO_NONCE" }),
     );
+  });
+
+  // the processor vaults to the cart's customer; the browser can't choose it
+  it("sends the vault request without customer ids", async () => {
+    mockTokenize.mockImplementation((_options, cb) =>
+      cb(undefined, { nonce: "bank-nonce" }),
+    );
+    mockProcessorRequest.mockResolvedValue({
+      token: "bank-token",
+      verified: true,
+    });
+    mockHandleTransactionSale.mockResolvedValue(undefined);
+
+    await submit();
+
+    const [, , vaultRequest] = mockProcessorRequest.mock.calls.find(([, url]) =>
+      url.endsWith("/getAchVaultToken"),
+    )!;
+    expect(vaultRequest).toEqual(
+      expect.objectContaining({
+        paymentMethodNonce: "bank-nonce",
+        ctPaymentId: "payment-123",
+      }),
+    );
+    expect(vaultRequest).not.toHaveProperty("ctCustomerId");
+    expect(vaultRequest).not.toHaveProperty("braintreeCustomerId");
   });
 
   it("rejects with ACH_UNEXPECTED_ERROR when something throws inside the tokenize callback", async () => {
