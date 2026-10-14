@@ -185,7 +185,7 @@ export class BraintreeCustomerService {
    * Silent on failure by design — a miss is the expected, common case for a genuinely new customer,
    * not something worth a warning on every call.
    *
-   * Not recorded here: the caller writes `recordFields` (the findCustomer record) together with the rest of its request's
+   * Not recorded here: the caller writes `recordFields` (the find record) together with the rest of its request's
    * customer writes, in one update — separate writes on the same customer would compete with linkBraintreeCustomerId.
    *
    * Public so transactionSale (braintree-payment.service.ts) can run the same check directly before
@@ -196,10 +196,10 @@ export class BraintreeCustomerService {
   ): Promise<{ braintreeCustomerId: string | undefined; recordFields: CustomerFields }> {
     const request = { customerId: ctCustomerId };
     return findCustomer(ctCustomerId)
-      .then((c) => ({ braintreeCustomerId: c.id, recordFields: buildCallFields('findCustomer', request, c) }))
+      .then((c) => ({ braintreeCustomerId: c.id, recordFields: buildCallFields('find', request, c) }))
       .catch((err) => ({
         braintreeCustomerId: undefined,
-        recordFields: buildCallFields('findCustomer', request, braintreeFailure(err)),
+        recordFields: buildCallFields('find', request, braintreeFailure(err)),
       }));
   }
 
@@ -239,7 +239,7 @@ export class BraintreeCustomerService {
     const braintreeCustomerId: string | undefined = ctCustomer.custom?.fields?.braintreeCustomerId;
     const existingBtCustomerId = existing.braintreeCustomerId;
 
-    // Every customer write of this request (findCustomer and vault records, the link) goes in one update, so they
+    // Every customer write of this request (find and vault records, the link) goes in one update, so they
     // never compete with each other for the customer's version
     const recordFields = { ...existing.recordFields };
     let linkCustomerId: string | undefined;
@@ -288,7 +288,7 @@ export class BraintreeCustomerService {
     } finally {
       // Fire-and-forget, also after a failed vault (its record, no link then)
       if (linkCustomerId) void this.linkBraintreeCustomerId(ctCustomerId, linkCustomerId, recordFields);
-      else this.recordCustomerFields(ctCustomerId, recordFields, 'findCustomer, vault');
+      else this.recordCustomerFields(ctCustomerId, recordFields, 'find, vault');
     }
 
     if (!paymentMethod) throw new ErrorInvalidOperation('Braintree did not return a payment method after vaulting');

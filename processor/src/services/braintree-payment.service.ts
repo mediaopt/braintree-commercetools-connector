@@ -1079,7 +1079,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     } catch (e) {
       logger.error(`transactionSale: Braintree call failed, paymentId: ${ctPaymentId} — ${braintreeErrorRef(e)}`);
       if (findCustomerRecord)
-        this.braintreeCustomerService.recordCustomerFields(ctPayment.customer!.id, findCustomerRecord, 'findCustomer');
+        this.braintreeCustomerService.recordCustomerFields(ctPayment.customer!.id, findCustomerRecord, 'find');
       // Braintree's answer recorded on the payment, no transaction; fire-and-forget, the buyer is waiting
       void this.recordResponse(
         ctPayment,
@@ -1127,7 +1127,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         );
       }
     } else if (findCustomerRecord) {
-      this.braintreeCustomerService.recordCustomerFields(ctPayment.customer!.id, findCustomerRecord, 'findCustomer');
+      this.braintreeCustomerService.recordCustomerFields(ctPayment.customer!.id, findCustomerRecord, 'find');
     }
     // CT sync — Braintree already processed. Awaited so the Authorization transaction (which triggers
     // commercetools Checkout's Order creation) is written before the response; retryCTSync never throws,
@@ -1626,7 +1626,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       const btCustomer = await gateway.customer.find(braintreeCustomerId);
       this.braintreeCustomerService.recordCustomerCall(
         ctCart.customerId,
-        'findCustomer',
+        'find',
         { customerId: braintreeCustomerId },
         btCustomer,
       );
@@ -1673,7 +1673,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       logger.warn(`Could not find Braintree customer ${braintreeCustomerId}: ${braintreeErrorRef(e)}`);
       this.braintreeCustomerService.recordCustomerCall(
         ctCart.customerId,
-        'findCustomer',
+        'find',
         { customerId: braintreeCustomerId },
         braintreeFailure(e),
       );
@@ -1692,7 +1692,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           cart?.customerId &&
           this.braintreeCustomerService.recordCustomerCall(
             cart.customerId,
-            'deletePaymentMethod',
+            'deletePayment',
             { paymentMethodToken: token },
             response,
           ),

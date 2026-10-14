@@ -30,7 +30,8 @@ const PROCESSOR_PAYMENT_API_CALL_NAMES = [
 ];
 
 // Customer-level calls, recorded on the CT customer (recordCustomerCall in braintree-customer.service.ts)
-const PROCESSOR_CUSTOMER_API_CALL_NAMES = ['findCustomer', 'vault', 'deletePaymentMethod'];
+// The extension's names for the same Braintree calls, so the {name}Response fields are shared with it
+const PROCESSOR_CUSTOMER_API_CALL_NAMES = ['find', 'vault', 'deletePayment'];
 
 const LOCAL_PAYMENT_METHODS_PAYMENT_ID_FIELD: FieldDefinitionData = {
   name: 'LocalPaymentMethodsPaymentId',
