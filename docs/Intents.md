@@ -65,7 +65,7 @@ Full shape of an action, as sent to the Payment Intents API:
 The outcome values are defined by commercetools (see the link above). This connector answers as follows:
 
 - **A Braintree call failed**, including a decline, since a Braintree response with `success: false` counts as a
-  failure. The answer is rejected and logged with `logger.error` (Braintree's error codes only, not its message). The
+  failure. The answer is rejected and logged with `log.error` (Braintree's error codes only, not its message). The
   failure is recorded on the payment like a success: the request sent in `{call}ProcessorRequest` and Braintree's own
   response in `{call}Response` (`submitForSettlement`, `refund`, `void`, `findTransaction`), plus pspInteractions,
   best effort: if that commercetools write fails, the answer is
@@ -73,16 +73,16 @@ The outcome values are defined by commercetools (see the link above). This conne
   Braintree.
 - **The payment doesn't carry the Braintree payment custom type**, which this connector sets when it creates a
   payment: either another system created the payment, or its type was overwritten later. The answer is rejected and
-  logged with `logger.error`. If you are sure it's a Braintree checkout payment with a missing type, set that type
+  logged with `log.error`. If you are sure it's a Braintree checkout payment with a missing type, set that type
   with a raw commercetools call, (see `braintree-extension`). The checkout flow only sets one type for payment and
   it is the Braintree type on creation. So if this type is overwritten by some other part of your system it is your
   responsibility to prevent the override in the future. If the connector can't look up its payment type on
-  commercetools, the answer is rejected and logged with `logger.error` too; the next call tries the lookup again.
+  commercetools, the answer is rejected and logged with `log.error` too; the next call tries the lookup again.
 - **The operation is impossible in the payment's current state** (nothing suitable to act on, already fully
   refunded, a `transactionId` or `merchantReference` that doesn't belong to the payment, a capture `merchantReference`
   that isn't an Authorization of the payment, more than one capture to refund or reverse without a target, a Braintree status that
-  can't be reversed). The answer is rejected, logged with `logger.warn`.
-- **Checked on commercetools only.** Before calling Braintree, an operation is rejected (`logger.warn`) when the
+  can't be reversed). The answer is rejected, logged with `log.warn`.
+- **Checked on commercetools only.** Before calling Braintree, an operation is rejected (`log.warn`) when the
   payment itself grants it can't succeed:
   - refund and reverse: the target is the payment's only Charge and its Success and Pending Refunds already cover
     it, or, for refund, leave less than the requested amount. With more than one Charge, a Refund can't be
@@ -176,7 +176,7 @@ Authorization instead.
   overlap is the merchant's responsibility.
   - Each operation goes through when Braintree permits it, and Payment Intents answers approved when Braintree
     approves it. A cancel of the placeholder makes no Braintree call, so it's approved once the marker is written.
-  - The conflict only shows after that approval. The connector logs it with `logger.error`, together with the
+  - The conflict only shows after that approval. The connector logs it with `log.error`, together with the
     commercetools payment id and, on the sale side, the Braintree transaction id, so the merchant can find the
     payment and resolve it manually.
   - The connector can't tell which call was triggered by mistake and which one was intended, so it doesn't undo
