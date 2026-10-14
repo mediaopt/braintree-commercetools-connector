@@ -930,6 +930,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // A session without a Cart (PayPal Express before the click) passes auth, but must never charge
     const cartId = this.requireCartIdFromContext(ctPaymentId);
     this.validateTransactionSaleParams(
+      ctPaymentId,
       paymentMethodType,
       paymentMethodNonce,
       paymentToken,
@@ -1769,6 +1770,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   private validateTransactionSaleParams(
+    ctPaymentId: string,
     paymentMethodType: PaymentMethodType,
     paymentMethodNonce: string | undefined,
     paymentToken: string | undefined,
@@ -1786,7 +1788,18 @@ export class BraintreePaymentService extends AbstractPaymentService {
       if (!paymentToken) throw new ErrorRequiredField('paymentToken');
     } else {
       if (!paymentMethodNonce) throw new ErrorRequiredField('paymentMethodNonce');
-      if (localPaymentTypes.has(paymentMethodType) && !localPaymentId) throw new ErrorRequiredField('localPaymentId');
+      if (localPaymentTypes.has(paymentMethodType)) {
+        if (!localPaymentId) throw new ErrorRequiredField('localPaymentId');
+        // Shouldn't happen with proper use of the Checkout connector (without a merchant account local methods are
+        // neither listed nor available in the enabler); a synchronous fallback for self-hosting merchants mimicking it
+        if (!getConfig().merchantAccountId) {
+          logger.error(
+            `merchant integration issue: local payment method ${paymentMethodType} requires BRAINTREE_MERCHANT_ACCOUNT, payment ${ctPaymentId}`,
+          );
+          // the setting is named for the merchant only; the buyer gets the enabler's general failure message
+          throw new ErrorInvalidOperation(`transactionSale refused for payment ${ctPaymentId}`);
+        }
+      }
       if (paymentMethodType === PaymentMethodType.VENMO && !venmoUsername)
         throw new ErrorRequiredField('venmoUsername');
     }
