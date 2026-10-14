@@ -1,5 +1,6 @@
 import { Cart, LineItem } from '@commercetools/connect-payments-sdk';
-import { logger, mapCommercetoolsMoneyToBraintreeMoney } from 'common-connect';
+import { mapCommercetoolsMoneyToBraintreeMoney } from 'common-connect';
+import { log } from '../libs/logger';
 import { Static, Type } from '@sinclair/typebox';
 import { relevantDiscountAmount, relevantShippingAmount } from './money.utils';
 
@@ -153,7 +154,7 @@ export const sameLineItems = (submitted: BraintreeLineItem[] | undefined, ctCart
 export const lineItemsMatchItemTotal = (lineItems: BraintreeLineItem[], itemTotal: string, cartId: string): boolean => {
   const lineItemTotal = lineItems.reduce((sum, { totalAmount }) => sum + Number(totalAmount), 0).toFixed(2);
   if (lineItemTotal === itemTotal) return true;
-  logger.warn(
+  log.warn(
     `updateCartShipping: line items total (${lineItemTotal}) does not match itemTotal (${itemTotal}) for cart ${cartId}, the Braintree payment is updated without breakdown — please open an issue with the anonymized cart (prices, taxes, discounts, rounding settings) so the breakdown can be supported`,
   );
   return false;

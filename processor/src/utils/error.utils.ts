@@ -1,4 +1,5 @@
-import { getBraintreeResponse, logger } from 'common-connect/dist';
+import { getBraintreeResponse } from 'common-connect/dist';
+import { log } from '../libs/logger';
 import { Transaction } from 'braintree';
 
 // Backoff sleeps 500 + 1000 ms over 3 attempts — sized for buyer-facing calls (e.g. transactionSale), where the whole
@@ -52,7 +53,7 @@ export const warnOnFieldMismatch = (
 ): void => {
   for (const { fieldName, enablerValue, braintreeValue } of fields) {
     if (enablerValue && braintreeValue && enablerValue !== braintreeValue) {
-      logger.warn(`${fieldName} mismatch for payment ${ctPaymentId}`);
+      log.warn(`${fieldName} mismatch for payment ${ctPaymentId}`);
     }
   }
 };
@@ -86,19 +87,19 @@ export async function retryCTSync(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       await fn();
-      if (attempt > 1) logger.info(`${methodName}: CT sync succeeded on retry ${attempt}, paymentId: ${paymentId}`);
+      if (attempt > 1) log.info(`${methodName}: CT sync succeeded on retry ${attempt}, paymentId: ${paymentId}`);
       return true;
     } catch (err) {
-      logger.error(
+      log.error(
         `${methodName}: CT sync failed (attempt ${attempt}/${maxAttempts}), paymentId: ${paymentId} — ${errorMessage(err)}`,
       );
       const errorKind = getCtErrorKind(err);
       if (errorKind === 'auth') {
-        logger.warn(`${methodName}: CT sync skipping retry (auth error), paymentId: ${paymentId}${stateSuffix}`);
+        log.warn(`${methodName}: CT sync skipping retry (auth error), paymentId: ${paymentId}${stateSuffix}`);
         return false;
       }
       if (errorKind === 'not-found') {
-        logger.error(
+        log.error(
           `${methodName}: CT payment not found after Braintree operation completed (404), paymentId: ${paymentId} — CT state is permanently inconsistent${stateSuffix}`,
         );
         return false;
@@ -107,6 +108,6 @@ export async function retryCTSync(
         await new Promise((resolve) => setTimeout(resolve, CT_SYNC_BACKOFF_BASE_MS * 2 ** (attempt - 1)));
     }
   }
-  logger.error(`${methodName}: CT sync exhausted all ${maxAttempts} attempts, paymentId: ${paymentId}${stateSuffix}`);
+  log.error(`${methodName}: CT sync exhausted all ${maxAttempts} attempts, paymentId: ${paymentId}${stateSuffix}`);
   return false;
 }
