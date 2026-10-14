@@ -1700,7 +1700,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     let ctCart: Cart | undefined;
     try {
       [, ctCart] = await Promise.all([braintreeDeletePayment(token), cartRead]);
-      record({ success: true });
+      // the extension's deletePaymentResponse on success
+      record('success');
       logger.info(`deleteStoredPaymentMethod: success, cartId: ${cartId}`);
     } catch (err) {
       record(braintreeFailure(err));

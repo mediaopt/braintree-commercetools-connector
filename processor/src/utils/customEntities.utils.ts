@@ -16,7 +16,8 @@ const BRAINTREE_PAYMENT_TYPE: RestrictedFields['type'] = {
 // and {messageName}Response — never the extension's {messageName}Request, which would re-trigger the extension
 type PaymentFields = Record<string, string>;
 
-const stringifyField = (message: unknown): string => (message ? JSON.stringify(message) : '');
+// A string answer is stored as is, as the extension and the pspInteractions do (stringifyData)
+const stringifyField = (message: unknown): string => (message ? stringifyData(message as string | object) : '');
 
 // The fields recording one Braintree call: exactly what was sent and what Braintree answered
 export const buildCallFields = (messageName: string, request: unknown, response: unknown): PaymentFields => {
