@@ -24,7 +24,7 @@ import { log } from '../libs/logger';
 
 import { getConfig } from '../config/config';
 import { braintreeErrorRef, errorMessage } from '../utils/error.utils';
-import { braintreeFailure, buildCallFields, getTypeId } from '../utils/customEntities.utils';
+import { braintreeFailure, buildCallFields, CustomFields, getTypeId } from '../utils/customEntities.utils';
 
 import { DefaultCommercetoolsAPI } from '@commercetools/connect-payments-sdk/dist/commercetools/api/root-api';
 
@@ -39,9 +39,6 @@ const buildAchVaultOptions = () => ({
     getConfig().perMethodConfig?.ach?.usBankAccountVerificationMethod ??
     VAULT_BRAINTREE_OPTIONS.usBankAccountVerificationMethod,
 });
-
-// Custom fields written on a CT customer, by name
-type CustomerFields = Record<string, string>;
 
 const CUSTOMER_WRITE_ATTEMPTS = 3;
 const CUSTOMER_WRITE_RETRY_DELAY_MS = 1000; //timing selected based on permitted time for resolve for payment connector operations
@@ -94,7 +91,7 @@ export class BraintreeCustomerService {
     ctCustomerId: string,
     braintreeCustomerId: string,
     // records of the same request's Braintree calls, written in the same update so they never compete with the link
-    recordFields: CustomerFields = {},
+    recordFields: CustomFields = {},
   ): Promise<void> {
     const written = await this.setBraintreeCustomerFields(
       ctCustomerId,
@@ -118,7 +115,7 @@ export class BraintreeCustomerService {
   }
 
   // Writes the record fields of one or more calls in one update; fire-and-forget like recordCustomerCall
-  public recordCustomerFields(ctCustomerId: string, fields: CustomerFields, messageNames: string): void {
+  public recordCustomerFields(ctCustomerId: string, fields: CustomFields, messageNames: string): void {
     void this.setBraintreeCustomerFields(ctCustomerId, fields, `recordCustomerCall:${messageNames}`)
       .then((written) => {
         if (!written) log.warn(`recordCustomerCall: ${messageNames} not recorded on customer ${ctCustomerId}`);
@@ -139,7 +136,7 @@ export class BraintreeCustomerService {
    */
   private async setBraintreeCustomerFields(
     ctCustomerId: string,
-    fields: CustomerFields,
+    fields: CustomFields,
     methodName: string,
   ): Promise<boolean> {
     const { customerTypeKey } = getConfig();
@@ -193,7 +190,7 @@ export class BraintreeCustomerService {
    */
   public async findExistingBraintreeCustomerId(
     ctCustomerId: string,
-  ): Promise<{ braintreeCustomerId: string | undefined; recordFields: CustomerFields }> {
+  ): Promise<{ braintreeCustomerId: string | undefined; recordFields: CustomFields }> {
     const request = { customerId: ctCustomerId };
     return findCustomer(ctCustomerId)
       .then((c) => ({ braintreeCustomerId: c.id, recordFields: buildCallFields('find', request, c) }))
@@ -221,7 +218,7 @@ export class BraintreeCustomerService {
   }: {
     paymentMethodNonce: string;
     ctCustomerId: string | undefined;
-  }): Promise<{ token: string; verified: boolean }> {
+  }): Promise<{ token: string; verified: boolean; ctCustomerId: string }> {
     if (!ctCustomerId) {
       throw new ErrorInvalidOperation('a customer on the cart is required to vault a payment method');
     }
@@ -241,8 +238,7 @@ export class BraintreeCustomerService {
 
     // Every customer write of this request (find and vault records, the link) goes in one update, so they
     // never compete with each other for the customer's version
-    const recordFields = { ...existing.recordFields };
-    let linkCustomerId: string | undefined;
+    const { recordFields } = existing;
     let paymentMethod: PaymentMethod | undefined;
     let resolvedCustomerId = braintreeCustomerId;
 
@@ -267,9 +263,6 @@ export class BraintreeCustomerService {
           paymentMethod = btCustomer.paymentMethods?.[0] as PaymentMethod;
           resolvedCustomerId = btCustomer.id;
         }
-        // Link the Braintree customer ID back to CT so stored payment methods work in future sessions —
-        // covers both the re-link (found existing) and brand-new-customer cases above.
-        linkCustomerId = resolvedCustomerId;
       } else if (existingBtCustomerId && existingBtCustomerId !== resolvedCustomerId) {
         // braintreeCustomerId already known but doesn't match a Braintree customer with the CT customer's
         // id — informational only, doesn't change which customer we vault onto.
@@ -287,7 +280,10 @@ export class BraintreeCustomerService {
       )) as PaymentMethod;
     } finally {
       // Fire-and-forget, also after a failed vault (its record, no link then)
-      if (linkCustomerId) void this.linkBraintreeCustomerId(ctCustomerId, linkCustomerId, recordFields);
+      // Link the Braintree customer ID back to CT so stored payment methods work in future sessions — covers both the
+      // re-link (found existing) and brand-new-customer cases above
+      if (!braintreeCustomerId && resolvedCustomerId)
+        void this.linkBraintreeCustomerId(ctCustomerId, resolvedCustomerId, recordFields);
       else this.recordCustomerFields(ctCustomerId, recordFields, 'find, vault');
     }
 
@@ -295,7 +291,7 @@ export class BraintreeCustomerService {
 
     // `verified` is a runtime field on UsBankAccount; @types/braintree does not declare it on PaymentMethod.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return { token: paymentMethod.token, verified: (paymentMethod as any).verified === true };
+    return { token: paymentMethod.token, verified: (paymentMethod as any).verified === true, ctCustomerId };
   }
 
   /**
@@ -306,7 +302,7 @@ export class BraintreeCustomerService {
   private async recordVault<Request, Response>(
     request: Request,
     call: (request: Request) => Promise<Response>,
-    recordFields: CustomerFields,
+    recordFields: CustomFields,
   ): Promise<Response> {
     try {
       const response = await call(request);

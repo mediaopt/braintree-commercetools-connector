@@ -84,6 +84,7 @@ import {
   isBraintreePayment,
   notBraintreePaymentMessage,
   notBraintreePayment,
+  CustomFields,
 } from '../utils/customEntities.utils';
 
 import {
@@ -94,7 +95,7 @@ import {
   mapCTLineItemToBraintreeLineItem,
   sameLineItems,
 } from '../utils/lineItem.utils';
-import { relevantDiscountAmount, relevantShippingAmount, toNum } from '../utils/money.utils';
+import { amountLeftForPayment, relevantDiscountAmount, relevantShippingAmount, toNum } from '../utils/money.utils';
 import {
   braintreeErrorRef,
   errorMessage,
@@ -776,11 +777,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
   ): Payment | undefined {
     if (!existingPayment) return undefined;
 
-    const isAmountMismatch =
-      existingPayment.amountPlanned.centAmount !== amountPlanned.centAmount ||
-      existingPayment.amountPlanned.currencyCode !== amountPlanned.currencyCode;
-
-    return isAmountMismatch || existingPayment.transactions.length > 0 ? undefined : existingPayment;
+    return sameAmount(existingPayment.amountPlanned, amountPlanned) && existingPayment.transactions.length === 0
+      ? existingPayment
+      : undefined;
   }
 
   private buildCreatePaymentResponse(
@@ -940,18 +939,23 @@ export class BraintreePaymentService extends AbstractPaymentService {
       );
     const isExpress = braintreePaymentDetails?.express === true;
     const expressShippingChanged = braintreePaymentDetails?.expressShippingChanged;
+    const needsCart = expressShippingChanged || !isExpress;
     // The cart is read after an Express shipping change (amount and line items come from it) and for every non-Express
     // sale (compared with the payment, see CART_CHANGED_HINT)
     const [cartRead, ctPayment, braintreePaymentTypeId] = await Promise.all([
-      expressShippingChanged || !isExpress
-        ? this.ctCartService.getCart({ id: cartId }).then((cart) => {
-            if (!cart) return undefined;
-            // Started here, awaited only where needed: getPaymentAmount counts a payment carrying the ACH placeholder (a
-            // Pending Authorization) as paid itself, and may throw then
-            const amountPlanned = this.expressCartAmount(cart);
-            amountPlanned.catch(() => undefined);
-            return { cart, amountPlanned };
-          })
+      needsCart
+        ? this.ctCartService.getCart({ id: cartId }).then(async (cart) =>
+            cart
+              ? {
+                  cart,
+                  amountPlanned: expressShippingChanged
+                    ? await this.expressCartAmount(cart)
+                    : // not the SDK's getPaymentAmount: it doesn't handle async payments properly, a payment carrying the
+                      // ACH micro-deposit placeholder counts itself as paid
+                      await amountLeftForPayment(cart, ctPaymentId, (id) => this.ctPaymentService.getPayment({ id })),
+                }
+              : undefined,
+          )
         : Promise.resolve(undefined),
       this.ctPaymentService.getPayment({ id: ctPaymentId }),
       getBraintreePaymentTypeId(),
@@ -969,18 +973,15 @@ export class BraintreePaymentService extends AbstractPaymentService {
         `transactionSale refused — payment ${ctPaymentId} was cancelled before verification`,
       );
     }
-    if (!cartRead && (expressShippingChanged || !isExpress))
+    if (!cartRead && needsCart)
       throw new ErrorInvalidOperation(`could not find updated cart for transactionsSale payment ${ctPaymentId}`);
     // Express isn't checked: PayPal has own side rules for it (the range can be seen in the PayPal window)
     if (!isExpress && cartRead) {
-      // A payment carrying the ACH placeholder counts as paid in the cart's amount, so only its line items are compared;
-      // a successful sale overwrites the placeholder (existingTransactionActions), so it can't be captured again
-      const cartChange =
-        !hasPlaceholder(ctPayment) && !sameAmount(await cartRead.amountPlanned, ctPayment.amountPlanned)
-          ? 'amount'
-          : !sameLineItems(braintreePaymentDetails?.braintreeLineItems, cartRead.cart)
-            ? 'line items'
-            : undefined;
+      const cartChange = !sameAmount(cartRead.amountPlanned, ctPayment.amountPlanned)
+        ? 'amount'
+        : !sameLineItems(braintreePaymentDetails?.braintreeLineItems, cartRead.cart)
+          ? 'line items'
+          : undefined;
       if (cartChange) {
         log.error(
           `merchant integration issue: cart ${cartChange} changed after payment creation on payment ${ctPaymentId} — ${CART_CHANGED_HINT}`,
@@ -992,15 +993,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const updatedExpress = expressShippingChanged ? cartRead : undefined;
     const updatedCart = updatedExpress?.cart;
     const relevantPaymentInfo = updatedExpress
-      ? { ...ctPayment, amountPlanned: await updatedExpress.amountPlanned }
+      ? { ...ctPayment, amountPlanned: updatedExpress.amountPlanned }
       : ctPayment;
     const isPayPal = paymentMethodType === 'PayPal'; // PAYPAL_STORED_DISABLED: || paymentMethodType === 'PayPalStored'
     // After an Express shipping change, amount, line items and shipping come from the refetched cart, not the enabler's
     // createPayment copies, computed as in updateCartShipping (expressCartAmount), so they match what it sent to Braintree.
     const lineItems = (
-      updatedCart
-        ? updatedCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, updatedCart.locale))
-        : (braintreePaymentDetails?.braintreeLineItems ?? [])
+      updatedCart ? buildCartLineItems(updatedCart, true) : (braintreePaymentDetails?.braintreeLineItems ?? [])
     )
       // Braintree has 35-char limit for line item names — see https://developers.braintreepayments.com/reference/request/transaction/sale/node#line_items-name
       .map((item) => ({ ...item, name: item.name.substring(0, 35) }))
@@ -1034,11 +1033,15 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // when that customer already exists.
     let existingBtCustomerId: string | undefined;
     // the lookup's record, written after the sale together with the link (separate writes would compete with it)
-    let findCustomerRecord: Record<string, string> | undefined;
+    let findCustomerRecord: CustomFields | undefined;
     if (storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId) {
       ({ braintreeCustomerId: existingBtCustomerId, recordFields: findCustomerRecord } =
         await this.braintreeCustomerService.findExistingBraintreeCustomerId(ctPayment.customer.id));
     }
+    // the lookup's record alone, when no link carries it
+    const recordFindCustomer = () =>
+      findCustomerRecord &&
+      this.braintreeCustomerService.recordCustomerFields(ctPayment.customer!.id, findCustomerRecord, 'find');
     const optionalRequestData: Partial<TransactionRequest> = {
       ...(storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId
         ? existingBtCustomerId
@@ -1075,8 +1078,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       response = await transactionSale(transactionRequest);
     } catch (e) {
       log.error(`transactionSale: Braintree call failed, paymentId: ${ctPaymentId} — ${braintreeErrorRef(e)}`);
-      if (findCustomerRecord)
-        this.braintreeCustomerService.recordCustomerFields(ctPayment.customer!.id, findCustomerRecord, 'find');
+      recordFindCustomer();
       // Braintree's answer recorded on the payment, no transaction; fire-and-forget, the buyer is waiting
       void this.recordResponse(
         ctPayment,
@@ -1123,9 +1125,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           `transactionSale: could not save commercetools PaymentMethod record for payment ${ctPaymentId}`,
         );
       }
-    } else if (findCustomerRecord) {
-      this.braintreeCustomerService.recordCustomerFields(ctPayment.customer!.id, findCustomerRecord, 'find');
-    }
+    } else recordFindCustomer();
     // CT sync — Braintree already processed. Awaited so the Authorization transaction (which triggers
     // commercetools Checkout's Order creation) is written before the response; retryCTSync never throws,
     // so a CT failure still returns the Braintree result. Local payments have a notifications fallback
@@ -1549,13 +1549,11 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // Payment and type are read in parallel with both, so a payment without the Braintree type can't be refused
     // before Braintree. A failed read must not fail the vault: the type then isn't checked, and syncPayment fetches.
     const [{ token, verified, ctCustomerId }, braintreePaymentTypeId, ctPayment] = await Promise.all([
-      this.ctCartService.getCart({ id: cartId }).then(async ({ customerId }) => ({
-        ...(await this.braintreeCustomerService.vaultPaymentMethodForCustomer({
-          paymentMethodNonce,
-          ctCustomerId: customerId,
-        })),
-        ctCustomerId: customerId,
-      })),
+      this.ctCartService
+        .getCart({ id: cartId })
+        .then(({ customerId }) =>
+          this.braintreeCustomerService.vaultPaymentMethodForCustomer({ paymentMethodNonce, ctCustomerId: customerId }),
+        ),
       getBraintreePaymentTypeId().catch(() => undefined),
       this.ctPaymentService.getPayment({ id: ctPaymentId }).catch(() => undefined),
     ]);
@@ -1567,7 +1565,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     this.fireAndForgetCtPaymentMethodSync(
       () =>
         this.ctPaymentMethodService.save({
-          customerId: ctCustomerId!, // the vault requires the cart's customer
+          customerId: ctCustomerId,
           method: PaymentMethodType.ACH,
           paymentInterface: getStoredPaymentMethodsConfig().config.paymentInterface,
           token,
