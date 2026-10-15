@@ -110,13 +110,24 @@ export class BraintreeCustomerService {
    * as the payment-level calls are recorded on the payment). Fire-and-forget, best effort: a log, never required for
    * the operation itself.
    */
-  public recordCustomerCall(ctCustomerId: string, messageName: string, request: unknown, response: unknown): void {
-    this.recordCustomerFields(ctCustomerId, buildCallFields(messageName, request, response), messageName);
+  public recordCustomerCall(
+    ctCustomerId: string,
+    messageName: string,
+    request: unknown,
+    response: unknown,
+    readCustomer?: Customer,
+  ): void {
+    this.recordCustomerFields(ctCustomerId, buildCallFields(messageName, request, response), messageName, readCustomer);
   }
 
   // Writes the record fields of one or more calls in one update; fire-and-forget like recordCustomerCall
-  public recordCustomerFields(ctCustomerId: string, fields: CustomFields, messageNames: string): void {
-    void this.setBraintreeCustomerFields(ctCustomerId, fields, `recordCustomerCall:${messageNames}`)
+  public recordCustomerFields(
+    ctCustomerId: string,
+    fields: CustomFields,
+    messageNames: string,
+    readCustomer?: Customer,
+  ): void {
+    void this.setBraintreeCustomerFields(ctCustomerId, fields, `recordCustomerCall:${messageNames}`, readCustomer)
       .then((written) => {
         if (!written) log.warn(`recordCustomerCall: ${messageNames} not recorded on customer ${ctCustomerId}`);
       })
@@ -139,11 +150,13 @@ export class BraintreeCustomerService {
     ctCustomerId: string,
     fields: CustomFields,
     methodName: string,
+    // the caller's own fresh read of the customer, used instead of reading it again (a retry always re-reads)
+    readCustomer?: Customer,
   ): Promise<boolean> {
     const { customerTypeKey } = getConfig();
     for (let attempt = 1; attempt <= CUSTOMER_WRITE_ATTEMPTS; attempt++) {
       const [ctCustomer, customerTypeId] = await Promise.all([
-        this.getCtCustomer(ctCustomerId),
+        attempt === 1 && readCustomer ? readCustomer : this.getCtCustomer(ctCustomerId),
         getTypeId(customerTypeKey).catch((err) => {
           log.warn(`${methodName}: could not resolve the customer type ${customerTypeKey} — ${errorMessage(err)}`);
           return undefined;

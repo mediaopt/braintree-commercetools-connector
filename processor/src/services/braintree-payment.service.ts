@@ -1622,6 +1622,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         'find',
         { customerId: braintreeCustomerId },
         btCustomer,
+        ctCustomer || undefined,
       );
       // commercetools Checkout's own UI only supports displaying/reusing stored credit cards —
       // PayPal and ACH bank accounts remain vaulted in Braintree but are not surfaced as stored
@@ -1669,6 +1670,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         'find',
         { customerId: braintreeCustomerId },
         braintreeFailure(e),
+        ctCustomer || undefined,
       );
       return { storedPaymentMethods: [] };
     }
