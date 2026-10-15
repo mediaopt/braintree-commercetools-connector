@@ -62,6 +62,8 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
       processorUrls(baseOptions.processorUrl).createPaymentUrl,
       {},
     );
+    // Rejects the builder request, as the commercetools connect-payment-integration-template's builders do on a failed
+    // setup request
     if (!initialPayment) throw new Error("Could not create payment");
     return { baseOptions: { ...baseOptions, initialPayment } };
   };
@@ -159,14 +161,17 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
     type: string,
   ): Promise<StoredComponentBuilder | never> {
     const normalizedType = toBraintreePaymentMethodType(type);
-    const { baseOptions } = await this.getStandardSetup();
-    if (normalizedType === "CreditCard")
+    // Type checked first: an unsupported type throws below without creating a payment
+    if (normalizedType === "CreditCard") {
+      const { baseOptions } = await this.getStandardSetup();
       return new BraintreeStoredBuilder("CreditCardStored", baseOptions);
+    }
     /* PAYPAL_STORED_DISABLED / ACH_STORED_DISABLED start — reusing a saved PayPal account or ACH
     bank account is out of scope for this commercetools Checkout SDK build (it only supports
     storing/reusing credit cards at the moment); charging a stored ACH account would also fail
     today since "ACHStored" isn't in the processor's StoredPaymentMethodType enum. Please open an
     issue if you are interested in reusing a saved PayPal account or ACH bank account.
+    To re-enable: get baseOptions from `await this.getStandardSetup()` in each branch, as the CreditCard one does.
 
     if (type === "PayPal")
       return new BraintreeStoredBuilder("PayPalStored", baseOptions);

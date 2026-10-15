@@ -35,7 +35,7 @@ describe('customEntities.utils', () => {
 
   describe('buildCallFields', () => {
     test.each([
-      { description: 'stringifies a string message', message: 'test message', expected: '"test message"' },
+      { description: 'stores a string message as is', message: 'test message', expected: 'test message' },
       { description: 'stringifies an object message', message: { id: 'tx-123' }, expected: '{"id":"tx-123"}' },
       { description: 'returns an empty string without message', message: undefined, expected: '' },
     ])('$description', ({ message, expected }) => {

@@ -5,7 +5,7 @@ import { ErrorInvalidOperation } from '@commercetools/connect-payments-sdk';
 import { mockGetPaymentResult } from '../utils/mock-payment-results';
 import { CentPrecisionMoney } from '@commercetools/platform-sdk';
 import { PaymentModificationStatus } from '../../src/dtos/operations/payment-intents.dto';
-import { logger } from 'common-connect/dist';
+import { log } from '../../src/libs/logger';
 import { mockCustomTypeLookup } from '../utils/mock-custom-type-lookup';
 import { nonBraintreeCustomCases } from '../utils/mock-custom-types';
 import { notBraintreePayment } from '../../src/utils/customEntities.utils';
@@ -90,7 +90,7 @@ describe('abstract-payment.service (modifyPayment)', () => {
           .spyOn(paymentSDK.ctPaymentService, 'getPayment')
           .mockResolvedValue({ ...mockGetPaymentResult, custom } as never);
         const settlementSpy = jest.spyOn(paymentService, 'settlement');
-        const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => logger);
+        const errorSpy = jest.spyOn(log, 'error').mockImplementation(() => log);
 
         const result = await paymentService.modifyPayment({
           paymentId: mockGetPaymentResult.id,
@@ -107,7 +107,7 @@ describe('abstract-payment.service (modifyPayment)', () => {
     test('type lookup fails: rejected and logged as error, no operation runs', async () => {
       jest.spyOn(CustomEntities, 'getBraintreePaymentTypeId').mockRejectedValue(new Error('unavailable'));
       const settlementSpy = jest.spyOn(paymentService, 'settlement');
-      const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => logger);
+      const errorSpy = jest.spyOn(log, 'error').mockImplementation(() => log);
 
       const result = await paymentService.modifyPayment({
         paymentId: mockGetPaymentResult.id,

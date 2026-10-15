@@ -14,12 +14,13 @@ const BRAINTREE_PAYMENT_TYPE: RestrictedFields['type'] = {
 
 // Custom fields written on a payment or customer, by name. A Braintree call is recorded as {messageName}ProcessorRequest
 // and {messageName}Response — never the extension's {messageName}Request, which would re-trigger the extension
-type PaymentFields = Record<string, string>;
+export type CustomFields = Record<string, string>;
 
-const stringifyField = (message: unknown): string => (message ? JSON.stringify(message) : '');
+// A string answer is stored as is, as the extension and the pspInteractions do (stringifyData)
+const stringifyField = (message: unknown): string => (message ? stringifyData(message as string | object) : '');
 
 // The fields recording one Braintree call: exactly what was sent and what Braintree answered
-export const buildCallFields = (messageName: string, request: unknown, response: unknown): PaymentFields => {
+export const buildCallFields = (messageName: string, request: unknown, response: unknown): CustomFields => {
   const [{ name: requestField }, { name: responseField }] = apiCallNameToFieldData(messageName, true);
   return { [requestField]: stringifyField(request), [responseField]: stringifyField(response) };
 };
@@ -41,12 +42,12 @@ export const braintreeFailure = (err: unknown): object => {
  * updatePayment({ customFields }) is never used: it sends setCustomType, which overwrites the
  * type and every field.
  */
-const buildSetCustomFieldActions = (fields: PaymentFields): PaymentUpdateAction[] =>
+const buildSetCustomFieldActions = (fields: CustomFields): PaymentUpdateAction[] =>
   Object.entries(fields).map(([name, value]) => ({ action: 'setCustomField', name, value }));
 
 // createPayment only: a new payment is created with the Braintree type, so it is never set later by setCustomType,
 // which would overwrite the type and every field
-export const braintreePaymentCustom = (fields: PaymentFields): RestrictedFields => ({
+export const braintreePaymentCustom = (fields: CustomFields): RestrictedFields => ({
   type: BRAINTREE_PAYMENT_TYPE,
   fields,
 });
@@ -82,7 +83,7 @@ export const notBraintreePaymentMessage = (paymentId: string) =>
 
 //see also handleTransactionResponse from extensions module
 export const handleCustomTransactionFields = (
-  fields: PaymentFields,
+  fields: CustomFields,
   response: Transaction & { localPayment?: { paymentId: string } },
   payment: Payment,
 ) => {
@@ -116,7 +117,7 @@ export const buildResponseActions = (
   messageName: string,
   request: string | object,
   response: string | object,
-  extraFields: PaymentFields = {},
+  extraFields: CustomFields = {},
 ): PaymentUpdateAction[] => [
   ...buildSetCustomFieldActions({ ...buildCallFields(messageName, request, response), ...extraFields }),
   ...buildPspInteractions(messageName, request, response).map(

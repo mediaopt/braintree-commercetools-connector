@@ -29,12 +29,12 @@ const INTERACTION_TYPE_FULL_FIELD_NAMES = ['type', 'data', 'timestamp'];
 
 const CUSTOMER_TYPE_FULL_FIELD_NAMES = [
   'braintreeCustomerId',
-  'findCustomerProcessorRequest',
-  'findCustomerResponse',
+  'findProcessorRequest',
+  'findResponse',
   'vaultProcessorRequest',
   'vaultResponse',
-  'deletePaymentMethodProcessorRequest',
-  'deletePaymentMethodResponse',
+  'deletePaymentProcessorRequest',
+  'deletePaymentResponse',
 ];
 
 // post-deploy.ts delegates the actual create-if-missing/add-missing-fields orchestration to

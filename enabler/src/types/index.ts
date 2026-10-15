@@ -19,7 +19,6 @@ import { ExpressAddressData } from "../payment-enabler/interfaces/express";
 export type ClientTokenRequest = {
   paymentId: string;
   paymentVersion: number;
-  braintreeCustomerId?: string;
   merchantAccountId?: string;
 };
 
@@ -105,7 +104,6 @@ export type ClientTokenResponse = {
 
 type BraintreePaymentData = {
   clientToken: string;
-  braintreeCustomerId: string;
 };
 
 type RequiredPaymentData = {

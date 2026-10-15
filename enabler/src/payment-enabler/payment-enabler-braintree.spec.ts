@@ -36,7 +36,7 @@ describe("BraintreePaymentEnabler", () => {
 
   describe("one payment shared by every standard/stored component", () => {
     const sharedPayment = {
-      braintreeData: { clientToken: "token", braintreeCustomerId: "" },
+      braintreeData: { clientToken: "token" },
       payment: {
         ctPaymentId: "payment-1",
         braintreeAmount: 10,
@@ -71,6 +71,16 @@ describe("BraintreePaymentEnabler", () => {
 
       expect(createPaymentCalls()).toHaveLength(1);
       expect(JSON.parse(createPaymentCalls()[0][1].body)).toEqual({});
+    });
+
+    it("is not created for an unsupported stored payment method type", async () => {
+      const enabler = buildEnabler();
+
+      await expect(
+        enabler.createStoredPaymentMethodBuilder("paypal"),
+      ).rejects.toThrow("Unsupported stored payment method type: paypal");
+
+      expect(createPaymentCalls()).toHaveLength(0);
     });
 
     it("is not created for Express", async () => {

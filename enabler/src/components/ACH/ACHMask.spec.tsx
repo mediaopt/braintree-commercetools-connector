@@ -42,7 +42,6 @@ jest.mock("../../app/usePayment", () => {
       streetNumber: "1",
       postalCode: "10001",
     },
-    braintreeCustomerId: undefined,
   };
   return { usePayment: () => payment };
 });
@@ -118,7 +117,10 @@ describe("ACHMask — Checkout submit() always settles", () => {
 
   it("rejects with ACH_TOKENIZE_FAILED without the Braintree message, and the next vault request carries it", async () => {
     mockTokenize.mockImplementationOnce((_options, cb) =>
-      cb({ code: "US_BANK_ACCOUNT_TOKENIZE_FAILED", message: "bank 1000000000" }),
+      cb({
+        code: "US_BANK_ACCOUNT_TOKENIZE_FAILED",
+        message: "bank 1000000000",
+      }),
     );
 
     await expect(submit()).rejects.toMatchObject({
@@ -155,7 +157,9 @@ describe("ACHMask — Checkout submit() always settles", () => {
       );
     mockProcessorRequest.mockResolvedValue(undefined);
 
-    await expect(submit()).rejects.toMatchObject({ code: "ACH_TOKENIZE_FAILED" });
+    await expect(submit()).rejects.toMatchObject({
+      code: "ACH_TOKENIZE_FAILED",
+    });
     await expect(submit()).rejects.toMatchObject({
       code: "ACH_TOKENIZE_NO_NONCE",
     });
@@ -217,6 +221,31 @@ describe("ACHMask — Checkout submit() always settles", () => {
     });
   });
 
+  // the processor vaults to the cart's customer; the browser can't choose it
+  it("sends the vault request without customer ids", async () => {
+    mockTokenize.mockImplementation((_options, cb) =>
+      cb(undefined, { nonce: "bank-nonce" }),
+    );
+    mockProcessorRequest.mockResolvedValue({
+      token: "bank-token",
+      verified: true,
+    });
+    mockHandleTransactionSale.mockResolvedValue(undefined);
+
+    await submit();
+
+    const [, , vaultRequest] = mockProcessorRequest.mock.calls.find(([, url]) =>
+      url.endsWith("/getAchVaultToken"),
+    )!;
+    expect(vaultRequest).toEqual(
+      expect.objectContaining({
+        paymentMethodNonce: "bank-nonce",
+        ctPaymentId: "payment-123",
+      }),
+    );
+    expect(vaultRequest).not.toHaveProperty("ctCustomerId");
+  });
+
   it("rejects with ACH_UNEXPECTED_ERROR when something throws inside the tokenize callback", async () => {
     mockTokenize.mockImplementation((_options, cb) =>
       cb(undefined, { nonce: "bank-nonce" }),
@@ -241,7 +270,10 @@ describe("ACHMask — Checkout submit() always settles", () => {
 describe("ACHMask — before tokenize", () => {
   const mockOnError = jest.fn();
   let submit: () => Promise<void>;
-  let validation: { isValid: () => Promise<boolean>; showValidation: () => Promise<void> };
+  let validation: {
+    isValid: () => Promise<boolean>;
+    showValidation: () => Promise<void>;
+  };
 
   const renderMask = () =>
     render(
@@ -272,7 +304,9 @@ describe("ACHMask — before tokenize", () => {
   it("rejects with ACH_FORM_INCOMPLETE while required fields are empty", async () => {
     renderMask();
 
-    await expect(submit()).rejects.toMatchObject({ code: "ACH_FORM_INCOMPLETE" });
+    await expect(submit()).rejects.toMatchObject({
+      code: "ACH_FORM_INCOMPLETE",
+    });
 
     expect(mockNotify).toHaveBeenCalledWith("Error", FORM_INCOMPLETE_TEXT);
     expect(mockOnError).toHaveBeenCalledWith(
@@ -288,7 +322,9 @@ describe("ACHMask — before tokenize", () => {
     expect(getByText(SIGN_IN_TEXT)).toBeTruthy();
     expect(container.querySelector("#routing-number")).toBeNull();
     await expect(validation.isValid()).resolves.toBe(false);
-    await expect(submit()).rejects.toMatchObject({ code: "ACH_SIGN_IN_REQUIRED" });
+    await expect(submit()).rejects.toMatchObject({
+      code: "ACH_SIGN_IN_REQUIRED",
+    });
     expect(mockOnError).toHaveBeenCalledWith(
       expect.objectContaining({ code: "ACH_SIGN_IN_REQUIRED" }),
     );

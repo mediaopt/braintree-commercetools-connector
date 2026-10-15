@@ -1,6 +1,8 @@
-import { LineItem } from '@commercetools/connect-payments-sdk';
+import { Cart, LineItem } from '@commercetools/connect-payments-sdk';
 import { mapCommercetoolsMoneyToBraintreeMoney } from 'common-connect';
+import { log } from '../libs/logger';
 import { Static, Type } from '@sinclair/typebox';
+import { relevantDiscountAmount, relevantShippingAmount } from './money.utils';
 
 export enum LineItemKind {
   Debit = 'debit',
@@ -86,4 +88,103 @@ export const mapCTLineItemToBraintreeLineItem = (ctLineItem: LineItem, cartLocal
     productCode: ctLineItem.productId.substring(0, 12),
     commodityCode: '',
   };
+};
+
+// Single source for the DISCOUNT credit item — transactionSale filters on and rebuilds this exact shape for PayPal.
+export const DISCOUNT_PRODUCT_CODE = 'DISCOUNT';
+const SHIPPING_PRODUCT_CODE = 'SHIPPING';
+export const buildDiscountLineItem = (amount: string): BraintreeLineItem => ({
+  name: 'Discount',
+  kind: 'credit' as LineItemKind,
+  unitAmount: amount,
+  totalAmount: amount,
+  productCode: DISCOUNT_PRODUCT_CODE,
+  ...lineItemPlaceholders,
+});
+
+// The line items createPayment sends to the enabler, which sends them back to transactionSale (see sameLineItems):
+// the cart's line items, its discount and, except for Express, its shipping
+export const buildCartLineItems = (ctCart: Cart, isExpress: boolean): BraintreeLineItem[] => {
+  const lineItems = ctCart.lineItems.map((lineItem) => mapCTLineItemToBraintreeLineItem(lineItem, ctCart.locale));
+  if (ctCart.discountOnTotalPrice?.discountedAmount) {
+    lineItems.push(
+      buildDiscountLineItem(mapCommercetoolsMoneyToBraintreeMoney(relevantDiscountAmount(ctCart.discountOnTotalPrice))),
+    );
+  }
+  if (!isExpress && ctCart.shippingInfo) {
+    const amount = mapCommercetoolsMoneyToBraintreeMoney(relevantShippingAmount(ctCart.shippingInfo));
+    lineItems.push({
+      name: ctCart.shippingInfo.shippingMethodName || 'Shipping',
+      kind: 'debit' as LineItemKind,
+      unitAmount: amount,
+      totalAmount: amount,
+      productCode: SHIPPING_PRODUCT_CODE,
+      ...lineItemPlaceholders,
+    });
+  }
+  return lineItems;
+};
+
+// createPayment sends shipping as a line item for standard methods and in PayPal's breakdown for Express; the exact
+// amount check covers it either way, so it is left out of the line item comparison
+const withoutShipping = (lineItems: BraintreeLineItem[]): BraintreeLineItem[] =>
+  lineItems.filter(({ productCode }) => productCode !== SHIPPING_PRODUCT_CODE);
+
+const sortedKeys = (lineItems: BraintreeLineItem[], toKey: (lineItem: BraintreeLineItem) => unknown): string =>
+  JSON.stringify(withoutShipping(lineItems).map(toKey).sort());
+
+// What the buyer agreed to per line item, in any order: the product and its total price. The name may change (e.g. a
+// renamed product) without changing what is bought.
+const lineItemKeys = (lineItems: BraintreeLineItem[]): string =>
+  sortedKeys(lineItems, ({ productCode, totalAmount }) => [productCode, totalAmount]);
+
+// After an Express shipping change prices may change (taxes, discounts), so only the products; the discount item comes
+// and goes with them. The amount check keeps the total exact. Braintree line items carry no real quantity (always 1,
+// the commercetools quantity is only in the name), so a quantity change is caught by the total only.
+const productKeys = (lineItems: BraintreeLineItem[]): string =>
+  sortedKeys(
+    lineItems.filter(({ productCode }) => productCode !== DISCOUNT_PRODUCT_CODE),
+    ({ productCode }) => productCode,
+  );
+
+/**
+ * Whether the line items transactionSale submitted (the enabler's createPayment copy) are still the cart's: product and
+ * price, or after an Express shipping change only the product. None submitted: nothing to compare — the amount check
+ * still keeps the charge exact, and Braintree gets no line items.
+ */
+export const sameLineItems = (
+  submitted: BraintreeLineItem[] | undefined,
+  ctCart: Cart,
+  expressShippingChanged: boolean,
+): boolean => {
+  if (!submitted) return true;
+  const keys = expressShippingChanged ? productKeys : lineItemKeys;
+  return keys(submitted) === keys(buildCartLineItems(ctCart, false));
+};
+
+/**
+ * Checks that the line items add up to the itemTotal of the amount breakdown.
+ *
+ * itemTotal is derived from the cart total (total - shipping + discount), while the line items are mapped one by one
+ * (see mapCTLineItemToBraintreeLineItem). The two are computed independently, so they can drift apart because of how
+ * commercetools rounds:
+ * - tax rounding (taxRoundingMode, taxCalculationMode LineItemLevel vs UnitPriceLevel)
+ * - price rounding (priceRoundingMode)
+ * - discount rounding (a cart discount split across line items, discountedGrossAmount vs discountedAmount)
+ *
+ * Braintree rejects a breakdown that doesn't fit its line items (ITEM_TOTAL_MISMATCH). No payment method in this
+ * connector requires a breakdown (only PayPal Express receives one), so on a mismatch it is omitted.
+ * A missing breakdown hides the item list in the PayPal window (only subtotal, shipping and total are shown).
+ * If you experience this, please open an issue with the anonymized cart.
+ *
+ * Carts paid partly by another payment (e.g. a gift card) or containing custom line items are not supported yet
+ * Please open an issue if you are interested in these features.
+ */
+export const lineItemsMatchItemTotal = (lineItems: BraintreeLineItem[], itemTotal: string, cartId: string): boolean => {
+  const lineItemTotal = lineItems.reduce((sum, { totalAmount }) => sum + Number(totalAmount), 0).toFixed(2);
+  if (lineItemTotal === itemTotal) return true;
+  log.warn(
+    `updateCartShipping: line items total (${lineItemTotal}) does not match itemTotal (${itemTotal}) for cart ${cartId}, the Braintree payment is updated without breakdown — please open an issue with the anonymized cart (prices, taxes, discounts, rounding settings) so the breakdown can be supported`,
+  );
+  return false;
 };

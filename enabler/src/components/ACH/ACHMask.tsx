@@ -38,8 +38,6 @@ import {
 type AchVaultRequest = {
   paymentMethodNonce: string;
   ctPaymentId: string;
-  braintreeCustomerId?: string; // links ACH to customer vault (enables getStoredPaymentMethods)
-  ctCustomerId?: string; // required when no Braintree customer exists yet
   logFrontendIssue?: string; // browser-only failures of earlier attempts, logged by the processor
 };
 
@@ -88,7 +86,6 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     clientToken,
     currentRequestHeader,
     paymentInfo,
-    braintreeCustomerId,
   } = usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
@@ -179,8 +176,8 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     formButtonDisabled = formButtonDisabled || !firstName || !lastName;
   }
 
-  // ACH vaults the bank account to the customer, which a guest doesn't have. Both ids come from createPayment.
-  const signInRequired = !paymentInfo.ctCustomerId && !braintreeCustomerId;
+  // ACH vaults the bank account to the customer, which a guest doesn't have (ctCustomerId comes from createPayment)
+  const signInRequired = !paymentInfo.ctCustomerId;
 
   const formRef = useRef<HTMLFormElement>(null);
   const formButtonDisabledRef = useRef(false);
@@ -216,10 +213,16 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
       // Braintree reference: the processor accepts nothing else. All of them since the last vault response, the
       // oldest dropped first when they don't fit.
       const failInBrowser: typeof fail = (code, text, err) => {
-        let issues = [pendingFrontendIssueRef.current, withBraintreeRef(code, err)]
+        let issues = [
+          pendingFrontendIssueRef.current,
+          withBraintreeRef(code, err),
+        ]
           .filter(Boolean)
           .join("; ");
-        while (issues.length > FRONTEND_ISSUE_MAX_LENGTH && issues.includes("; ")) {
+        while (
+          issues.length > FRONTEND_ISSUE_MAX_LENGTH &&
+          issues.includes("; ")
+        ) {
           issues = issues.slice(issues.indexOf("; ") + 2);
         }
         pendingFrontendIssueRef.current =
@@ -351,8 +354,6 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                     >(currentRequestHeader(), getAchVaultTokenURL, {
                       paymentMethodNonce: tokenizedPayload.nonce,
                       ctPaymentId: paymentInfo.ctPaymentId,
-                      braintreeCustomerId: braintreeCustomerId || undefined,
-                      ctCustomerId: paymentInfo.ctCustomerId,
                       logFrontendIssue: pendingFrontendIssueRef.current,
                     });
 

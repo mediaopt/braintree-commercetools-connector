@@ -53,7 +53,6 @@ const baseProps = {
 
 const clickResult = {
   clientToken: "click-token",
-  braintreeCustomerId: "",
   paymentInfo: {
     ctPaymentId: "click-payment",
     braintreeAmount: 10,
