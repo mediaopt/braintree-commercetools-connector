@@ -50,7 +50,7 @@ export class BraintreeCustomerService {
     this.ctAPI = opts.ctAPI;
   }
 
-  public async getCtCustomer(ctCustomerId: string): Promise<Customer | void> {
+  public async getCtCustomer(ctCustomerId: string): Promise<Customer | undefined> {
     return await this.ctAPI.client
       .customers()
       .withId({ ID: ctCustomerId })
@@ -59,7 +59,7 @@ export class BraintreeCustomerService {
       .then((response) => response.body)
       .catch((err) => {
         log.warn(`Could not read customer ${ctCustomerId} — ${errorMessage(err)}`);
-        return;
+        return undefined;
       });
   }
 
@@ -92,11 +92,13 @@ export class BraintreeCustomerService {
     braintreeCustomerId: string,
     // records of the same request's Braintree calls, written in the same update so they never compete with the link
     recordFields: CustomFields = {},
+    readCustomer?: Customer,
   ): Promise<void> {
     const written = await this.setBraintreeCustomerFields(
       ctCustomerId,
       { ...recordFields, braintreeCustomerId },
       'linkBraintreeCustomerId',
+      readCustomer,
     );
     if (!written)
       log.error(
@@ -249,6 +251,8 @@ export class BraintreeCustomerService {
       this.getCtCustomer(ctCustomerId),
       this.findExistingBraintreeCustomerId(ctCustomerId),
     ]);
+    // Unlike a vaulting transactionSale, where sale can go without it, a vault needs the CT customer: it creates the
+    // Braintree customer from it, and the vaulted token has no payment to resolve its customer from afterwards
     if (!ctCustomer) throw new ErrorInvalidOperation(`could not read customer ${ctCustomerId}`);
     const braintreeCustomerId: string | undefined = ctCustomer.custom?.fields?.braintreeCustomerId;
     const existingBtCustomerId = existing.braintreeCustomerId;
@@ -300,8 +304,8 @@ export class BraintreeCustomerService {
       // Link the Braintree customer ID back to CT so stored payment methods work in future sessions — covers both the
       // re-link (found existing) and brand-new-customer cases above
       if (!braintreeCustomerId && resolvedCustomerId)
-        void this.linkBraintreeCustomerId(ctCustomerId, resolvedCustomerId, recordFields);
-      else this.recordCustomerFields(ctCustomerId, recordFields, 'find, vault');
+        void this.linkBraintreeCustomerId(ctCustomerId, resolvedCustomerId, recordFields, ctCustomer);
+      else this.recordCustomerFields(ctCustomerId, recordFields, 'find, vault', ctCustomer);
     }
 
     if (!paymentMethod) throw new ErrorInvalidOperation('Braintree did not return a payment method after vaulting');

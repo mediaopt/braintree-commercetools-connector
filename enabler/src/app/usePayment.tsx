@@ -48,7 +48,7 @@ type HandleTransactionSaleType = (
   options?: TransactionSaleOptions & { ctPaymentIdOverride?: string },
 ) => Promise<void>;
 
-type DeferredPaymentResult = {
+export type DeferredPaymentResult = {
   clientToken: string;
   paymentInfo: PaymentInfo;
 };

@@ -7,7 +7,7 @@ import {
 import { FlowType } from "paypal-checkout-components";
 import { Address as PayPalAddress } from "paypal-checkout-components/modules/callback-data";
 
-import { usePayment } from "../../app/usePayment";
+import { DeferredPaymentResult, usePayment } from "../../app/usePayment";
 import { useNotifications } from "../../app/useNotifications";
 import { useLoader } from "../../app/useLoader";
 
@@ -95,10 +95,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   // Holds the real clientToken/paymentInfo returned by createExpressPayment (deferred mode only).
   // Read via ref, not React state, so setting it mid-click doesn't retrigger the bootstrap effect
   // below (which depends on paymentInfo/clientToken) while this same click is still in flight.
-  const deferredResultRef = useRef<{
-    clientToken: string;
-    paymentInfo: PaymentInfo;
-  } | null>(null);
+  const deferredResultRef = useRef<DeferredPaymentResult | null>(null);
   // Set once onShippingChange updated the cart (also for a 0 cost option: a shipping discount can still change the
   // cart); sent as expressShippingChanged in handleOnApprove, which makes transactionSale take line items and shipping
   // from the refetched cart instead of the createPayment copies.

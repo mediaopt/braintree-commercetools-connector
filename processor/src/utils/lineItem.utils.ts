@@ -130,24 +130,21 @@ export const buildCartLineItems = (ctCart: Cart, isExpress: boolean): BraintreeL
 const withoutShipping = (lineItems: BraintreeLineItem[]): BraintreeLineItem[] =>
   lineItems.filter(({ productCode }) => productCode !== SHIPPING_PRODUCT_CODE);
 
+const sortedKeys = (lineItems: BraintreeLineItem[], toKey: (lineItem: BraintreeLineItem) => unknown): string =>
+  JSON.stringify(withoutShipping(lineItems).map(toKey).sort());
+
 // What the buyer agreed to per line item, in any order: the product and its total price. The name may change (e.g. a
 // renamed product) without changing what is bought.
 const lineItemKeys = (lineItems: BraintreeLineItem[]): string =>
-  JSON.stringify(
-    withoutShipping(lineItems)
-      .map(({ productCode, totalAmount }) => [productCode, totalAmount])
-      .sort(),
-  );
+  sortedKeys(lineItems, ({ productCode, totalAmount }) => [productCode, totalAmount]);
 
 // After an Express shipping change prices may change (taxes, discounts), so only the products; the discount item comes
 // and goes with them. The amount check keeps the total exact. Braintree line items carry no real quantity (always 1,
 // the commercetools quantity is only in the name), so a quantity change is caught by the total only.
 const productKeys = (lineItems: BraintreeLineItem[]): string =>
-  JSON.stringify(
-    withoutShipping(lineItems)
-      .map(({ productCode }) => productCode)
-      .filter((productCode) => productCode !== DISCOUNT_PRODUCT_CODE)
-      .sort(),
+  sortedKeys(
+    lineItems.filter(({ productCode }) => productCode !== DISCOUNT_PRODUCT_CODE),
+    ({ productCode }) => productCode,
   );
 
 /**

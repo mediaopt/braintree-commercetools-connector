@@ -21,7 +21,7 @@ import {
 } from "../../helpers/submitError";
 import { HostedFieldsHostedFieldsFieldName } from "braintree-web/hosted-fields";
 import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
-import { CHALLENGE_SHOW_TIMEOUT_MS } from "./constants";
+import { CHALLENGE_SHOW_TIMEOUT_MS, DEFAULT_VAULT_LABEL } from "./constants";
 import {
   ChallengeNotShownError,
   isRetryBlocked,
@@ -468,7 +468,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
             <>
               <label className={`${HOSTED_FIELDS_LABEL} mb-2`}>
                 <input className="mr-3" ref={ccVaultCheckbox} type="checkbox" />
-                {vaultLabel ?? "Save my card"}
+                {vaultLabel ?? DEFAULT_VAULT_LABEL}
               </label>
             </>
           )}

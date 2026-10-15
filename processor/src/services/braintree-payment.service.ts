@@ -1020,27 +1020,34 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const discountAmount = sendDiscountAsLineItem ? (0).toFixed(fractionDigits) : residualDiscount;
     // A vaulting sale attaches the Braintree customer linked on the CT customer (never one named by the request), so
     // the new method is stored with the customer's earlier ones.
-    let storedBtCustomerId: string | undefined;
-    // braintreeCustomerId can be missing because the CT custom field was wiped (frequently occurring redeploy issue),
-    // not because the customer is new. Check for a pre-existing Braintree customer
-    // (ids are equal to the CT customer id by construction) before embedding an inline "create customer"
-    // payload — otherwise Braintree rejects the whole sale with "Customer ID has already been taken"
-    // when that customer already exists.
-    let existingBtCustomerId: string | undefined;
+    let vaultCustomerId: string | undefined;
+    // read before the sale, reused for the customer writes after it (a retry re-reads)
+    let ctCustomer: Customer | undefined;
     // the lookup's record, written after the sale together with the link (separate writes would compete with it)
     let findCustomerRecord: CustomFields | undefined;
     if (storeInVaultOnSuccess && ctPayment.customer?.id) {
-      const ctCustomer = await this.braintreeCustomerService.getCtCustomer(ctPayment.customer.id);
-      storedBtCustomerId = ctCustomer ? ctCustomer.custom?.fields?.braintreeCustomerId : undefined;
-      if (!storedBtCustomerId)
-        ({ braintreeCustomerId: existingBtCustomerId, recordFields: findCustomerRecord } =
+      // An unreadable CT customer doesn't stop the sale (unlike the ACH vault, vaultPaymentMethodForCustomer): it falls
+      // back to the lookup below, and the payment carries enough data to resolve the customer link afterwards
+      ctCustomer = await this.braintreeCustomerService.getCtCustomer(ctPayment.customer.id);
+      vaultCustomerId = ctCustomer?.custom?.fields?.braintreeCustomerId;
+      // braintreeCustomerId can be missing because the CT custom field was wiped (frequently occurring checkout redeploy from merchant center issue),
+      // not because the customer is new. Check for a pre-existing Braintree customer
+      // (ids are equal to the CT customer id by construction) before embedding an inline "create customer"
+      // payload — otherwise Braintree rejects the whole sale with "Customer ID has already been taken"
+      // when that customer already exists.
+      if (!vaultCustomerId)
+        ({ braintreeCustomerId: vaultCustomerId, recordFields: findCustomerRecord } =
           await this.braintreeCustomerService.findExistingBraintreeCustomerId(ctPayment.customer.id));
     }
-    const vaultCustomerId = storedBtCustomerId ?? existingBtCustomerId;
     // the lookup's record alone, when no link carries it
     const recordFindCustomer = () =>
       findCustomerRecord &&
-      this.braintreeCustomerService.recordCustomerFields(ctPayment.customer!.id, findCustomerRecord, 'find');
+      this.braintreeCustomerService.recordCustomerFields(
+        ctPayment.customer!.id,
+        findCustomerRecord,
+        'find',
+        ctCustomer,
+      );
     const optionalRequestData: Partial<TransactionRequest> = {
       ...(storeInVaultOnSuccess && ctPayment.customer?.id
         ? vaultCustomerId
@@ -1049,9 +1056,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
         : {}),
       lineItems,
       discountAmount,
-      ...(braintreePaymentDetails?.expressShippingChanged
+      ...(updatedCart
         ? {
-            shippingAmount: shippingAmountNum.toFixed(ctPayment.amountPlanned.fractionDigits),
+            shippingAmount: shippingAmountNum.toFixed(fractionDigits),
           } //will be only submitted in express mode, then shipping was submitted via SDK through update and can be mapped here, otherwise it is included in line items
         : {}), //see enabler PayPalMask onShippingChange and onApprove
       ...(deviceData ? { deviceData } : {}),
@@ -1114,6 +1121,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         ctPayment.customer.id,
         response.customer.id,
         findCustomerRecord,
+        ctCustomer,
       );
       // Symmetric with linkBraintreeCustomerId above: also register the vaulted method in commercetools'
       // own PaymentMethod resource. Best-effort — Braintree's vault above already succeeded and remains
@@ -1628,7 +1636,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         'find',
         { customerId: braintreeCustomerId },
         btCustomer,
-        ctCustomer || undefined,
+        ctCustomer,
       );
       // commercetools Checkout's own UI only supports displaying/reusing stored credit cards —
       // PayPal and ACH bank accounts remain vaulted in Braintree but are not surfaced as stored
@@ -1676,7 +1684,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         'find',
         { customerId: braintreeCustomerId },
         braintreeFailure(e),
-        ctCustomer || undefined,
+        ctCustomer,
       );
       return { storedPaymentMethods: [] };
     }
