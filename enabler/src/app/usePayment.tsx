@@ -63,6 +63,7 @@ type PaymentContextT = {
   vaultedPaymentMethods: StoredPaymentMethod[];
   handleGetVaultedPaymentMethods: () => Promise<StoredPaymentMethod[]>;
   updateCartShipping: (
+    ctPaymentId: string,
     newShippingMethodId: string,
     address?: ChangeShippingRequest["address"],
   ) => Promise<UpdateCartShippingResult>;
@@ -280,7 +281,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
           braintreeShipping:
             incomingDetails?.braintreeShipping ?? paymentInfo.braintreeShipping,
           expressShippingChanged: incomingDetails?.expressShippingChanged,
-          express: builderType === "express" || undefined,
         },
         ...rest,
       };
@@ -348,13 +348,14 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   PURE_VAULT_DISABLED end */
 
     const updateCartShipping = async (
+      ctPaymentId: string,
       newShippingMethodId: string,
       address?: ChangeShippingRequest["address"],
     ) => {
       return (await processorRequest<ChangeShippingRequest>(
         currentRequestHeader(),
         updateCartShippingUrl,
-        { newShippingMethodId, address },
+        { ctPaymentId, newShippingMethodId, address },
       )) as UpdateCartShippingResult;
     };
 

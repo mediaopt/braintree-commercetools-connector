@@ -21,7 +21,6 @@ export type TransactionSaleOptions = {
     braintreeLineItems?: BraintreeLineItem[];
     expressShippingChanged?: boolean;
     braintreeShipping?: BraintreeShipping;
-    express?: boolean; // the processor compares amount and line items with the cart except for Express
   };
   shipping?: BraintreeShipping;
   lineItems?: BraintreeLineItem[];
@@ -46,6 +45,8 @@ export type VaultRequest = {
 PURE_VAULT_DISABLED end */
 
 export type ChangeShippingRequest = {
+  // the Express payment whose amount the processor updates with the cart
+  ctPaymentId: string;
   newShippingMethodId: string;
   address?: {
     country: string;

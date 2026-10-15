@@ -76,6 +76,15 @@ export const findTransactionIdOrUndefined = (payment: Payment, type: Transaction
 export const hasCancelledPlaceholder = (payment: Payment): boolean => hasPlaceholder(payment, 'CancelAuthorization');
 
 /**
+ * True when transactionSale already charged the payment: it always records the sale as an Authorization
+ * (transactionTypeOverride), Success or Pending (e.g. ACH settlement). The ACH micro-deposit placeholder isn't a sale.
+ */
+export const hasSale = (payment: Payment): boolean =>
+  payment.transactions.some(
+    (t) => t.type === 'Authorization' && (t.state === 'Success' || t.state === 'Pending') && !isPlaceholder(t),
+  );
+
+/**
  * Total cent amount already refunded on the payment. Braintree refunds stay Pending on commercetools until they
  * settle (submitted_for_settlement maps to Pending), so Pending refunds count as refunded too — otherwise a
  * reverse after an unsettled refund would request more than Braintree has left to refund.

@@ -174,8 +174,6 @@ export const TransactionSaleRequestSchema = Type.Object({
       braintreeLineItems: Type.Optional(Type.Array(BraintreeLineItemSchema)),
       // set after an Express shipping change: transactionSale then takes line items and shipping from the refetched cart
       expressShippingChanged: Type.Optional(Type.Boolean()),
-      // set by the Express builder: transactionSale doesn't compare its amount and line items with the cart
-      express: Type.Optional(Type.Boolean()),
       braintreeShipping: Type.Optional(BraintreeShippingSchema),
     }),
   ),
@@ -227,6 +225,8 @@ export type UpdateCartShippingResponseSchemaDTO = Static<typeof UpdateCartShippi
 // PayPal withholds that until final approval) — enough for commercetools to recompute tax/shipping
 // price against the buyer's in-progress country/region instead of the cart's stale stored address.
 export const UpdateCartShippingRequestSchema = Type.Object({
+  // the Express payment whose amountPlanned follows the new cart amount
+  ctPaymentId: Type.String(),
   newShippingMethodId: Type.String(),
   address: Type.Optional(
     Type.Object({

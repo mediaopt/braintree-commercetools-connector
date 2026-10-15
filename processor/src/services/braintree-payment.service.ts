@@ -88,6 +88,7 @@ import {
 } from '../utils/customEntities.utils';
 
 import {
+  BraintreeLineItem,
   buildCartLineItems,
   buildDiscountLineItem,
   DISCOUNT_PRODUCT_CODE,
@@ -121,6 +122,7 @@ import {
   findTransactionIdOrUndefined,
   hasCancelledPlaceholder,
   hasPlaceholder,
+  hasSale,
   isFailedOrVoided,
   isPlaceholder,
   remainingOnOnlyCharge,
@@ -138,8 +140,8 @@ type TransactionWithLocalPayment = Transaction & {
   localPayment?: { paymentId?: string };
 };
 
-// A non-Express transactionSale is refused when the cart changed after the payment was created: commercetools Checkout
-// requires new payment sessions then
+// A transactionSale is refused when the cart changed after the payment was created: commercetools Checkout requires new
+// payment sessions then
 const CART_CHANGED_HINT =
   'if you see this error, please make sure that you call reloadPaymentMethods, see https://docs.commercetools.com/checkout/releases/2025-03-05-introduced-reloadpaymentmethods-method-and-failedtorefreshsession-message';
 
@@ -274,7 +276,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
-   * The Express amount, shared by updateCartShipping and transactionSale so the amount approved is the amount charged.
+   * The Express amount after a shipping change, computed as createPayment computes amountPlanned and written to it, so
+   * the amount approved is the amount charged (transactionSale compares the cart with amountPlanned).
    * The exact total (cart gross minus approved payments) is required: the buyer approves the final amount in the
    * PayPal window ("Pay Now"), otherwise the merchant would have to implement a review page that displays the final
    * amount for approval.
@@ -818,14 +821,19 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   public async updateCartShipping({
+    ctPaymentId,
     newShippingMethodId,
     address,
   }: UpdateCartShippingRequestSchemaDTO): Promise<UpdateCartShippingResponseSchemaDTO> {
     const cartId = this.requireCartIdFromContext();
     try {
-      const ctCart = await this.ctCartService.getCart({
-        id: cartId,
-      });
+      const [ctCart, ctPayment] = await Promise.all([
+        this.ctCartService.getCart({ id: cartId }),
+        this.ctPaymentService.getPayment({ id: ctPaymentId }),
+      ]);
+      if (!ctCart.paymentInfo?.payments.some(({ id }) => id === ctPaymentId)) {
+        throw new ErrorInvalidOperation(`payment ${ctPaymentId} doesn't belong to cart ${ctCart.id}`);
+      }
       const setShippingAddressAction: CartSetShippingAddressAction | undefined = address
         ? { action: 'setShippingAddress', address }
         : undefined;
@@ -858,9 +866,24 @@ export class BraintreePaymentService extends AbstractPaymentService {
           `Could not set shipping method ${newShippingMethodId} for cart ${ctCart.id}. Cart not found in CoCo.`,
         );
       }
-      // amountPlanned stays as createPayment set it (the checkout API doesn't support updating it); transactionSale
-      // recomputes the charged amount from the refetched cart with the same expressCartAmount.
-      const totalNum = toNum(await this.expressCartAmount(updatedCard));
+      // amountPlanned follows the new amount (raw call, the SDK can't change it), awaited before PayPal is shown the
+      // amount: transactionSale charges amountPlanned and refuses a cart that no longer matches it. A failed write fails
+      // the shipping change (PayPal shows an error in its window).
+      const amountPlanned = await this.expressCartAmount(updatedCard);
+      const updatedPayment = await this.syncPayment(
+        ctPaymentId,
+        ctPayment,
+        (payment) =>
+          sameAmount(payment.amountPlanned, amountPlanned)
+            ? []
+            : [{ action: 'changeAmountPlanned', amount: amountPlanned }],
+        'updateCartShipping',
+        '', // no Braintree call to name
+      );
+      if (!updatedPayment || !sameAmount(updatedPayment.amountPlanned, amountPlanned)) {
+        throw new ErrorInvalidOperation(`could not update amountPlanned of payment ${ctPaymentId}`);
+      }
+      const totalNum = toNum(amountPlanned);
       const shippingNum = toNum(updatedCard.shippingInfo && relevantShippingAmount(updatedCard.shippingInfo));
       const discountNum = toNum(
         updatedCard.discountOnTotalPrice && relevantDiscountAmount(updatedCard.discountOnTotalPrice),
@@ -932,67 +955,35 @@ export class BraintreePaymentService extends AbstractPaymentService {
       log.warn(
         `transactionSale for payment ${ctPaymentId} has no deviceData (fraud device data collector failed, was blocked, or had not finished)`,
       );
-    const isExpress = braintreePaymentDetails?.express === true;
-    const expressShippingChanged = braintreePaymentDetails?.expressShippingChanged;
-    const needsCart = expressShippingChanged || !isExpress;
-    // The cart is read after an Express shipping change (amount and line items come from it) and for every non-Express
-    // sale (compared with the payment, see CART_CHANGED_HINT)
-    const [cartRead, ctPayment, braintreePaymentTypeId] = await Promise.all([
-      needsCart
-        ? this.ctCartService.getCart({ id: cartId }).then(async (cart) =>
-            cart
-              ? {
-                  cart,
-                  amountPlanned: expressShippingChanged
-                    ? await this.expressCartAmount(cart)
-                    : // not the SDK's getPaymentAmount: it doesn't handle async payments properly, a payment carrying the
-                      // ACH micro-deposit placeholder counts itself as paid
-                      await amountLeftForPayment(cart, ctPaymentId, (id) => this.ctPaymentService.getPayment({ id })),
-                }
-              : undefined,
-          )
-        : Promise.resolve(undefined),
+    const expressShippingChanged = braintreePaymentDetails?.expressShippingChanged === true;
+    const [cartRead, paymentRead, braintreePaymentTypeId] = await Promise.all([
+      this.ctCartService.getCart({ id: cartId }).then(async (cart) =>
+        cart
+          ? {
+              cart,
+              // not the SDK's getPaymentAmount: it doesn't handle async payments properly, a payment carrying the ACH
+              // micro-deposit placeholder counts itself as paid. An Express cart must be new, so both are equal there.
+              amountPlanned: await amountLeftForPayment(cart, ctPaymentId, (id) =>
+                this.ctPaymentService.getPayment({ id }),
+              ),
+            }
+          : undefined,
+      ),
       this.ctPaymentService.getPayment({ id: ctPaymentId }),
       getBraintreePaymentTypeId(),
     ]);
-    if (!ctPayment) {
-      throw new ErrorInvalidOperation(`payment is missing for transactionSale payment ${ctPaymentId}}`);
-    }
-    if (!isBraintreePayment(ctPayment, braintreePaymentTypeId)) {
-      log.error(`transactionSale: ${notBraintreePaymentMessage(ctPaymentId)}`);
-      throw new ErrorInvalidOperation(notBraintreePayment(ctPaymentId));
-    }
-    // Unverified ACH payment whose Order was cancelled before the micro-deposits were verified (cancelPlaceholderPayment)
-    if (hasCancelledPlaceholder(ctPayment)) {
-      throw new ErrorInvalidOperation(
-        `transactionSale refused — payment ${ctPaymentId} was cancelled before verification`,
-      );
-    }
-    if (!cartRead && needsCart)
-      throw new ErrorInvalidOperation(`could not find updated cart for transactionsSale payment ${ctPaymentId}`);
-    // Express isn't checked: PayPal has own side rules for it (the range can be seen in the PayPal window)
-    if (!isExpress && cartRead) {
-      const cartChange = !sameAmount(cartRead.amountPlanned, ctPayment.amountPlanned)
-        ? 'amount'
-        : !sameLineItems(braintreePaymentDetails?.braintreeLineItems, cartRead.cart)
-          ? 'line items'
-          : undefined;
-      if (cartChange) {
-        log.error(
-          `merchant integration issue: cart ${cartChange} changed after payment creation on payment ${ctPaymentId} — ${CART_CHANGED_HINT}`,
-        );
-        // the hint above is for the merchant only; the buyer gets the enabler's general failure message
-        throw new ErrorInvalidOperation(`transactionSale refused for payment ${ctPaymentId}`);
-      }
-    }
-    const updatedExpress = expressShippingChanged ? cartRead : undefined;
-    const updatedCart = updatedExpress?.cart;
-    const relevantPaymentInfo = updatedExpress
-      ? { ...ctPayment, amountPlanned: updatedExpress.amountPlanned }
-      : ctPayment;
+    const { ctPayment, cart } = this.validateTransactionSale(
+      ctPaymentId,
+      paymentRead,
+      braintreePaymentTypeId,
+      cartRead,
+      braintreePaymentDetails?.braintreeLineItems,
+      expressShippingChanged,
+    );
+    const updatedCart = expressShippingChanged ? cart : undefined;
     const isPayPal = paymentMethodType === 'PayPal'; // PAYPAL_STORED_DISABLED: || paymentMethodType === 'PayPalStored'
-    // After an Express shipping change, amount, line items and shipping come from the refetched cart, not the enabler's
-    // createPayment copies, computed as in updateCartShipping (expressCartAmount), so they match what it sent to Braintree.
+    // After an Express shipping change, line items and shipping come from the cart, not the enabler's createPayment
+    // copies, built as in updateCartShipping, so they match what it sent to Braintree; amountPlanned is its amount.
     const lineItems = (
       updatedCart ? buildCartLineItems(updatedCart, true) : (braintreePaymentDetails?.braintreeLineItems ?? [])
     )
@@ -1007,13 +998,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // discount value — this keeps it correct regardless of cart discount type, staleness, or rounding.
     const shippingAmountNum = updatedCart?.shippingInfo ? toNum(relevantShippingAmount(updatedCart.shippingInfo)) : 0;
     const lineItemsTotal = lineItems.reduce((sum, { totalAmount }) => sum + Number(totalAmount), 0);
-    const discountResidual = lineItemsTotal + shippingAmountNum - toNum(relevantPaymentInfo.amountPlanned);
+    const discountResidual = lineItemsTotal + shippingAmountNum - toNum(ctPayment.amountPlanned);
     if (discountResidual < -0.01) {
       log.warn(
-        `transactionSale: lineItems total (${lineItemsTotal.toFixed(2)}) plus shipping (${shippingAmountNum.toFixed(2)}) is less than the charged amount (${toNum(relevantPaymentInfo.amountPlanned).toFixed(2)}) for payment ${ctPaymentId} — discountAmount clamped to 0, check for missing external tax/fees`,
+        `transactionSale: lineItems total (${lineItemsTotal.toFixed(2)}) plus shipping (${shippingAmountNum.toFixed(2)}) is less than the charged amount (${toNum(ctPayment.amountPlanned).toFixed(2)}) for payment ${ctPaymentId} — discountAmount clamped to 0, check for missing external tax/fees`,
       );
     }
-    const { fractionDigits } = relevantPaymentInfo.amountPlanned;
+    const { fractionDigits } = ctPayment.amountPlanned;
     const residualDiscount = Math.max(0, discountResidual).toFixed(fractionDigits);
     // PayPal declines a sale whose discount is sent as discountAmount instead of a DISCOUNT credit line item
     // (the form the PayPal order was created with). The credit item is rebuilt from the residual rather than
@@ -1064,7 +1055,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         : {}),
     };
     const transactionRequest = mapRequestToBraintreeTransactionSale(
-      relevantPaymentInfo,
+      ctPayment,
       storeInVaultOnSuccess,
       storeShipping,
       paymentMethodNonce,
@@ -1770,6 +1761,55 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (!isCartCheckout) return;
     if (!ctCart.customerEmail || !ctCart.billingAddress || !ctCart.shippingAddress)
       throw new ErrorInvalidOperation('Required data missing: email or address');
+  }
+
+  /**
+   * The transactionSale checks that need the payment and the cart: a Braintree payment, not cancelled or already
+   * charged, whose cart still has amountPlanned and its line items. Logs and throws, so nothing reaches Braintree. The
+   * request's own fields are checked before anything is read (validateTransactionSaleParams).
+   */
+  private validateTransactionSale(
+    ctPaymentId: string,
+    ctPayment: Payment | undefined,
+    braintreePaymentTypeId: string,
+    cartRead: { cart: Cart; amountPlanned: CentPrecisionMoney } | undefined,
+    submittedLineItems: BraintreeLineItem[] | undefined,
+    expressShippingChanged: boolean,
+  ): { ctPayment: Payment; cart: Cart } {
+    if (!ctPayment) {
+      throw new ErrorInvalidOperation(`payment is missing for transactionSale payment ${ctPaymentId}}`);
+    }
+    if (!isBraintreePayment(ctPayment, braintreePaymentTypeId)) {
+      log.error(`transactionSale: ${notBraintreePaymentMessage(ctPaymentId)}`);
+      throw new ErrorInvalidOperation(notBraintreePayment(ctPaymentId));
+    }
+    // Unverified ACH payment whose Order was cancelled before the micro-deposits were verified (cancelPlaceholderPayment)
+    if (hasCancelledPlaceholder(ctPayment)) {
+      throw new ErrorInvalidOperation(
+        `transactionSale refused — payment ${ctPaymentId} was cancelled before verification`,
+      );
+    }
+    if (!cartRead) throw new ErrorInvalidOperation(`could not find cart for transactionSale payment ${ctPaymentId}`);
+    // Checkout creates one payment per checkout and charges it once
+    if (hasSale(ctPayment)) {
+      log.error(`merchant integration issue: transactionSale called again on already charged payment ${ctPaymentId}`);
+      throw new ErrorInvalidOperation(`transactionSale refused for payment ${ctPaymentId}`);
+    }
+    // PayPal doesn't enforce the approved amount itself (it accepts a sale below it), so the cart must still be what the
+    // buyer was shown: amountPlanned (createPayment, or Express's last updateCartShipping) and the line items
+    const cartChange = !sameAmount(cartRead.amountPlanned, ctPayment.amountPlanned)
+      ? 'amount'
+      : !sameLineItems(submittedLineItems, cartRead.cart, expressShippingChanged)
+        ? 'line items'
+        : undefined;
+    if (cartChange) {
+      log.error(
+        `merchant integration issue: cart ${cartChange} changed after payment creation on payment ${ctPaymentId} — ${CART_CHANGED_HINT}`,
+      );
+      // the log above is for the merchant only; the buyer gets the enabler's general failure message
+      throw new ErrorInvalidOperation(`transactionSale refused for payment ${ctPaymentId}`);
+    }
+    return { ctPayment, cart: cartRead.cart };
   }
 
   private validateTransactionSaleParams(

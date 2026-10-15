@@ -6,8 +6,6 @@ jest.mock("../services/processorRequest", () => ({
 
 import { processorRequest } from "../services/processorRequest";
 import { PaymentProvider, usePayment } from "./usePayment";
-import { BuilderType } from "../types";
-import { TransactionSaleRequest } from "../services/types";
 
 const mockedProcessorRequest = processorRequest as jest.MockedFunction<
   typeof processorRequest
@@ -79,11 +77,21 @@ describe("usePayment — PayPal Express session switch", () => {
     const payment = await renderDeferredProvider();
 
     await act(() => payment.createExpressPayment("click-session"));
-    await act(() => payment.updateCartShipping("method-1"));
+    await act(() => payment.updateCartShipping("payment-1", "method-1"));
 
     expect(sessionSentTo("/expressClientToken")).toEqual(["mount-session"]);
     expect(sessionSentTo("")).toEqual(["click-session"]);
     expect(sessionSentTo("/updateCartShipping")).toEqual(["click-session"]);
+    // the processor writes the new amount to this payment's amountPlanned
+    expect(mockedProcessorRequest).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringMatching(/\/updateCartShipping$/),
+      {
+        ctPaymentId: "payment-1",
+        newShippingMethodId: "method-1",
+        address: undefined,
+      },
+    );
   });
 
   it("warns and keeps the current session when onPayButtonClick resolves without one", async () => {
@@ -150,7 +158,7 @@ describe("usePayment — handleTransactionSale", () => {
     return null;
   };
 
-  const renderSale = async (builderType?: BuilderType) => {
+  const renderSale = async () => {
     handleTransactionSale = undefined;
     mockedProcessorRequest
       .mockReset()
@@ -159,8 +167,7 @@ describe("usePayment — handleTransactionSale", () => {
       <PaymentProvider
         processorUrl={PROCESSOR_URL}
         sessionId="session-id"
-        paymentMethodType={builderType ? "PayPal" : "CreditCard"}
-        builderType={builderType}
+        paymentMethodType="CreditCard"
         purchaseCallback={jest.fn()}
       >
         <CaptureSale />
@@ -168,13 +175,6 @@ describe("usePayment — handleTransactionSale", () => {
     );
     await waitFor(() => expect(handleTransactionSale).toBeDefined());
   };
-  // braintreePaymentDetails of the transactionSale request
-  const sentPaymentDetails = () =>
-    (
-      mockedProcessorRequest.mock.calls.find(([, url]) =>
-        url.endsWith("/transactionSale"),
-      )?.[2] as TransactionSaleRequest | undefined
-    )?.braintreePaymentDetails;
 
   it("rejects with TRANSACTION_SALE_FAILED, not the processor's message, when the sale fails", async () => {
     await renderSale();
@@ -187,22 +187,5 @@ describe("usePayment — handleTransactionSale", () => {
       code: "TRANSACTION_SALE_FAILED",
       message: "The payment could not be completed.",
     });
-  });
-
-  // the processor compares a non-Express sale's amount and line items with the cart
-  it.each([
-    { description: "Express", builderType: "express" as const, express: true },
-    {
-      description: "a standard component",
-      builderType: undefined,
-      express: undefined,
-    },
-  ])("marks the sale of $description", async ({ builderType, express }) => {
-    await renderSale(builderType);
-    mockedProcessorRequest.mockResolvedValueOnce({ success: true });
-
-    await act(() => handleTransactionSale!("nonce"));
-
-    expect(sentPaymentDetails()).toEqual(expect.objectContaining({ express }));
   });
 });

@@ -382,6 +382,7 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                             selectedOptionIndex >= 0 ? selectedOptionIndex : 0;
 
                           const shippingResult = await updateCartShipping(
+                            real?.ctPaymentId ?? paymentInfo.ctPaymentId,
                             relevantShippingOptions[activateIndex].id,
                             {
                               country: countryCode,
