@@ -107,17 +107,20 @@ describe('braintree-customer.service', () => {
       expect(result).toBeUndefined();
     });
 
-    test('returns undefined on other errors', async () => {
+    // a temporary failure isn't reported as a missing customer
+    test('returns undefined on other errors, logged as an unreadable customer with the cause', async () => {
       const execute = jest.fn<() => Promise<any>>().mockRejectedValue(new Error('Network error'));
       const get = jest.fn().mockReturnValue({ execute });
       const withId = jest.fn().mockReturnValue({ get });
       const customers = jest.fn().mockReturnValue({ withId });
+      const warnSpy = jest.spyOn(log, 'warn').mockImplementation(() => log);
 
       mockCtClient({ customers });
 
       const result = await service.getCtCustomer('ct-error');
 
       expect(result).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/Could not read customer ct-error.*Network error/));
     });
   });
 
@@ -174,6 +177,8 @@ describe('braintree-customer.service', () => {
     lastModifiedAt: '2024-01-01T00:00:00Z',
     ...(custom ? { custom } : {}),
   });
+  // the customer read of the chain mockCustomerClient set up last
+  let customerGet: jest.Mock;
   // customers().withId().get()/post() chain; returns the post mock to read the sent actions from
   const mockCustomerClient = (customer: object | undefined) => {
     const post = jest.fn().mockReturnValue({
@@ -183,9 +188,13 @@ describe('braintree-customer.service', () => {
       ? jest.fn<() => Promise<unknown>>().mockResolvedValue({ body: customer })
       : jest.fn<() => Promise<unknown>>().mockRejectedValue({ httpErrorStatus: 404 });
     const get = jest.fn().mockReturnValue({ execute });
+    customerGet = get;
     mockCtClient({ customers: jest.fn().mockReturnValue({ withId: jest.fn().mockReturnValue({ get, post }) }) });
     return post;
   };
+  // a customer the caller has already read
+  const readCustomer = () => customerWith(braintreeCustomerCustom({})) as unknown as Customer;
+  const customerReads = () => customerGet.mock.calls.length;
   const sentActions = (post: jest.Mock) =>
     (post.mock.calls as [{ body: { actions: unknown[] } }][]).map(([args]) => args.body.actions);
   // Braintree's customer lookup misses: the SDK error and its record
@@ -202,6 +211,17 @@ describe('braintree-customer.service', () => {
       await service.linkBraintreeCustomerId('ct-123', 'bt-123');
 
       expect(post).not.toHaveBeenCalled();
+    });
+
+    // re-pointing the customer would hide its stored payment methods; the records still go out
+    test('another braintreeCustomerId already stored: the link kept, the records written', async () => {
+      const post = mockCustomerClient(customerWith(braintreeCustomerCustom({ braintreeCustomerId: 'bt-stored' })));
+
+      await service.linkBraintreeCustomerId('ct-123', 'bt-new', { findResponse: '{"id":"ct-123"}' });
+
+      expect(sentActions(post)).toEqual([
+        [{ action: 'setCustomField', name: 'findResponse', value: '{"id":"ct-123"}' }],
+      ]);
     });
 
     test('retries up to 3 times with 1s delay', async () => {
@@ -270,6 +290,20 @@ describe('braintree-customer.service', () => {
       });
     });
 
+    test("the caller's customer is used for the first attempt; a retry reads it again", async () => {
+      const post = mockCustomerClient(customerWith(braintreeCustomerCustom({})));
+      // the first update fails (stale version)
+      post.mockReturnValueOnce({ execute: jest.fn<() => Promise<unknown>>().mockResolvedValue(undefined) });
+
+      const promise = service.linkBraintreeCustomerId('ct-123', 'bt-123', {}, readCustomer());
+      expect(customerReads()).toBe(0);
+      await jest.advanceTimersByTimeAsync(1000);
+      await promise;
+
+      expect(customerReads()).toBe(1);
+      expect(post).toHaveBeenCalledTimes(2);
+    });
+
     test('customer not found: nothing written', async () => {
       const post = mockCustomerClient(undefined);
 
@@ -295,10 +329,14 @@ describe('braintree-customer.service', () => {
       expect(CommonConnect.findCustomer).not.toHaveBeenCalled();
     });
 
-    test('CT customer not found: refused before the vault', async () => {
+    // unlike a vaulting transactionSale, a vault needs the CT customer
+    test('CT customer unreadable: refused before the vault', async () => {
       mockCustomerClient(undefined);
 
-      await expect(vault('ct-missing')).rejects.toThrow(ErrorInvalidOperation);
+      const error = await vault('ct-missing').catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(ErrorInvalidOperation);
+      expect(error).toHaveProperty('message', expect.stringContaining('could not read customer ct-missing'));
 
       expect(CommonConnect.createCustomer).not.toHaveBeenCalled();
       expect(CommonConnect.createPaymentMethod).not.toHaveBeenCalled();
@@ -311,6 +349,8 @@ describe('braintree-customer.service', () => {
 
       await expect(vault('ct-123')).resolves.toEqual({ token: 'pm-token-1', verified: true, ctCustomerId: 'ct-123' });
       await flush();
+      // the customer read before the vault serves the write too
+      expect(customerReads()).toBe(1);
 
       const createRequest = (CommonConnect.createCustomer as jest.Mock).mock.calls[0][0];
       expect(createRequest).toEqual(expect.objectContaining({ paymentMethodNonce: 'nonce-123' }));
@@ -473,6 +513,16 @@ describe('braintree-customer.service', () => {
       await record();
 
       expect(post).not.toHaveBeenCalled();
+    });
+
+    test("the caller's customer: no read of its own", async () => {
+      const post = mockCustomerClient(customerWith(braintreeCustomerCustom({})));
+
+      service.recordCustomerCall('ct-123', 'find', { customerId: 'ct-123' }, { id: 'ct-123' }, readCustomer());
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(customerReads()).toBe(0);
+      expect(post).toHaveBeenCalledTimes(1);
     });
 
     test("another custom type: nothing written, never replaces the merchant's type", async () => {

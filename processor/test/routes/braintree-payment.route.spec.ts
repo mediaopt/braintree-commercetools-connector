@@ -250,7 +250,6 @@ describe('braintree-payment.route', () => {
         payload: {
           ctPaymentId: 'payment-123',
           paymentMethodNonce: 'ach-nonce',
-          braintreeCustomerId: 'bt-cust-123',
         },
         headers: { 'x-session-id': 'session-123' },
       });

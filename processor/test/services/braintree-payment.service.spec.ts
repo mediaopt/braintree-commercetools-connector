@@ -443,16 +443,20 @@ describe('braintree-payment.service', () => {
     });
   });
 
+  const ctCustomerWith = (braintreeCustomerId?: string) =>
+    ({ id: 'ct-customer-1', custom: { fields: { braintreeCustomerId } } }) as unknown as Customer;
+
   describe('getStoredPaymentMethods', () => {
     const braintreePaymentService = new BraintreePaymentService(opts);
+    const storedCustomer = ctCustomerWith('bt-customer-1');
 
     test('only returns CreditCard entries, even when Braintree also has PayPal/ACH accounts vaulted', async () => {
       const cart = { ...mockCartForShippingUpdate(), customerId: 'ct-customer-123' };
       jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cart.id);
       jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart);
-      jest
+      const getCtCustomer = jest
         .spyOn(BraintreeCustomerService.prototype, 'getCtCustomer')
-        .mockResolvedValue({ custom: { fields: { braintreeCustomerId: 'bt-customer-1' } } } as unknown as Customer);
+        .mockResolvedValue(storedCustomer);
       jest.spyOn(paymentSDK.ctPaymentMethodService, 'find').mockResolvedValue({ results: [] } as never);
       (CommonConnect.getBraintreeGateway as jest.Mock).mockResolvedValue({
         customer: {
@@ -489,16 +493,17 @@ describe('braintree-payment.service', () => {
         'find',
         { customerId: 'bt-customer-1' },
         expect.objectContaining({ creditCards: expect.any(Array) }),
+        // the customer just read, so the record needs no read of its own
+        storedCustomer,
       );
+      expect(getCtCustomer).toHaveBeenCalledTimes(1);
     });
 
     test("Braintree lookup fails: empty list, Braintree's answer recorded on the customer", async () => {
       const cart = { ...mockCartForShippingUpdate(), customerId: 'ct-customer-123' };
       jest.spyOn(FastifyContext, 'getCartIdFromContext').mockReturnValue(cart.id);
       jest.spyOn(paymentSDK.ctCartService, 'getCart').mockResolvedValue(cart);
-      jest
-        .spyOn(BraintreeCustomerService.prototype, 'getCtCustomer')
-        .mockResolvedValue({ custom: { fields: { braintreeCustomerId: 'bt-customer-1' } } } as unknown as Customer);
+      jest.spyOn(BraintreeCustomerService.prototype, 'getCtCustomer').mockResolvedValue(storedCustomer);
       const notFound = Object.assign(new Error('customer not found'), { name: 'notFoundError' });
       (CommonConnect.getBraintreeGateway as jest.Mock).mockResolvedValue({
         customer: { find: jest.fn().mockRejectedValue(notFound as never) },
@@ -515,6 +520,7 @@ describe('braintree-payment.service', () => {
         'find',
         { customerId: 'bt-customer-1' },
         { success: false, name: 'notFoundError', message: 'customer not found' },
+        storedCustomer,
       );
     });
   });
@@ -712,6 +718,98 @@ describe('braintree-payment.service', () => {
           }),
         }),
       );
+    });
+
+    // The new card joins the Braintree customer linked on the CT customer; the request names no customer
+    describe('vaulting sale: the Braintree customer', () => {
+      let getCtCustomer: jest.SpiedFunction<BraintreeCustomerService['getCtCustomer']>;
+      let lookup: jest.SpiedFunction<BraintreeCustomerService['findExistingBraintreeCustomerId']>;
+      let link: jest.SpiedFunction<BraintreeCustomerService['linkBraintreeCustomerId']>;
+      const vaultSale = () =>
+        braintreePaymentService.transactionSale({
+          ...baseRequest,
+          paymentMethodType: PaymentMethodType.CREDIT_CARD,
+          paymentMethodNonce: 'fake-valid-nonce',
+          storeInVaultOnSuccess: true,
+        });
+      const sentToBraintree = () => (CommonConnect.transactionSale as jest.Mock).mock.calls[0][0];
+
+      beforeEach(() => {
+        jest
+          .spyOn(paymentSDK.ctPaymentService, 'getPayment')
+          .mockResolvedValue({
+            ...mockGetPaymentResult,
+            customer: { typeId: 'customer', id: 'ct-customer-1' },
+          } as never);
+        jest.spyOn(paymentSDK.ctPaymentMethodService, 'save').mockResolvedValue({} as never);
+        getCtCustomer = jest.spyOn(BraintreeCustomerService.prototype, 'getCtCustomer');
+        lookup = jest
+          .spyOn(BraintreeCustomerService.prototype, 'findExistingBraintreeCustomerId')
+          .mockResolvedValue({ braintreeCustomerId: undefined, recordFields: { findResponse: 'miss' } });
+        link = jest.spyOn(BraintreeCustomerService.prototype, 'linkBraintreeCustomerId').mockResolvedValue();
+        jest.spyOn(BraintreeCustomerService.prototype, 'recordCustomerFields').mockImplementation(() => undefined);
+      });
+
+      test('linked customer: attached by its stored id, no lookup; the read customer serves the link', async () => {
+        const customer = ctCustomerWith('bt-customer-1');
+        getCtCustomer.mockResolvedValue(customer);
+
+        await vaultSale();
+
+        expect(sentToBraintree()).toEqual(expect.objectContaining({ customerId: 'bt-customer-1' }));
+        expect(sentToBraintree()).not.toHaveProperty('customer');
+        expect(lookup).not.toHaveBeenCalled();
+        expect(link).toHaveBeenCalledWith('ct-customer-1', 'bt-customer-1', undefined, customer);
+      });
+
+      // the field wiped on redeploy: the Braintree customer with the CT customer's id is reused
+      test('no stored id, a Braintree customer found: attached to it, the lookup recorded with the link', async () => {
+        const customer = ctCustomerWith();
+        getCtCustomer.mockResolvedValue(customer);
+        lookup.mockResolvedValue({ braintreeCustomerId: 'bt-customer-1', recordFields: { findResponse: 'found' } });
+
+        await vaultSale();
+
+        expect(sentToBraintree()).toEqual(expect.objectContaining({ customerId: 'bt-customer-1' }));
+        expect(link).toHaveBeenCalledWith('ct-customer-1', 'bt-customer-1', { findResponse: 'found' }, customer);
+      });
+
+      test('no stored id, none found: the Braintree customer created with the CT customer id', async () => {
+        getCtCustomer.mockResolvedValue(ctCustomerWith());
+
+        await vaultSale();
+
+        expect(sentToBraintree()).toEqual(expect.objectContaining({ customer: { id: 'ct-customer-1' } }));
+        expect(sentToBraintree()).not.toHaveProperty('customerId');
+      });
+
+      // unlike the ACH vault: the sale goes ahead
+      test('CT customer unreadable: falls back to the lookup, charged', async () => {
+        getCtCustomer.mockResolvedValue(undefined);
+
+        await expect(vaultSale()).resolves.toEqual(expect.objectContaining({ success: true }));
+
+        expect(lookup).toHaveBeenCalledWith('ct-customer-1');
+      });
+
+      // Braintree's contract (braintree-extension live test "transaction with customerId keeps that customer")
+      test('Braintree answers with another customer than the sent one: logged for a report to Braintree', async () => {
+        getCtCustomer.mockResolvedValue(ctCustomerWith('bt-customer-1'));
+        (CommonConnect.transactionSale as jest.Mock).mockResolvedValue({
+          ...mockBraintreeTransaction,
+          customer: { id: 'bt-other' },
+        } as never);
+        const errorSpy = jest.spyOn(log, 'error').mockImplementation(() => log);
+
+        await vaultSale();
+
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            `on payment ${mockGetPaymentResult.id}, commercetools customer ct-customer-1: bt-other`,
+          ),
+        );
+        expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('report this to Braintree immediately'));
+      });
     });
 
     test('discountAmount is derived as the gap between lineItems total and the charged amount', async () => {
@@ -1152,15 +1250,30 @@ describe('braintree-payment.service', () => {
         paymentMethodNonce: 'nonce-123',
         braintreePaymentDetails,
       });
-    const expectRefused = async (promise: Promise<unknown>, change: string) => {
+    // the buyer gets no detail; returns the merchant log
+    const expectRefusedBeforeBraintree = async (promise: Promise<unknown>) => {
       const errorSpy = jest.spyOn(log, 'error').mockImplementation(() => log);
-      // the buyer gets no detail
       await expect(promise).rejects.toThrow(`transactionSale refused for payment ${mockGetPaymentResult.id}`);
       expect(CommonConnect.transactionSale).not.toHaveBeenCalled();
+      return errorSpy;
+    };
+    const expectRefused = async (promise: Promise<unknown>, change: string) => {
+      const errorSpy = await expectRefusedBeforeBraintree(promise);
       // the merchant gets the hint with the commercetools docs link
       expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining(`cart ${change} changed after payment creation`));
       expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('reloadPaymentMethods'));
     };
+
+    // the cart holds this payment and 'other-payment'
+    const cartWithOtherPayment = (): Cart => ({
+      ...saleCart(),
+      paymentInfo: {
+        payments: [
+          { typeId: 'payment', id: mockGetPaymentResult.id },
+          { typeId: 'payment', id: 'other-payment' },
+        ],
+      },
+    });
 
     beforeEach(() => {
       mockPayments();
@@ -1196,8 +1309,17 @@ describe('braintree-payment.service', () => {
       );
     });
 
-    test('no line items submitted: refused before Braintree', async () => {
-      await expectRefused(sale(), 'line items');
+    // e.g. a merchant's own call: nothing to compare the line items with, the amount still is
+    test('no line items submitted, cart unchanged: charged without line items', async () => {
+      await sale();
+
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(expect.objectContaining({ lineItems: [] }));
+    });
+
+    test('no line items submitted, cart amount changed: refused before Braintree', async () => {
+      mockCart({ ...saleCart(), totalPrice: gbp(130000) });
+
+      await expectRefused(sale(), 'amount');
     });
 
     // the cart (1500.00) holds this payment (1200.00) and another one (300.00)
@@ -1212,16 +1334,7 @@ describe('braintree-payment.service', () => {
     ])('another payment on the cart $description', async ({ transactions, charged }) => {
       const otherPayment = { id: 'other-payment', amountPlanned: gbp(30000), transactions };
       const getPayment = mockPayments(otherPayment);
-      mockCart({
-        ...saleCart(),
-        totalPrice: gbp(150000),
-        paymentInfo: {
-          payments: [
-            { typeId: 'payment', id: mockGetPaymentResult.id },
-            { typeId: 'payment', id: otherPayment.id },
-          ],
-        },
-      });
+      mockCart({ ...cartWithOtherPayment(), totalPrice: gbp(150000) });
 
       if (charged) {
         await sale(saleDetails);
@@ -1229,6 +1342,22 @@ describe('braintree-payment.service', () => {
       } else await expectRefused(sale(saleDetails), 'amount');
       // the payment itself is read once, by transactionSale
       expect(getPayment.mock.calls.filter(([{ id }]) => id === mockGetPaymentResult.id)).toHaveLength(1);
+    });
+
+    // without it the amount left to pay can't be computed: a clear refusal, not a 500
+    test('another payment on the cart unreadable: refused before Braintree', async () => {
+      jest
+        .spyOn(paymentSDK.ctPaymentService, 'getPayment')
+        .mockImplementation(async ({ id }) =>
+          id === mockGetPaymentResult.id
+            ? (mockGetPaymentResult as never)
+            : Promise.reject(new Error('CT unavailable')),
+        );
+      mockCart(cartWithOtherPayment());
+
+      const errorSpy = await expectRefusedBeforeBraintree(sale(saleDetails));
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('could not read payment other-payment of cart'));
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining(`refused payment ${mockGetPaymentResult.id}`));
     });
 
     // the SDK's getPaymentAmount would count the payment itself as paid

@@ -36,7 +36,7 @@ describe("BraintreePaymentEnabler", () => {
 
   describe("one payment shared by every standard/stored component", () => {
     const sharedPayment = {
-      braintreeData: { clientToken: "token", braintreeCustomerId: "" },
+      braintreeData: { clientToken: "token" },
       payment: {
         ctPaymentId: "payment-1",
         braintreeAmount: 10,

@@ -127,7 +127,6 @@ describe("ACHMask — Checkout submit() always settles", () => {
       }),
     );
     expect(vaultRequest).not.toHaveProperty("ctCustomerId");
-    expect(vaultRequest).not.toHaveProperty("braintreeCustomerId");
   });
 
   it("rejects with ACH_UNEXPECTED_ERROR when something throws inside the tokenize callback", async () => {

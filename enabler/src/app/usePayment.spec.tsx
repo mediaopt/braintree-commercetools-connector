@@ -20,7 +20,7 @@ const sessionSentTo = (urlSuffix: string) =>
     .map(([header]) => header["X-Session-Id"]);
 
 const createPaymentResponse = {
-  braintreeData: { clientToken: "click-token", braintreeCustomerId: "" },
+  braintreeData: { clientToken: "click-token" },
   payment: {
     ctPaymentId: "click-payment",
     braintreeAmount: 10,
@@ -64,7 +64,6 @@ describe("usePayment — PayPal Express session switch", () => {
         return {
           braintreeData: {
             clientToken: "mount-token",
-            braintreeCustomerId: "",
           },
         };
       if (url.endsWith("/updateCartShipping"))
