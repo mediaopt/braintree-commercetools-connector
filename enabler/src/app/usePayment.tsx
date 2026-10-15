@@ -50,7 +50,6 @@ type HandleTransactionSaleType = (
 
 type DeferredPaymentResult = {
   clientToken: string;
-  braintreeCustomerId: string;
   paymentInfo: PaymentInfo;
 };
 
@@ -67,7 +66,6 @@ type PaymentContextT = {
     newShippingMethodId: string,
     address?: ChangeShippingRequest["address"],
   ) => Promise<UpdateCartShippingResult>;
-  braintreeCustomerId: string;
   requestHeader: RequestHeader;
 };
 
@@ -106,7 +104,6 @@ const PaymentContext = createContext<PaymentContextT>({
       braintreeAmount: "",
       shippingAmount: "0.00",
     }),
-  braintreeCustomerId: "",
   requestHeader: {},
 });
 
@@ -130,9 +127,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   // Standard/stored components start from the payment shared by BraintreePaymentEnabler
   const [clientToken, setClientToken] = useState<string | undefined>(
     initialPayment?.braintreeData.clientToken,
-  );
-  const [braintreeCustomerId, setBraintreeCustomerId] = useState(
-    initialPayment?.braintreeData.braintreeCustomerId ?? "",
   );
   // In deferred mode, no real payment exists yet — seed just enough (currency/amount) from
   // initialAmount for PayPalMask's SDK bootstrap (loadPayPalSDK) to initialize with.
@@ -199,7 +193,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
     if (!result) throw new Error("Could not create express payment");
     return {
       clientToken: result.braintreeData.clientToken,
-      braintreeCustomerId: result.braintreeData.braintreeCustomerId,
       paymentInfo: result.payment,
     };
   };
@@ -219,9 +212,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
           >(currentRequestHeader(), expressClientTokenUrl, undefined, "GET");
           if (tokenResult) {
             setClientToken(tokenResult.braintreeData.clientToken);
-            setBraintreeCustomerId(
-              tokenResult.braintreeData.braintreeCustomerId,
-            );
           } else {
             notify("Error", "Could not fetch payment token");
             setClientToken(undefined);
@@ -230,9 +220,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
           const createPaymentResult = await fetchCreatePaymentResult();
           if (createPaymentResult) {
             setClientToken(createPaymentResult.braintreeData.clientToken);
-            setBraintreeCustomerId(
-              createPaymentResult.braintreeData.braintreeCustomerId,
-            );
             setPaymentInfo(createPaymentResult.payment);
           } else {
             notify("Error", "Could not create payment");
@@ -285,7 +272,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         // which is either stale (mount-time placeholder) or not the payment this transaction targets.
         ctPaymentId: ctPaymentIdOverride ?? paymentInfo.ctPaymentId,
         paymentMethodNonce: paymentNonce,
-        braintreeCustomerId,
         paymentMethodType,
         braintreePaymentDetails: {
           braintreeLineItems:
@@ -383,7 +369,6 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       vaultedPaymentMethods,
       handleGetVaultedPaymentMethods,
       updateCartShipping,
-      braintreeCustomerId,
       requestHeader,
     };
   }, [clientToken, initializingPayment]);

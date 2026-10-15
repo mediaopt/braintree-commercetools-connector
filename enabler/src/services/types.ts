@@ -10,7 +10,6 @@ export type CreatePaymentRequest = {
 // Options accepted by handleTransactionSale. Fields mirror processor/src/dtos/braintree-payment.dto.ts
 // (TransactionSaleRequestSchemaDTO), minus ctPaymentId and paymentMethodNonce which are added internally.
 export type TransactionSaleOptions = {
-  braintreeCustomerId?: string;
   paymentToken?: string;
   storeInVaultOnSuccess?: boolean;
   storeShipping?: boolean;

@@ -97,7 +97,6 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   // below (which depends on paymentInfo/clientToken) while this same click is still in flight.
   const deferredResultRef = useRef<{
     clientToken: string;
-    braintreeCustomerId: string;
     paymentInfo: PaymentInfo;
   } | null>(null);
   // Set once onShippingChange updated the cart (also for a 0 cost option: a shipping discount can still change the
@@ -519,10 +518,10 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
   const showVaultCheckbox = useMemo(
     () =>
       enableVaulting &&
-      !!braintreeCustomerId &&
+      !!paymentInfo.ctCustomerId &&
       // PURE_VAULT_DISABLED !isPureVault &&
       flow !== ("vault" as FlowType),
-    [enableVaulting, braintreeCustomerId, flow],
+    [enableVaulting, paymentInfo.ctCustomerId, flow],
   );
   PAYPAL_VAULT_DISABLED end */
 

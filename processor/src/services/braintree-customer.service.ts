@@ -85,7 +85,7 @@ export class BraintreeCustomerService {
    * reasons with other modules (braintree-extension, braintree-commercetools-events) that read/write
    * this same field — see DOCS.md. ctPaymentMethodService (in braintree-payment.service.ts) is the
    * parallel, commercetools-native mechanism going forward; see the class-level note in
-   * abstract-payment.service.ts.
+   * abstract-payment.service.ts. An existing link is never replaced (see setBraintreeCustomerFields).
    */
   public async linkBraintreeCustomerId(
     ctCustomerId: string,
@@ -131,7 +131,8 @@ export class BraintreeCustomerService {
    * type is left alone — braintree-extension doesn't act on such a customer either, and the self-heal lookup
    * (findExistingBraintreeCustomerId) still finds the Braintree customer (same id). Only fields whose stored value
    * differs are written, so a repeated identical answer (e.g. the same Braintree customer on every checkout load) causes
-   * no write. Resolves false only when every attempt failed; nothing to do (no customer, nothing changed, another type)
+   * no write. An existing braintreeCustomerId is never replaced: re-pointing the customer would hide its stored payment
+   * methods. Resolves false only when every attempt failed; nothing to do (no customer, nothing changed, another type)
    * counts as done.
    */
   private async setBraintreeCustomerFields(
@@ -157,7 +158,10 @@ export class BraintreeCustomerService {
       }
       const storedFields = ctCustomer.custom?.fields ?? {};
       const changedFields = Object.fromEntries(
-        Object.entries(fields).filter(([name, value]) => storedFields[name] !== value),
+        Object.entries(fields).filter(
+          ([name, value]) =>
+            storedFields[name] !== value && !(name === 'braintreeCustomerId' && storedFields.braintreeCustomerId),
+        ),
       );
       if (!Object.keys(changedFields).length) return true;
       // No custom type yet (e.g. braintree-extension not installed): set the Braintree customer type

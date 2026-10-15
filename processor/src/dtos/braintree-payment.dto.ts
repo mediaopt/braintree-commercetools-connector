@@ -95,7 +95,6 @@ const PaymentVaultSchema = Type.Object({
 export const InitPaymentResponseSchema = Type.Object({
   braintreeData: Type.Object({
     clientToken: Type.String(),
-    braintreeCustomerId: Type.Optional(Type.String()),
   }),
   payment: Type.Intersect([
     PaymentRequiredFieldsSchema,
@@ -109,7 +108,6 @@ export const InitPaymentResponseSchema = Type.Object({
 export const ExpressClientTokenResponseSchema = Type.Object({
   braintreeData: Type.Object({
     clientToken: Type.String(),
-    braintreeCustomerId: Type.Optional(Type.String()),
   }),
 });
 export type ExpressClientTokenResponseSchemaDTO = Static<typeof ExpressClientTokenResponseSchema>;
@@ -160,7 +158,6 @@ export type PaymentResponseSchemaDTO = Static<typeof InitPaymentResponseSchema>;
 
 export const TransactionSaleRequestSchema = Type.Object({
   ctPaymentId: Type.String(),
-  braintreeCustomerId: Type.Optional(Type.String()),
   paymentMethodNonce: Type.Optional(Type.String()),
   paymentToken: Type.Optional(Type.String()),
   storeInVaultOnSuccess: Type.Optional(Type.Boolean()),

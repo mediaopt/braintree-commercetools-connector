@@ -613,9 +613,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
    * an entirely independent client token once the real CT Payment exists — that later token, not this
    * one, is what actually gets stored on the payment (createPayment's getClientToken record).
    */
-  public async getExpressClientToken(): Promise<{
-    braintreeData: { clientToken: string; braintreeCustomerId?: string };
-  }> {
+  public async getExpressClientToken(): Promise<{ braintreeData: { clientToken: string } }> {
     const merchantAccountId = getConfig().merchantAccountId;
     let braintreeCustomerId: string | undefined;
     // PayPal Express's session may have no Cart before the click: anonymous token
@@ -634,7 +632,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       }
     }
     const clientToken = await getClientToken({ merchantAccountId, customerId: braintreeCustomerId });
-    return { braintreeData: { clientToken, braintreeCustomerId } };
+    return { braintreeData: { clientToken } };
   }
 
   /**
@@ -761,7 +759,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
         isPureVault,
         customer ?? undefined,
         shippingMethods,
-        braintreeCustomerId,
       );
     } catch (err) {
       // Logged again by the error handler; the duplicate is accepted, as this line gives depersonalized debug data
@@ -790,11 +787,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
     isPureVault: boolean,
     customer: Customer | undefined,
     shippingMethods: ShippingMethod[],
-    braintreeCustomerId: string | undefined,
   ): PaymentResponseSchemaDTO {
     const extendedLineItems = isPureVault ? [] : buildCartLineItems(ctCart, isExpress);
     return {
-      braintreeData: { clientToken, braintreeCustomerId },
+      braintreeData: { clientToken },
       payment: {
         firstName: ctCart.billingAddress?.firstName,
         lastName: ctCart.billingAddress?.lastName,
@@ -909,7 +905,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
   public async transactionSale({
     ctPaymentId,
-    braintreeCustomerId,
     paymentMethodNonce,
     paymentToken,
     storeInVaultOnSuccess,
@@ -1026,6 +1021,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const sendDiscountAsLineItem = isPayPal && Number(residualDiscount) > 0;
     if (sendDiscountAsLineItem) lineItems.push(buildDiscountLineItem(residualDiscount));
     const discountAmount = sendDiscountAsLineItem ? (0).toFixed(fractionDigits) : residualDiscount;
+    // A vaulting sale attaches the Braintree customer linked on the CT customer (never one named by the request), so
+    // the new method is stored with the customer's earlier ones.
+    let storedBtCustomerId: string | undefined;
     // braintreeCustomerId can be missing because the CT custom field was wiped (frequently occurring redeploy issue),
     // not because the customer is new. Check for a pre-existing Braintree customer
     // (ids are equal to the CT customer id by construction) before embedding an inline "create customer"
@@ -1034,18 +1032,22 @@ export class BraintreePaymentService extends AbstractPaymentService {
     let existingBtCustomerId: string | undefined;
     // the lookup's record, written after the sale together with the link (separate writes would compete with it)
     let findCustomerRecord: CustomFields | undefined;
-    if (storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId) {
-      ({ braintreeCustomerId: existingBtCustomerId, recordFields: findCustomerRecord } =
-        await this.braintreeCustomerService.findExistingBraintreeCustomerId(ctPayment.customer.id));
+    if (storeInVaultOnSuccess && ctPayment.customer?.id) {
+      const ctCustomer = await this.braintreeCustomerService.getCtCustomer(ctPayment.customer.id);
+      storedBtCustomerId = ctCustomer ? ctCustomer.custom?.fields?.braintreeCustomerId : undefined;
+      if (!storedBtCustomerId)
+        ({ braintreeCustomerId: existingBtCustomerId, recordFields: findCustomerRecord } =
+          await this.braintreeCustomerService.findExistingBraintreeCustomerId(ctPayment.customer.id));
     }
+    const vaultCustomerId = storedBtCustomerId ?? existingBtCustomerId;
     // the lookup's record alone, when no link carries it
     const recordFindCustomer = () =>
       findCustomerRecord &&
       this.braintreeCustomerService.recordCustomerFields(ctPayment.customer!.id, findCustomerRecord, 'find');
     const optionalRequestData: Partial<TransactionRequest> = {
-      ...(storeInVaultOnSuccess && ctPayment.customer?.id && !braintreeCustomerId
-        ? existingBtCustomerId
-          ? { customerId: existingBtCustomerId } // attach to the pre-existing Braintree customer instead of re-creating it
+      ...(storeInVaultOnSuccess && ctPayment.customer?.id
+        ? vaultCustomerId
+          ? { customerId: vaultCustomerId } // attach to the existing Braintree customer instead of re-creating it
           : { customer: { id: ctPayment.customer.id } }
         : {}),
       lineItems,
@@ -1101,6 +1103,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
     ]);
     const extraFields: Record<string, string> = {};
     handleCustomTransactionFields(extraFields, response, ctPayment);
+    // A sale sent with customerId is answered with that customer (Braintree's contract, covered by braintree-extension's
+    // live test "transaction with customerId keeps that customer"), so the link below never meets another stored id;
+    // it would keep the stored one anyway
+    if (vaultCustomerId && response.customer?.id !== vaultCustomerId)
+      log.error(
+        `transactionSale: Braintree answered with another customer than the sent one on payment ${ctPaymentId}, commercetools customer ${ctPayment.customer?.id}: ${response.customer?.id} — please report this to Braintree immediately`,
+      );
     // Fire-and-forget: customer update has no webhook fallback, so retries are handled
     // internally in linkBraintreeCustomerId, but it does not block the transaction response.
     if (storeInVaultOnSuccess && response.customer?.id && ctPayment.customer?.id) {

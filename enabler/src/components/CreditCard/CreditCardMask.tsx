@@ -50,7 +50,6 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     handleTransactionSale,
     // PURE_VAULT_DISABLED: handlePureVault,
     paymentInfo,
-    braintreeCustomerId,
   } = usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
@@ -465,7 +464,7 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
 
         {!onRegisterSubmit &&
           enableVaulting &&
-          braintreeCustomerId && ( //PURE_VAULT_DISABLED  && !isPureVault
+          paymentInfo.ctCustomerId && ( //PURE_VAULT_DISABLED  && !isPureVault
             <>
               <label className={`${HOSTED_FIELDS_LABEL} mb-2`}>
                 <input className="mr-3" ref={ccVaultCheckbox} type="checkbox" />
