@@ -52,6 +52,11 @@ The connector includes a checkout mode for faster, streamlined payment processin
 
 To use the checkout compatible connector please create a checkout application in the [merchant center](https://docs.commercetools.com/checkout/overview#merchant-center-configuration). In the application payment integrations you can select this connector and configure payment methods available. Please note that the connector only supports standard payments and express payments. It is your responsibility to configure the relevant restriction for your payment methods. This includes, but doesn't limit to, local payment methods (Example: for Przelewy24 country PL is required, set it as billingAddress.country = "PL").
 
+If a sale is refused because the cart changed so that the payment no longer matches what the buyer approved (e.g. in
+the PayPal window), make sure that you call
+[`reloadPaymentMethods()`](https://docs.commercetools.com/checkout/releases/2025-03-05-introduced-reloadpaymentmethods-method-and-failedtorefreshsession-message)
+after such cart changes.
+
 #### Payment methods and their restrictions
 
 | Category | Method              | previous name (npm client)         | checkout reference | Country requirement                                           | Currency requirement           | Recommended predicates                                                                                   |
@@ -108,6 +113,12 @@ Braintree remains the authoritative source for everything it has vaulted, includ
 and ACH bank accounts saved through other means (e.g. the extension/connector mode) — but this
 checkout-compatible build does not surface those as stored payment methods, since commercetools
 Checkout has no UI to display them. Please open an issue if you are interested in this.
+
+Saving a card requires a logged-in customer. The card is stored with the Braintree customer linked on the
+commercetools customer (`braintreeCustomerId`); an existing link is never replaced. The processor records its
+Braintree customer calls on the commercetools customer (`findProcessorRequest`/`findResponse`, `vault…`,
+`deletePayment…`), as the extension does with `findResponse`. These records hold personal data — the Braintree
+customer's email, addresses and vaulted payment methods — and are written only when they change.
 
 #### Button customization
 
