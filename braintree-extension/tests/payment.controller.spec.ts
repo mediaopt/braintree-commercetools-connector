@@ -157,7 +157,9 @@ describe('Testing Braintree Transaction Sale', () => {
       const paymentRequest = {
         obj: {
           amountPlanned: {
-            centAmount: 100,
+            // not 100: the credit card test above charges the same sandbox card with it, and Braintree rejects a
+            // repeated sale of the same card and amount as a duplicate ("Gateway Rejected: duplicate")
+            centAmount: 101,
             fractionDigits: 0,
           },
           custom: {
@@ -172,6 +174,8 @@ describe('Testing Braintree Transaction Sale', () => {
       } as unknown as PaymentReference;
       const paymentResponse = await paymentController('Update', paymentRequest);
       const payment = expectSuccessfulTransaction(paymentResponse);
+      // a failed sale stores Braintree's error in transactionSaleResponse too: shown here instead of a missing customer
+      expect(payment).toHaveProperty('status', 'authorized');
       expect(payment.customer?.id).toBe(customerId);
     } finally {
       await deleteCustomer(customerId);
