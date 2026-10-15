@@ -152,14 +152,16 @@ const productKeys = (lineItems: BraintreeLineItem[]): string =>
 
 /**
  * Whether the line items transactionSale submitted (the enabler's createPayment copy) are still the cart's: product and
- * price, or after an Express shipping change only the product.
+ * price, or after an Express shipping change only the product. None submitted (a merchant's own call, e.g. the ACH
+ * micro-deposit follow-up): nothing to compare — the amount check still keeps the charge exact, and Braintree gets no
+ * line items.
  */
 export const sameLineItems = (
   submitted: BraintreeLineItem[] | undefined,
   ctCart: Cart,
   expressShippingChanged: boolean,
 ): boolean => {
-  if (!submitted) return false;
+  if (!submitted) return true;
   const keys = expressShippingChanged ? productKeys : lineItemKeys;
   return keys(submitted) === keys(buildCartLineItems(ctCart, false));
 };
