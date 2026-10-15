@@ -964,7 +964,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
               // not the SDK's getPaymentAmount: it doesn't handle async payments properly, a payment carrying the ACH
               // micro-deposit placeholder counts itself as paid. An Express cart must be new, so both are equal there.
               amountPlanned: await amountLeftForPayment(cart, ctPaymentId, (id) =>
-                this.ctPaymentService.getPayment({ id }),
+                this.ctPaymentService.getPayment({ id }).catch((err) => {
+                  // without it, the amount left to pay (and so the amount check) can't be computed
+                  log.error(
+                    `transactionSale: could not read payment ${id} of cart ${cart.id}, refused payment ${ctPaymentId} — ${errorMessage(err)}`,
+                  );
+                  throw new ErrorInvalidOperation(`transactionSale refused for payment ${ctPaymentId}`);
+                }),
               ),
             }
           : undefined,

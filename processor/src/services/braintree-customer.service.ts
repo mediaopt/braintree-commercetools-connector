@@ -15,7 +15,7 @@ import { Customer as BraintreeCustomer, PaymentMethod } from 'braintree';
 /* PURE_VAULT_DISABLED start
 import {
  PaymentUpdateResponseSchemaDTO /*, PureVaultBaseSchemaDTO} from '../dtos/braintree-payment.dto';
-import { handleCustomerResponse, logger, CustomerResponse } from 'common-connect';
+import { handleCustomerResponse, CustomerResponse } from 'common-connect';
 import { CustomerCreateRequest, PaymentMethodCreateRequest } from 'braintree';
 import { successGeneralResponse } from './constants';
 PURE_VAULT_DISABLED end */
@@ -58,7 +58,7 @@ export class BraintreeCustomerService {
       .execute()
       .then((response) => response.body)
       .catch((err) => {
-        log.warn(`Customer not found ${ctCustomerId} — ${errorMessage(err)}`);
+        log.warn(`Could not read customer ${ctCustomerId} — ${errorMessage(err)}`);
         return;
       });
   }
@@ -249,7 +249,7 @@ export class BraintreeCustomerService {
       this.getCtCustomer(ctCustomerId),
       this.findExistingBraintreeCustomerId(ctCustomerId),
     ]);
-    if (!ctCustomer) throw new ErrorInvalidOperation(`Customer ${ctCustomerId} not found`);
+    if (!ctCustomer) throw new ErrorInvalidOperation(`could not read customer ${ctCustomerId}`);
     const braintreeCustomerId: string | undefined = ctCustomer.custom?.fields?.braintreeCustomerId;
     const existingBtCustomerId = existing.braintreeCustomerId;
 
