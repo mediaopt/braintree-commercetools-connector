@@ -4,8 +4,8 @@ import { findSuitableTransactionId } from 'common-connect/dist';
 
 const PLACEHOLDER_PREFIX = 'ACH: ';
 
-// Marker interactionId of the ACH micro-deposit placeholder (addPlaceholderActions below and
-// cancelPlaceholderPayment, braintree-payment.service.ts): the vaulted bank account's token, since Braintree has no
+// Marker interactionId of the ACH micro-deposit placeholder (addPlaceholderActions below, and the cancel marker and
+// capture claim in ach-micro-deposit.ts): the vaulted bank account's token, since Braintree has no
 // transaction yet — settlement() charges it once the account is verified (docs/Intents.md). It is never a Braintree
 // transaction id, so it must never be sent to Braintree as one — find/exclude it via isPlaceholderInteractionId()
 // below — and, carrying a payment method token, never logged.
@@ -54,6 +54,10 @@ export const isPlaceholder = (t: Transaction, type?: TransactionType): boolean =
 export const hasPlaceholder = (payment: Payment, type?: TransactionType): boolean =>
   payment.transactions.some((t) => isPlaceholder(t, type));
 
+// A placeholder still to be overwritten by the real transaction — not a released capture claim (Failure)
+export const hasOpenPlaceholder = (payment: Payment, type: TransactionType): boolean =>
+  payment.transactions.some((t) => isPlaceholder(t, type) && t.state !== 'Failure');
+
 /**
  * Copy of the payment without placeholder transactions — lets the shared common-connect
  * findSuitableTransactionId (unchanged, also used by braintree-extension) never resolve a placeholder marker.
@@ -78,7 +82,7 @@ export const findTransactionIdOrUndefined = (payment: Payment, type: Transaction
 
 /**
  * True when an unverified ACH payment's placeholder was cancelled (cancelPlaceholderPayment,
- * braintree-payment.service.ts) — such a payment must never be charged afterwards.
+ * ach-micro-deposit.ts) — such a payment must never be charged afterwards.
  */
 export const hasCancelledPlaceholder = (payment: Payment): boolean => hasPlaceholder(payment, 'CancelAuthorization');
 
