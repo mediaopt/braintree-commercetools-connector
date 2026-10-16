@@ -165,3 +165,9 @@ On commercetools, the Authorization transaction carries the parent's id and each
 When Braintree can't verify a bank account at once, the payment still gets a placeholder Authorization, so it doesn't
 get stuck at a dead end without any resolution: it can be cancelled or reversed before verification, and captured
 once the account is verified.
+
+Take into account that the flow requires:
+
+1. Confirming the micro-transfer amounts with Braintree first (`usBankAccountVerification.confirmMicroTransferAmounts`):
+   Braintree sends no verification webhook, and a capture before verification is rejected.
+2. Capturing the full amount: a partial capture is rejected.
