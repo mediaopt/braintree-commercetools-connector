@@ -1043,7 +1043,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // the lookup's record, written after the sale together with the link (separate writes would compete with it)
     let findCustomerRecord: CustomFields | undefined;
     if (storeInVaultOnSuccess && ctPayment.customer?.id) {
-      // An unreadable CT customer doesn't stop the sale (unlike the ACH vault, vaultPaymentMethodForCustomer): it falls
+      // An unreadable CT customer doesn't stop the sale (unlike the ACH vault, vaultAchBankAccountForCustomer): it falls
       // back to the lookup below, and the payment carries enough data to resolve the customer link afterwards
       ctCustomer = await this.braintreeCustomerService.getCtCustomer(ctPayment.customer.id);
       vaultCustomerId = ctCustomer?.custom?.fields?.braintreeCustomerId;
@@ -1546,16 +1546,17 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // Payment and type are read in parallel with both, so a payment without the Braintree type can't be refused
     // before Braintree. A failed read must not fail the vault: the type then isn't checked, and syncPayment fetches.
     const [{ token, verified, ctCustomerId }, braintreePaymentTypeId, ctPayment] = await Promise.all([
-      this.ctCartService
-        .getCart({ id: cartId })
-        .then(({ customerId }) =>
-          this.braintreeCustomerService.vaultPaymentMethodForCustomer({ paymentMethodNonce, ctCustomerId: customerId }),
-        ),
+      this.ctCartService.getCart({ id: cartId }).then(({ customerId }) =>
+        this.braintreeCustomerService.vaultAchBankAccountForCustomer({
+          paymentMethodNonce,
+          ctCustomerId: customerId,
+        }),
+      ),
       getBraintreePaymentTypeId().catch(() => undefined),
       this.ctPaymentService.getPayment({ id: ctPaymentId }).catch(() => undefined),
     ]);
 
-    // Symmetric with linkBraintreeCustomerId (called inside vaultPaymentMethodForCustomer): also register
+    // Symmetric with linkBraintreeCustomerId (called inside vaultAchBankAccountForCustomer): also register
     // the vaulted method in commercetools' own PaymentMethod resource. Best-effort — Braintree's vault
     // above already succeeded and remains authoritative; see the class-level note in abstract-payment.service.ts.
     // Fire-and-forget so it doesn't add latency to the vault-token response.
