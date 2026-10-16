@@ -1,16 +1,23 @@
 import { Customer, Payment } from '@commercetools/connect-payments-sdk';
 import { PaymentUpdateAction, TransactionState, TransactionType } from '@commercetools/platform-sdk';
 import { PaymentMethod, Transaction } from 'braintree';
-import { findPaymentMethod, mapRequestToBraintreeTransactionSale, transactionSale } from 'common-connect/dist';
+import {
+  findPaymentMethod,
+  getBraintreeResponse,
+  mapRequestToBraintreeTransactionSale,
+  transactionSale,
+} from 'common-connect/dist';
 
 import { PaymentIntentResponseSchemaDTO, PaymentModificationStatus } from '../dtos/operations/payment-intents.dto';
 import { log } from '../libs/logger';
 import { paymentSDK } from '../payment-sdk';
 import { errorMessage, retryCTSync } from '../utils/error.utils';
+import { rejectPaymentIntent, toPaymentIntentResponse } from '../utils/paymentIntent.utils';
 import {
   buildPlaceholderInteractionId,
   hasCancelledPlaceholder,
   hasOpenPlaceholder,
+  isOpenPlaceholder,
   isPlaceholder,
   placeholderVaultToken,
 } from '../utils/transaction.utils';
@@ -27,16 +34,15 @@ import { ModifyPaymentWithTransactionRequest } from './types/operation.type';
 export const CONCURRENT_CANCEL_AND_SALE_ISSUE =
   'merchant integration issue: ct cancel and capture (Braintree transaction.sale) called concurrently';
 
+// For every log about a capture claim that blocks the payment: how the merchant unlocks it (docs/Intents.md
+// "ACH micro-deposit verification")
+const CLAIM_MANUAL_RELEASE_HINT =
+  "if no capture is running and the Braintree control panel shows no sale for this payment, set the payment's Initial Charge to Failure manually to unlock it";
+
 // The BraintreePaymentService methods used here, passed bound by the service
 export interface AchMicroDepositDeps {
   getPayment(paymentId: string): Promise<Payment>;
   getCtCustomer(ctCustomerId: string): Promise<Customer | undefined>;
-  rejectPaymentIntent(
-    paymentId: string,
-    operation: string,
-    reason: string,
-    level?: 'warn' | 'error',
-  ): PaymentIntentResponseSchemaDTO;
   handleBraintreeFailure(args: {
     ctPayment: Payment;
     operation: string;
@@ -52,7 +58,6 @@ export interface AchMicroDepositDeps {
     transactionTypeOverride?: TransactionType;
     methodName: string;
   }): Promise<void>;
-  toPaymentIntentResponse(response: Transaction): PaymentIntentResponseSchemaDTO;
 }
 
 /**
@@ -70,21 +75,14 @@ export async function captureMicroDepositAch(
   microDepositAuthorization: Payment['transactions'][number],
   amount: ModifyPaymentWithTransactionRequest['amount'],
 ): Promise<PaymentIntentResponseSchemaDTO> {
-  if (hasCancelledPlaceholder(ctPayment))
-    return deps.rejectPaymentIntent(ctPayment.id, 'settlement', 'the payment was cancelled before verification');
+  const reject = (reason: string, level?: 'warn' | 'error') =>
+    rejectPaymentIntent(ctPayment.id, 'settlement', reason, level);
+  if (hasCancelledPlaceholder(ctPayment)) return reject('the payment was cancelled before verification');
   // One sale settles the whole bank debit, so nothing would be left to capture after a partial one
   if (microDepositAuthorization.amount.centAmount !== amount.centAmount)
-    return deps.rejectPaymentIntent(
-      ctPayment.id,
-      'settlement',
-      'a partial capture of an ACH micro-deposit payment is not supported',
-    );
+    return reject('a partial capture of an ACH micro-deposit payment is not supported');
   if (hasCaptureClaim(ctPayment))
-    return deps.rejectPaymentIntent(
-      ctPayment.id,
-      'settlement',
-      'a capture of this payment is already in progress or done',
-    );
+    return reject(`a capture of this payment is already in progress or done — ${CLAIM_MANUAL_RELEASE_HINT}`);
   const token = placeholderVaultToken(microDepositAuthorization)!;
   let paymentMethod: PaymentMethod;
   try {
@@ -100,18 +98,11 @@ export async function captureMicroDepositAch(
   }
   // @types/braintree declares no UsBankAccount; only a bank account has a routingNumber
   if (!('routingNumber' in paymentMethod) || !(await isPaymentCustomer(deps, ctPayment, paymentMethod)))
-    return deps.rejectPaymentIntent(
-      ctPayment.id,
-      'settlement',
-      "the placeholder's bank account doesn't belong to the payment's customer",
-      'error',
-    );
+    return reject("the placeholder's bank account doesn't belong to the payment's customer", 'error');
   // `verified` is a runtime field on UsBankAccount; @types/braintree does not declare it
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if ((paymentMethod as any).verified !== true)
-    return deps.rejectPaymentIntent(
-      ctPayment.id,
-      'settlement',
+    return reject(
       'the bank account is not verified yet — the micro-deposit flow is not officially supported, please open an issue if you need official support',
     );
   let claimed: Payment;
@@ -126,16 +117,12 @@ export async function captureMicroDepositAch(
         .execute()
     ).body as Payment;
   } catch (err) {
-    return deps.rejectPaymentIntent(
-      ctPayment.id,
-      'settlement',
+    return reject(
       `the capture could not be claimed on commercetools, another capture may be running — ${errorMessage(err)}`,
       'error',
     );
   }
-  const result = await claimedSale(deps, claimed, token);
-  if (result.outcome === PaymentModificationStatus.REJECTED) await releaseCaptureClaim(deps, ctPayment.id);
-  return result;
+  return claimedSale(deps, claimed, token);
 }
 
 /**
@@ -170,13 +157,22 @@ async function claimedSale(
   try {
     response = await transactionSale(transactionRequest);
   } catch (err) {
-    return await deps.handleBraintreeFailure({
+    const rejected = await deps.handleBraintreeFailure({
       ctPayment,
       operation: 'settlement',
       messageName: 'transactionSale',
       request: transactionRequest,
       err,
     });
+    // Braintree answered (a decline): no sale exists, so the claim is released for the next capture. Without an
+    // answer (timeout, network) the sale may exist, so the claim stays: a payment needing a manual check beats a
+    // second debit
+    if (getBraintreeResponse(err)) await releaseCaptureClaim(deps, ctPayment.id);
+    else
+      log.error(
+        `settlement: ACH sale outcome unknown on payment ${ctPayment.id} — the capture claim is kept to prevent a second debit; ${CLAIM_MANUAL_RELEASE_HINT}`,
+      );
+    return rejected;
   }
   // Same recording as transactionSale: the Authorization overwrites the placeholder in place, and the Charge Braintree's
   // settlement_pending maps to overwrites the claim (see updatePaymentWithTransaction)
@@ -189,16 +185,19 @@ async function claimedSale(
     methodName: 'settlement',
   });
   log.info(`settlement: ACH sale success, paymentId: ${ctPayment.id}`);
-  return deps.toPaymentIntentResponse(response);
+  const result = toPaymentIntentResponse(response);
+  // defensive only: Braintree answered with a failed sale, so nothing was debited
+  if (result.outcome === PaymentModificationStatus.REJECTED) await releaseCaptureClaim(deps, ctPayment.id);
+  return result;
 }
 
-// A sale that failed after its claim frees the payment for the next capture: the claim goes to Failure
+// A sale Braintree declined after its claim frees the payment for the next capture: the claim goes to Failure
 async function releaseCaptureClaim(deps: AchMicroDepositDeps, paymentId: string): Promise<void> {
   const released = await retryCTSync(
     async () => {
       const payment = await deps.getPayment(paymentId);
       const actions = payment.transactions
-        .filter((t) => isPlaceholder(t, 'Charge') && t.state !== 'Failure')
+        .filter((t) => isOpenPlaceholder(t, 'Charge'))
         .map((t): PaymentUpdateAction => ({ action: 'changeTransactionState', transactionId: t.id, state: 'Failure' }));
       if (!actions.length) return;
       await paymentSDK.ctAPI.client
@@ -212,9 +211,7 @@ async function releaseCaptureClaim(deps: AchMicroDepositDeps, paymentId: string)
     '', // no Braintree transaction behind the claim
   );
   if (!released)
-    log.error(
-      `settlement: capture claim of payment ${paymentId} could not be released — set its Initial Charge to Failure manually to allow another capture`,
-    );
+    log.error(`settlement: capture claim of payment ${paymentId} could not be released — ${CLAIM_MANUAL_RELEASE_HINT}`);
 }
 
 // The Braintree customer id equals the CT customer id by construction; braintreeCustomerId is only read when they differ
@@ -239,10 +236,16 @@ export async function cancelPlaceholderPayment(
   ctPayment: Payment,
   operation: string,
 ): Promise<PaymentIntentResponseSchemaDTO> {
+  // A capture holding its claim is charging (or charged) the bank account, so the payment can't be cancelled
+  // commercetools-only anymore. Checked on the payment the write is based on: a claim written in between makes this
+  // write fail its version check, and the retry reads the claim.
+  let captureClaimed = false;
   const cancelled = await retryCTSync(
     async () => {
       const payment = await deps.getPayment(ctPayment.id);
       if (hasCancelledPlaceholder(payment)) return;
+      captureClaimed = hasCaptureClaim(payment);
+      if (captureClaimed) return;
       const placeholder = payment.transactions.find((t) => isPlaceholder(t, 'Authorization'));
       if (!placeholder) {
         log.error(`${CONCURRENT_CANCEL_AND_SALE_ISSUE} on payment ${ctPayment.id}`);
@@ -274,11 +277,12 @@ export async function cancelPlaceholderPayment(
     '', // no Braintree transaction behind a placeholder
   );
   if (!cancelled)
-    return deps.rejectPaymentIntent(
+    return rejectPaymentIntent(ctPayment.id, operation, 'cancellation could not be recorded on commercetools', 'error');
+  if (captureClaimed)
+    return rejectPaymentIntent(
       ctPayment.id,
       operation,
-      'cancellation could not be recorded on commercetools',
-      'error',
+      `a capture of this payment is in progress or done — ${CLAIM_MANUAL_RELEASE_HINT}`,
     );
   log.warn(
     `${operation}: ACH payment cancelled before micro-deposit verification, no Braintree transaction exists — the bank account stays vaulted, paymentId: ${ctPayment.id}. Cancelled commercetools transaction placeholder added to avoid accidental Braintree capture in the future.`,
@@ -299,7 +303,7 @@ export function placeholderOverwriteActions(
     log.error(`${CONCURRENT_CANCEL_AND_SALE_ISSUE} on payment ${payment.id}, Braintree transaction ${response.id}`);
   }
   return payment.transactions.flatMap((t): PaymentUpdateAction[] => {
-    const target = t.state !== 'Failure' && recorded.find((r) => isPlaceholder(t, r.type));
+    const target = recorded.find((r) => isOpenPlaceholder(t, r.type));
     if (!target) return [];
     return [
       // commercetools rejects a change to the current state, which would fail the whole update: an ACH sale's

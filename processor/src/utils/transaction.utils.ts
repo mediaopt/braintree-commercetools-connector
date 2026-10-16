@@ -60,8 +60,11 @@ export const isMicroDepositMarker = (payment: Payment, id?: string): boolean =>
   !!id && payment.transactions.some((t) => isPlaceholder(t) && t.interactionId === id);
 
 // A placeholder still to be overwritten by the real transaction — not a released capture claim (Failure)
+export const isOpenPlaceholder = (t: Transaction, type: TransactionType): boolean =>
+  isPlaceholder(t, type) && t.state !== 'Failure';
+
 export const hasOpenPlaceholder = (payment: Payment, type: TransactionType): boolean =>
-  payment.transactions.some((t) => isPlaceholder(t, type) && t.state !== 'Failure');
+  payment.transactions.some((t) => isOpenPlaceholder(t, type));
 
 /**
  * Copy of the payment without placeholder transactions — lets the shared common-connect

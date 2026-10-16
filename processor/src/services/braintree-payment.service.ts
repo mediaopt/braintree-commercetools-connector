@@ -29,7 +29,7 @@ import {
 } from './types/operation.type';
 
 import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-componets.dto';
-import { PaymentIntentResponseSchemaDTO, PaymentModificationStatus } from '../dtos/operations/payment-intents.dto';
+import { PaymentIntentResponseSchemaDTO } from '../dtos/operations/payment-intents.dto';
 import packageJSON from '../../package.json';
 
 import { AbstractPaymentService } from './abstract-payment.service';
@@ -68,7 +68,6 @@ import {
   transactionSale,
   mapBraintreeTransactionToCommercetoolsTransaction,
   mapBraintreeVoidToCommercetoolsTransaction,
-  mapBraintreeStatusToCommercetoolsTransactionState,
   submitForSettlement,
   getPaymentMethodHint,
   refund as braintreeRefund,
@@ -116,6 +115,7 @@ import {
   // mapBraintreeUsBankAccountToStoredPaymentMethod,
 } from '../utils/storedPaymentMethod.utils';
 import { toPaymentMethodIconKey } from '../utils/paymentMethodIcon.utils';
+import { rejectPaymentIntent, toPaymentIntentResponse } from '../utils/paymentIntent.utils';
 import {
   addPlaceholderActions,
   findActiveCharges,
@@ -171,10 +171,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     this.achDeps = {
       getPayment: (id) => this.ctPaymentService.getPayment({ id }),
       getCtCustomer: (id) => this.braintreeCustomerService.getCtCustomer(id),
-      rejectPaymentIntent: this.rejectPaymentIntent.bind(this),
       handleBraintreeFailure: this.handleBraintreeFailure.bind(this),
       updatePaymentWithTransaction: this.updatePaymentWithTransaction.bind(this),
-      toPaymentIntentResponse: this.toPaymentIntentResponse.bind(this),
     };
   }
 
@@ -258,29 +256,25 @@ export class BraintreePaymentService extends AbstractPaymentService {
         const transaction = transactionTypeOverride
           ? { ...mappedTransaction, type: transactionTypeOverride }
           : mappedTransaction;
-        return [
-          ...this.existingTransactionActions(payment, response, [
-            transaction,
-            ...(mappedTransaction.type !== transaction.type && mappedTransaction.state !== 'Failure'
-              ? [mappedTransaction]
-              : []),
-          ]),
-          // the placeholder of this type was just overwritten with this transaction
-          ...(hasOpenPlaceholder(payment, transaction.type)
-            ? []
-            : paymentSDK.ctPaymentService.consolidateTransactionChanges(payment, transaction)),
-          // Braintree's real status can naturally map to something other than the CT Checkout override
-          // (e.g. autocapture -> Charge). Record that too (same interactionId) so CT's amountPaid and
-          // findActiveCharges (refund/reverse targets) see Braintree's actual state,
-          // not just the Authorization entry above. The Failure check is defensive only: a declined sale throws in
-          // common-connect's transactionSale before anything is written, so no Failure reaches here.
-          // (an ACH capture claim of that type was just overwritten instead)
-          ...(transactionTypeOverride &&
-          mappedTransaction.type !== transactionTypeOverride &&
-          mappedTransaction.state !== 'Failure' &&
-          !hasOpenPlaceholder(payment, mappedTransaction.type)
-            ? paymentSDK.ctPaymentService.consolidateTransactionChanges(payment, mappedTransaction)
+        // Braintree's real status can naturally map to something other than the CT Checkout override
+        // (e.g. autocapture -> Charge). Record that too (same interactionId) so CT's amountPaid and
+        // findActiveCharges (refund/reverse targets) see Braintree's actual state,
+        // not just the Authorization entry above. The Failure check is defensive only: a declined sale throws in
+        // common-connect's transactionSale before anything is written, so no Failure reaches here.
+        const recorded = [
+          transaction,
+          ...(mappedTransaction.type !== transaction.type && mappedTransaction.state !== 'Failure'
+            ? [mappedTransaction]
             : []),
+        ];
+        return [
+          ...this.existingTransactionActions(payment, response, recorded),
+          // an open ACH placeholder of that type was just overwritten with the transaction instead
+          ...recorded.flatMap((r) =>
+            hasOpenPlaceholder(payment, r.type)
+              ? []
+              : paymentSDK.ctPaymentService.consolidateTransactionChanges(payment, r),
+          ),
           // the SDK's pspReference
           ...(payment.interfaceId ? [] : [{ action: 'setInterfaceId' as const, interfaceId: response.id }]),
           ...buildStatusActions(
@@ -319,13 +313,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
     response: Transaction,
     recorded: { type: TransactionType; state: TransactionState }[],
   ): PaymentUpdateAction[] {
-    const voidedPending = payment.transactions.filter(
-      (t) =>
-        response.status === 'voided' &&
-        (t.type === 'Charge' || t.type === 'Refund') &&
-        t.state === 'Pending' &&
-        t.interactionId === response.id,
-    );
+    const voidedPending =
+      response.status !== 'voided'
+        ? []
+        : payment.transactions.filter(
+            (t) =>
+              (t.type === 'Charge' || t.type === 'Refund') && t.state === 'Pending' && t.interactionId === response.id,
+          );
     return [
       ...placeholderOverwriteActions(payment, response, recorded),
       ...voidedPending.map(
@@ -414,19 +408,6 @@ export class BraintreePaymentService extends AbstractPaymentService {
     };
   }
 
-  // Payment Intents API response — outcome derived from the same CT transaction state written for this Braintree result.
-  // Failures never get here: see rejectPaymentIntent / handleBraintreeFailure.
-  private toPaymentIntentResponse(response: Transaction): PaymentIntentResponseSchemaDTO {
-    const state = mapBraintreeStatusToCommercetoolsTransactionState(response.status);
-    const outcome =
-      state === 'Success'
-        ? PaymentModificationStatus.APPROVED
-        : state === 'Failure'
-          ? PaymentModificationStatus.REJECTED
-          : PaymentModificationStatus.RECEIVED;
-    return { outcome };
-  }
-
   /**
    * Failed Braintree call → Braintree's answer recorded on the payment (both call fields + pspInteractions), logged as error,
    * rejected — see docs/Intents.md "How this connector answers".
@@ -452,12 +433,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       `${messageName}:failureRecord`,
       '',
     );
-    return this.rejectPaymentIntent(
-      ctPayment.id,
-      operation,
-      `Braintree call failed: ${braintreeErrorRef(err)}`,
-      'error',
-    );
+    return rejectPaymentIntent(ctPayment.id, operation, `Braintree call failed: ${braintreeErrorRef(err)}`, 'error');
   }
 
   /**
@@ -1203,19 +1179,19 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (microDepositAuthorization)
       return captureMicroDepositAch(this.achDeps, ctPayment, microDepositAuthorization, amount);
     if (!transactionId)
-      return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'no transaction suitable for settlement');
+      return rejectPaymentIntent(ctPayment.id, 'settlement', 'no transaction suitable for settlement');
     const authorization = withoutPlaceholders(ctPayment).transactions.find(
       (t) => t.type === 'Authorization' && t.interactionId === transactionId,
     );
     if (!authorization)
-      return this.rejectPaymentIntent(
+      return rejectPaymentIntent(
         ctPayment.id,
         'settlement',
         // never the merchant-given id: whatever it carries (e.g. a vault token) mustn't reach the log
         "the transaction given as merchantReference isn't an Authorization of the payment",
       );
     if (isFailedOrVoided(ctPayment, transactionId))
-      return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'the transaction already failed or was voided');
+      return rejectPaymentIntent(ctPayment.id, 'settlement', 'the transaction already failed or was voided');
     // Full capture = the first capture of this Authorization, for its whole amount. Decided from the transactions only:
     // a full capture's Charge carries the Authorization's id, a partial capture's Charge its child's id, which can't
     // be attributed to an Authorization on commercetools — so any partial capture on the payment means partial.
@@ -1253,7 +1229,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       methodName: 'settlement',
     });
     log.info(`settlement: success, paymentId: ${ctPayment.id}`);
-    return this.toPaymentIntentResponse(response);
+    return toPaymentIntentResponse(response);
   }
 
   /**
@@ -1267,10 +1243,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const target = this.resolveTarget(ctPayment, 'refundPayment', request.transactionId, 'capture');
     if ('rejected' in target) return target.rejected;
     const { transactionId } = target;
-    if (!transactionId) return this.rejectPaymentIntent(ctPayment.id, 'refundPayment', 'no capture to refund');
+    if (!transactionId) return rejectPaymentIntent(ctPayment.id, 'refundPayment', 'no capture to refund');
     const remaining = remainingOnOnlyCharge(ctPayment, transactionId);
     if (remaining !== undefined && remaining < amount.centAmount)
-      return this.rejectPaymentIntent(ctPayment.id, 'refundPayment', 'refund exceeds what is left on the capture');
+      return rejectPaymentIntent(ctPayment.id, 'refundPayment', 'refund exceeds what is left on the capture');
     return this.refundTransaction(ctPayment, transactionId, amount, 'refundPayment');
   }
 
@@ -1307,7 +1283,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       methodName: operation,
     });
     log.info(`${operation}: refund success, paymentId: ${ctPayment.id}`);
-    return this.toPaymentIntentResponse(response);
+    return toPaymentIntentResponse(response);
   }
 
   // see docs/Intents.md "Cancel"
@@ -1318,7 +1294,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const { transactionId } = target;
     if (!transactionId) return this.cancelPlaceholderOrReject(ctPayment, 'void');
     if (isFailedOrVoided(ctPayment, transactionId))
-      return this.rejectPaymentIntent(ctPayment.id, 'void', 'the transaction already failed or was voided');
+      return rejectPaymentIntent(ctPayment.id, 'void', 'the transaction already failed or was voided');
     return this.voidTransaction(ctPayment, transactionId, 'void');
   }
 
@@ -1353,7 +1329,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       methodName: operation,
     });
     log.info(`${operation}: void success, paymentId: ${ctPayment.id}`);
-    return this.toPaymentIntentResponse(response);
+    return toPaymentIntentResponse(response);
   }
 
   // see docs/Intents.md "Reverse"
@@ -1365,9 +1341,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (!transactionId) return this.cancelPlaceholderOrReject(ctPayment, 'reversePayment');
     const remaining = remainingOnOnlyCharge(ctPayment, transactionId);
     if (remaining !== undefined && remaining <= 0)
-      return this.rejectPaymentIntent(ctPayment.id, 'reversePayment', 'already fully refunded');
+      return rejectPaymentIntent(ctPayment.id, 'reversePayment', 'already fully refunded');
     if (isFailedOrVoided(ctPayment, transactionId))
-      return this.rejectPaymentIntent(ctPayment.id, 'reversePayment', 'the transaction already failed or was voided');
+      return rejectPaymentIntent(ctPayment.id, 'reversePayment', 'the transaction already failed or was voided');
     // Recorded as findTransaction, though the call is Braintree's transaction.find by id (common-connect's
     // getTransaction): backward compatibility, findTransactionResponse is the extension's field name for its lookup
     let braintreeTransaction: Transaction;
@@ -1399,7 +1375,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     if (status === 'authorized' || status === 'submitted_for_settlement' || status === 'settlement_pending') {
       return this.voidTransaction(recordedPayment, transactionId, 'reversePayment');
     }
-    return this.rejectPaymentIntent(
+    return rejectPaymentIntent(
       ctPayment.id,
       'reversePayment',
       `Braintree transaction status ${status} can't be reversed`,
@@ -1415,7 +1391,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     operation: string,
   ): Promise<PaymentIntentResponseSchemaDTO> {
     if (hasPlaceholder(ctPayment)) return cancelPlaceholderPayment(this.achDeps, ctPayment, operation);
-    return this.rejectPaymentIntent(ctPayment.id, operation, 'no linked Braintree transaction to act on');
+    return rejectPaymentIntent(ctPayment.id, operation, 'no linked Braintree transaction to act on');
   }
 
   /**
@@ -1438,7 +1414,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       if (withoutPlaceholders(ctPayment).transactions.some((t) => t.interactionId === givenId))
         return { transactionId: givenId };
       return {
-        rejected: this.rejectPaymentIntent(
+        rejected: rejectPaymentIntent(
           ctPayment.id,
           operation,
           // never the merchant-given id: whatever it carries (e.g. a vault token) mustn't reach the log
@@ -1451,7 +1427,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const charges = findActiveCharges(ctPayment);
     if (charges.length > 1)
       return {
-        rejected: this.rejectPaymentIntent(
+        rejected: rejectPaymentIntent(
           ctPayment.id,
           operation,
           'more than one capture — send the Braintree transaction id of the target',

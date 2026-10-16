@@ -171,3 +171,6 @@ Take into account that the flow requires:
 1. Confirming the micro-transfer amounts with Braintree first (`usBankAccountVerification.confirmMicroTransferAmounts`):
    Braintree sends no verification webhook, and a capture before verification is rejected.
 2. Capturing the full amount: a partial capture is rejected.
+3. Checking the payment manually after a capture whose outcome is unknown (e.g. a Braintree timeout, logged as such):
+   its `Initial` Charge blocks further captures and cancels, so that a second debit can't happen. If the Braintree
+   control panel shows no sale for the payment, set that Charge to `Failure` to allow another capture.
