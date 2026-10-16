@@ -49,6 +49,7 @@ import {
   UpdateCartShippingRequestSchemaDTO,
   AchVaultTokenRequestSchemaDTO,
   AchVaultTokenResponseSchemaDTO,
+  FRONTEND_ISSUES_REGEX,
 } from '../dtos/braintree-payment.dto';
 import { StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
 import {
@@ -1535,7 +1536,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // Before the cart guard, so a rejected request still logs the issue it reports
     if (logFrontendIssue)
       log.warn(
-        `getAchVaultToken: frontend issue reported on payment ${ctPaymentId} before this attempt: ${logFrontendIssue}`,
+        FRONTEND_ISSUES_REGEX.test(logFrontendIssue)
+          ? `getAchVaultToken: frontend issue reported on payment ${ctPaymentId} before this attempt: ${logFrontendIssue}`
+          : `getAchVaultToken: malformed frontend issue report on payment ${ctPaymentId} dropped`,
       );
     // A session without a Cart (PayPal Express before the click) passes auth, but must never vault
     const cartId = this.requireCartIdFromContext(ctPaymentId);
