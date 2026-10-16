@@ -735,12 +735,10 @@ describe('braintree-payment.service', () => {
       const sentToBraintree = () => (CommonConnect.transactionSale as jest.Mock).mock.calls[0][0];
 
       beforeEach(() => {
-        jest
-          .spyOn(paymentSDK.ctPaymentService, 'getPayment')
-          .mockResolvedValue({
-            ...mockGetPaymentResult,
-            customer: { typeId: 'customer', id: 'ct-customer-1' },
-          } as never);
+        jest.spyOn(paymentSDK.ctPaymentService, 'getPayment').mockResolvedValue({
+          ...mockGetPaymentResult,
+          customer: { typeId: 'customer', id: 'ct-customer-1' },
+        } as never);
         jest.spyOn(paymentSDK.ctPaymentMethodService, 'save').mockResolvedValue({} as never);
         getCtCustomer = jest.spyOn(BraintreeCustomerService.prototype, 'getCtCustomer');
         lookup = jest
@@ -833,6 +831,18 @@ describe('braintree-payment.service', () => {
         paymentMethodNonce: 'fake-valid-nonce',
       });
       expect(CommonConnect.transactionSale).toHaveBeenCalledWith(expect.objectContaining({ discountAmount: '0.00' }));
+    });
+
+    test('a sale without line items derives no discount and logs no tax/fees warning', async () => {
+      const warn = jest.spyOn(log, 'warn').mockImplementation(() => log);
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.CREDIT_CARD,
+        paymentMethodNonce: 'fake-valid-nonce',
+        braintreePaymentDetails: {},
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(expect.objectContaining({ discountAmount: '0.00' }));
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('discountAmount clamped to 0'));
     });
 
     // Express after a shipping change: line items and shipping come from the refetched cart, never from the enabler
