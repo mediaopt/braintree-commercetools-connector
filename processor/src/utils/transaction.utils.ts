@@ -54,6 +54,11 @@ export const isPlaceholder = (t: Transaction, type?: TransactionType): boolean =
 export const hasPlaceholder = (payment: Payment, type?: TransactionType): boolean =>
   payment.transactions.some((t) => isPlaceholder(t, type));
 
+// True when a merchant-given transaction id is this payment's ACH micro-deposit marker (`ACH: <token>`, the
+// interactionId of its placeholder Authorization) — there's no Braintree transaction behind it yet
+export const isMicroDepositMarker = (payment: Payment, id?: string): boolean =>
+  !!id && payment.transactions.some((t) => isPlaceholder(t) && t.interactionId === id);
+
 // A placeholder still to be overwritten by the real transaction — not a released capture claim (Failure)
 export const hasOpenPlaceholder = (payment: Payment, type: TransactionType): boolean =>
   payment.transactions.some((t) => isPlaceholder(t, type) && t.state !== 'Failure');

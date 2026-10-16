@@ -123,6 +123,7 @@ import {
   hasOpenPlaceholder,
   hasPlaceholder,
   hasSale,
+  isMicroDepositMarker,
   isFailedOrVoided,
   isPlaceholder,
   remainingOnOnlyCharge,
@@ -1190,7 +1191,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // the Authorization given as merchantReference, otherwise the last one. merchantReference is used as a Braintree id
     // because capturePayment has no transactionId — see docs/Intents.md "Call parameters"
     // (https://docs.commercetools.com/checkout/payment-intents-api)
-    const transactionId = merchantReference ?? findTransactionIdOrUndefined(ctPayment, 'Authorization');
+    // merchantReference may be the micro-deposit marker: then it's the micro-deposit Authorization below
+    const transactionId = isMicroDepositMarker(ctPayment, merchantReference)
+      ? undefined
+      : (merchantReference ?? findTransactionIdOrUndefined(ctPayment, 'Authorization'));
     // ACH micro-deposit: no Braintree transaction yet, only the verified bank account — docs/Intents.md
     // "ACH micro-deposit verification"
     const microDepositAuthorization =
@@ -1206,7 +1210,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
       return this.rejectPaymentIntent(
         ctPayment.id,
         'settlement',
-        `transaction ${transactionId} isn't an Authorization of the payment`,
+        // never the merchant-given id: whatever it carries (e.g. a vault token) mustn't reach the log
+        "the transaction given as merchantReference isn't an Authorization of the payment",
       );
     if (isFailedOrVoided(ctPayment, transactionId))
       return this.rejectPaymentIntent(ctPayment.id, 'settlement', 'the transaction already failed or was voided');
@@ -1426,6 +1431,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     givenId: string | undefined,
     defaultTarget: 'capture' | 'authorization' | 'captureOrAuthorization',
   ): { transactionId: string | undefined } | { rejected: PaymentIntentResponseSchemaDTO } {
+    // the ACH micro-deposit marker: no Braintree transaction behind it yet, so no target (the placeholder path)
+    if (isMicroDepositMarker(ctPayment, givenId)) return { transactionId: undefined };
     if (givenId) {
       if (withoutPlaceholders(ctPayment).transactions.some((t) => t.interactionId === givenId))
         return { transactionId: givenId };
@@ -1433,7 +1440,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
         rejected: this.rejectPaymentIntent(
           ctPayment.id,
           operation,
-          `transaction ${givenId} doesn't belong to the payment`,
+          // never the merchant-given id: whatever it carries (e.g. a vault token) mustn't reach the log
+          "the given transaction doesn't belong to the payment",
         ),
       };
     }
