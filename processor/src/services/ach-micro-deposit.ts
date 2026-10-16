@@ -36,7 +36,7 @@ export const CONCURRENT_CANCEL_AND_SALE_ISSUE =
 
 // For every log about a capture claim that blocks the payment: how the merchant unlocks it (docs/Intents.md
 // "ACH micro-deposit verification")
-const CLAIM_MANUAL_RELEASE_HINT =
+export const CLAIM_MANUAL_RELEASE_HINT =
   "if no capture is running and the Braintree control panel shows no sale for this payment, set the payment's Initial Charge to Failure manually to unlock it";
 
 // The BraintreePaymentService methods used here, passed bound by the service

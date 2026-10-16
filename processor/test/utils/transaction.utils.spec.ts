@@ -15,6 +15,9 @@ import {
   findTransactionIdOrUndefined,
   hasCancelledPlaceholder,
   hasPlaceholder,
+  hasOpenPlaceholder,
+  isMicroDepositMarker,
+  isOpenPlaceholder,
   remainingRefundableCentAmount,
 } from '../../src/utils/transaction.utils';
 import { mockGetPaymentResultWithoutTransactions } from './mock-payment-results';
@@ -222,6 +225,42 @@ describe('transaction.utils', () => {
       expect(isPlaceholder(placeholder)).toBe(true);
       expect(isPlaceholder(placeholder, 'CancelAuthorization')).toBe(false);
       expect(isPlaceholder(transaction({ interactionId: 'txn-real' }))).toBe(false);
+    });
+  });
+
+  describe('isOpenPlaceholder / hasOpenPlaceholder', () => {
+    const marker = buildPlaceholderInteractionId('vault-token');
+    const claim = transaction({ type: 'Charge', state: 'Initial', interactionId: marker });
+
+    test('a placeholder of the type still to be overwritten is open', () => {
+      expect(isOpenPlaceholder(claim, 'Charge')).toBe(true);
+      expect(hasOpenPlaceholder(paymentWith([claim]), 'Charge')).toBe(true);
+    });
+
+    test('a released capture claim (Failure) is not open', () => {
+      const released = { ...claim, state: 'Failure' as const };
+      expect(isOpenPlaceholder(released, 'Charge')).toBe(false);
+      expect(hasOpenPlaceholder(paymentWith([released]), 'Charge')).toBe(false);
+    });
+
+    test('another type or a real transaction is not', () => {
+      expect(isOpenPlaceholder(claim, 'Authorization')).toBe(false);
+      expect(isOpenPlaceholder(transaction({ type: 'Charge', interactionId: 'txn-1' }), 'Charge')).toBe(false);
+    });
+  });
+
+  describe('isMicroDepositMarker', () => {
+    const marker = buildPlaceholderInteractionId('vault-token');
+    const payment = paymentWith([transaction({ state: 'Pending', interactionId: marker })]);
+
+    test("true for this payment's placeholder marker", () => {
+      expect(isMicroDepositMarker(payment, marker)).toBe(true);
+    });
+
+    test("false for another payment's marker, a Braintree id or no id", () => {
+      expect(isMicroDepositMarker(payment, buildPlaceholderInteractionId('other-token'))).toBe(false);
+      expect(isMicroDepositMarker(paymentWith([transaction({ interactionId: 'txn-1' })]), 'txn-1')).toBe(false);
+      expect(isMicroDepositMarker(payment, undefined)).toBe(false);
     });
   });
 

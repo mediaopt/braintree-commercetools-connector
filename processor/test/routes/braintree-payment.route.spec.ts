@@ -280,7 +280,7 @@ describe('braintree-payment.route', () => {
       expect(mockPaymentService.getAchVaultToken).toHaveBeenCalledWith(expect.objectContaining(payload));
     });
 
-    // buyer-supplied: only our codes with the Braintree reference reach the log
+    // diagnostic only: a malformed value never fails the vault (getAchVaultToken drops it), only an oversized one
     test.each([
       ['a code', 'ACH_TOKENIZE_FAILED', 200],
       [
@@ -288,8 +288,9 @@ describe('braintree-payment.route', () => {
         'ACH_TOKENIZE_FAILED (Braintree error code: US_BANK_X, Braintree requestId: req-1); ACH_CLIENT_CREATE_FAILED (Braintree requestId: req-2)',
         200,
       ],
-      ['free text', 'ACH_TOKENIZE_FAILED: bank 1000000000', 400],
-      ['a line break', 'ACH_TOKENIZE_FAILED\nfake log line', 400],
+      ['free text', 'ACH_TOKENIZE_FAILED: bank 1000000000', 200],
+      ['a line break', 'ACH_TOKENIZE_FAILED\nfake log line', 200],
+      ['more than 500 characters', 'A'.repeat(501), 400],
     ])('logFrontendIssue with %s → %s', async (_, logFrontendIssue, statusCode) => {
       const authenticateImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
       fastify = await buildApp(authenticateImpl);
