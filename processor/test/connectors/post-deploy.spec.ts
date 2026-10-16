@@ -21,6 +21,8 @@ const PAYMENT_TYPE_FULL_FIELD_NAMES = [
   'voidResponse',
   'findTransactionProcessorRequest',
   'findTransactionResponse',
+  'findPaymentMethodProcessorRequest',
+  'findPaymentMethodResponse',
 ];
 
 const INTERACTION_TYPE_FULL_FIELD_NAMES = ['type', 'data', 'timestamp'];

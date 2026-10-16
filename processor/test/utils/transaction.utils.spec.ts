@@ -5,6 +5,7 @@ import {
   addPlaceholderActions,
   buildPlaceholderInteractionId,
   isPlaceholderInteractionId,
+  placeholderVaultToken,
   withoutPlaceholders,
   findActiveCharges,
   isFailedOrVoided,
@@ -14,6 +15,9 @@ import {
   findTransactionIdOrUndefined,
   hasCancelledPlaceholder,
   hasPlaceholder,
+  hasOpenPlaceholder,
+  isMicroDepositMarker,
+  isOpenPlaceholder,
   remainingRefundableCentAmount,
 } from '../../src/utils/transaction.utils';
 import { mockGetPaymentResultWithoutTransactions } from './mock-payment-results';
@@ -34,28 +38,36 @@ const paymentWith = (transactions: Transaction[]): Payment => ({
 
 describe('transaction.utils', () => {
   describe('placeholder interactionId marker', () => {
-    test('builds a prefixed marker from the commercetools payment id', () => {
-      expect(buildPlaceholderInteractionId('payment-123')).toBe('BraintreePlaceholder: payment-123');
+    test('builds a prefixed marker from the vaulted bank account token', () => {
+      expect(buildPlaceholderInteractionId('vault-token')).toBe('ACH: vault-token');
     });
 
     test('recognizes only its own marker', () => {
-      expect(isPlaceholderInteractionId(buildPlaceholderInteractionId('payment-123'))).toBe(true);
+      expect(isPlaceholderInteractionId(buildPlaceholderInteractionId('vault-token'))).toBe(true);
       expect(isPlaceholderInteractionId('txn-test-1')).toBe(false);
       expect(isPlaceholderInteractionId(undefined)).toBe(false);
+    });
+
+    test('placeholderVaultToken reads the token back, only from a placeholder', () => {
+      expect(placeholderVaultToken(transaction({ interactionId: buildPlaceholderInteractionId('vault-token') }))).toBe(
+        'vault-token',
+      );
+      expect(placeholderVaultToken(transaction({ interactionId: buildPlaceholderInteractionId('') }))).toBeUndefined();
+      expect(placeholderVaultToken(transaction({ interactionId: 'txn-test-1' }))).toBeUndefined();
     });
   });
 
   describe('addPlaceholderActions', () => {
-    test('adds a Pending Authorization with the marker id and the planned amount', () => {
+    test('adds a Pending Authorization with the token marker and the planned amount', () => {
       const payment = paymentWith([]);
 
-      expect(addPlaceholderActions(payment)).toEqual([
+      expect(addPlaceholderActions(payment, 'vault-token')).toEqual([
         {
           action: 'addTransaction',
           transaction: {
             type: 'Authorization',
             state: 'Pending',
-            interactionId: buildPlaceholderInteractionId(payment.id),
+            interactionId: 'ACH: vault-token',
             amount: { centAmount: 120000, currencyCode: 'GBP' },
           },
         },
@@ -70,13 +82,13 @@ describe('transaction.utils', () => {
       },
       { description: 'a real Authorization', existing: { interactionId: 'bt-1' } },
     ] as const)('nothing when the payment already has $description', ({ existing }) => {
-      expect(addPlaceholderActions(paymentWith([transaction(existing)]))).toEqual([]);
+      expect(addPlaceholderActions(paymentWith([transaction(existing)]), 'vault-token')).toEqual([]);
     });
 
     test('other transaction types do not count', () => {
-      expect(addPlaceholderActions(paymentWith([transaction({ type: 'Charge', interactionId: 'bt-1' })]))).toHaveLength(
-        1,
-      );
+      expect(
+        addPlaceholderActions(paymentWith([transaction({ type: 'Charge', interactionId: 'bt-1' })]), 'vault-token'),
+      ).toHaveLength(1);
     });
   });
 
@@ -213,6 +225,42 @@ describe('transaction.utils', () => {
       expect(isPlaceholder(placeholder)).toBe(true);
       expect(isPlaceholder(placeholder, 'CancelAuthorization')).toBe(false);
       expect(isPlaceholder(transaction({ interactionId: 'txn-real' }))).toBe(false);
+    });
+  });
+
+  describe('isOpenPlaceholder / hasOpenPlaceholder', () => {
+    const marker = buildPlaceholderInteractionId('vault-token');
+    const claim = transaction({ type: 'Charge', state: 'Initial', interactionId: marker });
+
+    test('a placeholder of the type still to be overwritten is open', () => {
+      expect(isOpenPlaceholder(claim, 'Charge')).toBe(true);
+      expect(hasOpenPlaceholder(paymentWith([claim]), 'Charge')).toBe(true);
+    });
+
+    test('a released capture claim (Failure) is not open', () => {
+      const released = { ...claim, state: 'Failure' as const };
+      expect(isOpenPlaceholder(released, 'Charge')).toBe(false);
+      expect(hasOpenPlaceholder(paymentWith([released]), 'Charge')).toBe(false);
+    });
+
+    test('another type or a real transaction is not', () => {
+      expect(isOpenPlaceholder(claim, 'Authorization')).toBe(false);
+      expect(isOpenPlaceholder(transaction({ type: 'Charge', interactionId: 'txn-1' }), 'Charge')).toBe(false);
+    });
+  });
+
+  describe('isMicroDepositMarker', () => {
+    const marker = buildPlaceholderInteractionId('vault-token');
+    const payment = paymentWith([transaction({ state: 'Pending', interactionId: marker })]);
+
+    test("true for this payment's placeholder marker", () => {
+      expect(isMicroDepositMarker(payment, marker)).toBe(true);
+    });
+
+    test("false for another payment's marker, a Braintree id or no id", () => {
+      expect(isMicroDepositMarker(payment, buildPlaceholderInteractionId('other-token'))).toBe(false);
+      expect(isMicroDepositMarker(paymentWith([transaction({ interactionId: 'txn-1' })]), 'txn-1')).toBe(false);
+      expect(isMicroDepositMarker(payment, undefined)).toBe(false);
     });
   });
 

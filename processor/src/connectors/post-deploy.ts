@@ -27,6 +27,7 @@ const PROCESSOR_PAYMENT_API_CALL_NAMES = [
   'refund',
   'void',
   'findTransaction',
+  'findPaymentMethod',
 ];
 
 // Customer-level calls, recorded on the CT customer (recordCustomerCall in braintree-customer.service.ts)

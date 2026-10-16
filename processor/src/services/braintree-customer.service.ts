@@ -220,9 +220,11 @@ export class BraintreeCustomerService {
   }
 
   /**
-   * Vaults a payment method nonce under the given Braintree customer, creating the customer first
-   * if needed. Adapted from the disabled pureVault() feature to return token and verified status
-   * instead of a generic success response.
+   * ACH only: vaults a US bank account nonce under the given Braintree customer, creating the customer first if
+   * needed. Adapted from the disabled pureVault() feature to return token and verified status instead of a generic
+   * success response. A new customer is created without the nonce and the bank account vaulted in a second call,
+   * since only that call takes the bank account verification options — a card or PayPal vault needs neither and
+   * belongs in its own function (customer created with the nonce in one call).
    *
    * Used by ACH vault: the bank account token is returned to the enabler so transactionSale can
    * reference it by token once the account is verified (Flow A — instant verification via Plaid),
@@ -231,7 +233,7 @@ export class BraintreeCustomerService {
    *
    * `ctCustomerId` is the cart's customer; the Braintree customer id is read from that CT customer.
    */
-  public async vaultPaymentMethodForCustomer({
+  public async vaultAchBankAccountForCustomer({
     paymentMethodNonce,
     ctCustomerId,
   }: {
@@ -270,31 +272,30 @@ export class BraintreeCustomerService {
           // if that id is already taken — a matching Braintree customer here means the redeploy-wipe bug
           // hit this customer, not that they're new, so re-link instead of attempting to create a duplicate.
           log.warn(
-            `vaultPaymentMethodForCustomer: braintreeCustomerId missing for customer ${ctCustomerId} but a matching Braintree customer exists — re-linking`,
+            `vaultAchBankAccountForCustomer: braintreeCustomerId missing for customer ${ctCustomerId} but a matching Braintree customer exists — re-linking`,
           );
           resolvedCustomerId = existingBtCustomerId;
         } else {
-          // Creates a new Braintree customer and vaults the payment method in one call.
-          // createCustomer already unwraps response.customer — returns BraintreeCustomer directly.
+          // Creates the Braintree customer without the nonce: customer.create takes no bank account verification
+          // options, and a bank account vaulted without a verification method is never verified — the vault below
+          // sends them. createCustomer already unwraps response.customer — returns BraintreeCustomer directly.
           const btCustomer = (await this.recordVault(
-            { ...mapCTCustomerToNewBraintreeCustomer(ctCustomer), paymentMethodNonce },
+            mapCTCustomerToNewBraintreeCustomer(ctCustomer),
             createCustomer,
             recordFields,
           )) as BraintreeCustomer;
-          paymentMethod = btCustomer.paymentMethods?.[0] as PaymentMethod;
           resolvedCustomerId = btCustomer.id;
         }
       } else if (existingBtCustomerId && existingBtCustomerId !== resolvedCustomerId) {
         // braintreeCustomerId already known but doesn't match a Braintree customer with the CT customer's
         // id — informational only, doesn't change which customer we vault onto.
         log.warn(
-          `vaultPaymentMethodForCustomer: braintreeCustomerId mismatch for customer ${ctCustomerId} — stored "${resolvedCustomerId}", found Braintree customer "${existingBtCustomerId}"`,
+          `vaultAchBankAccountForCustomer: braintreeCustomerId mismatch for customer ${ctCustomerId} — stored "${resolvedCustomerId}", found Braintree customer "${existingBtCustomerId}"`,
         );
       }
 
-      // createCustomer above already vaults the nonce as part of customer creation; every other path
-      // (found-existing or already-known customer) still needs this explicit call.
-      paymentMethod ??= (await this.recordVault(
+      // Every path vaults here, with the configured verification method (usBankAccountVerificationMethod)
+      paymentMethod = (await this.recordVault(
         { customerId: resolvedCustomerId, paymentMethodNonce, options: buildAchVaultOptions() },
         createPaymentMethod,
         recordFields,
@@ -316,7 +317,7 @@ export class BraintreeCustomerService {
   }
 
   /**
-   * The vault call (createCustomer with the nonce, or createPaymentMethod), recorded as `vault` — braintree-extension's
+   * The vault calls (createCustomer for a new customer, then createPaymentMethod), recorded as `vault` — braintree-extension's
    * name for the same step, so vaultResponse is shared with it. Its fields are added to `recordFields`, which the caller
    * writes on the CT customer.
    */
