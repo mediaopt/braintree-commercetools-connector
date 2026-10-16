@@ -111,6 +111,14 @@ describe('error.utils', () => {
         expected: 'processor response code: 2000, processor response type: soft_declined, transaction: tx-1',
       },
       {
+        description: 'a gateway rejection: its reason (it has no processor response code)',
+        err: failed('Gateway Rejected: duplicate', {
+          errors: { deepErrors: () => [] },
+          transaction: { id: 'tx-2', gatewayRejectionReason: 'duplicate' },
+        }),
+        expected: 'gateway rejection reason: duplicate, transaction: tx-2',
+      },
+      {
         description: 'a response without codes',
         err: failed('Something about Jane Doe', {}),
         expected: 'Braintree error without code',

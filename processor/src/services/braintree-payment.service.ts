@@ -1010,7 +1010,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // discount value — this keeps it correct regardless of cart discount type, staleness, or rounding.
     const shippingAmountNum = updatedCart?.shippingInfo ? toNum(relevantShippingAmount(updatedCart.shippingInfo)) : 0;
     const lineItemsTotal = lineItems.reduce((sum, { totalAmount }) => sum + Number(totalAmount), 0);
-    const discountResidual = lineItemsTotal + shippingAmountNum - toNum(ctPayment.amountPlanned);
+    // A sale without line items is charged by amount only: there is nothing to derive a discount from.
+    const discountResidual = lineItems.length ? lineItemsTotal + shippingAmountNum - toNum(ctPayment.amountPlanned) : 0;
     if (discountResidual < -0.01) {
       log.warn(
         `transactionSale: lineItems total (${lineItemsTotal.toFixed(2)}) plus shipping (${shippingAmountNum.toFixed(2)}) is less than the charged amount (${toNum(ctPayment.amountPlanned).toFixed(2)}) for payment ${ctPaymentId} — discountAmount clamped to 0, check for missing external tax/fees`,

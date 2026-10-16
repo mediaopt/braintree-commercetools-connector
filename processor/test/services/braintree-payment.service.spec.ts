@@ -834,6 +834,18 @@ describe('braintree-payment.service', () => {
       expect(CommonConnect.transactionSale).toHaveBeenCalledWith(expect.objectContaining({ discountAmount: '0.00' }));
     });
 
+    test('a sale without line items derives no discount and logs no tax/fees warning', async () => {
+      const warn = jest.spyOn(log, 'warn').mockImplementation(() => log);
+      await braintreePaymentService.transactionSale({
+        ...baseRequest,
+        paymentMethodType: PaymentMethodType.CREDIT_CARD,
+        paymentMethodNonce: 'fake-valid-nonce',
+        braintreePaymentDetails: {},
+      });
+      expect(CommonConnect.transactionSale).toHaveBeenCalledWith(expect.objectContaining({ discountAmount: '0.00' }));
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('discountAmount clamped to 0'));
+    });
+
     // Express after a shipping change: line items and shipping come from the refetched cart, never from the enabler
     const usd = (centAmount: number): CentPrecisionMoney => ({
       type: 'centPrecision',
