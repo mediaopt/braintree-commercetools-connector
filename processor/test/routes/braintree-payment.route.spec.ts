@@ -66,10 +66,7 @@ describe('braintree-payment.route', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/payments',
-        payload: {
-          paymentMethodType: 'CreditCard',
-          currency: 'USD',
-        },
+        payload: {},
         headers: { 'x-session-id': 'session-123' },
       });
 
@@ -86,10 +83,7 @@ describe('braintree-payment.route', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/payments',
-        payload: {
-          paymentMethodType: 'CreditCard',
-          currency: 'USD',
-        },
+        payload: {},
       });
 
       expect(response.statusCode).not.toBe(200);
@@ -256,7 +250,6 @@ describe('braintree-payment.route', () => {
         payload: {
           ctPaymentId: 'payment-123',
           paymentMethodNonce: 'ach-nonce',
-          braintreeCustomerId: 'bt-cust-123',
         },
         headers: { 'x-session-id': 'session-123' },
       });

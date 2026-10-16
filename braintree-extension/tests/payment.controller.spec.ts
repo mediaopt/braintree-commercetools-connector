@@ -7,7 +7,11 @@ import {
   findSetCustomFieldAction,
   ControllerActionsResponse,
 } from './utils/actions';
-import { getBraintreeGateway } from 'common-connect/dist';
+import {
+  createCustomer,
+  deleteCustomer,
+  getBraintreeGateway,
+} from 'common-connect/dist';
 
 const getRandomId = (): string => {
   return `test_${Math.floor(Math.random() * Math.pow(2, 10))}`;
@@ -143,6 +147,40 @@ describe('Testing Braintree Transaction Sale', () => {
     },
     20000
   );
+
+  // Braintree's contract the processor relies on (transactionSale): a sale sent with customerId is answered with that
+  // same customer, so linking the answered customer never replaces a stored braintreeCustomerId
+  test('transaction with customerId keeps that customer', async () => {
+    const customerId = getRandomId();
+    await createCustomer({ id: customerId });
+    try {
+      const paymentRequest = {
+        obj: {
+          amountPlanned: {
+            // not 100: the credit card test above charges the same sandbox card with it, and Braintree rejects a
+            // repeated sale of the same card and amount as a duplicate ("Gateway Rejected: duplicate")
+            centAmount: 101,
+            fractionDigits: 0,
+          },
+          custom: {
+            fields: {
+              transactionSaleRequest: JSON.stringify({
+                paymentMethodNonce: 'fake-valid-visa-nonce',
+                customerId, // also turns on storeInVaultOnSuccess (parseTransactionSaleRequest)
+              }),
+            },
+          },
+        },
+      } as unknown as PaymentReference;
+      const paymentResponse = await paymentController('Update', paymentRequest);
+      const payment = expectSuccessfulTransaction(paymentResponse);
+      // a failed sale stores Braintree's error in transactionSaleResponse too: shown here instead of a missing customer
+      expect(payment).toHaveProperty('status', 'authorized');
+      expect(payment.customer?.id).toBe(customerId);
+    } finally {
+      await deleteCustomer(customerId);
+    }
+  }, 20000);
 });
 
 describe('Testing Braintree Find Transaction', () => {

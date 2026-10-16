@@ -1,7 +1,7 @@
 import { CustomFieldsDraft, Payment } from '@commercetools/connect-payments-sdk';
 import { PaymentUpdateAction } from '@commercetools/platform-sdk';
 import { Transaction } from 'braintree';
-import { handleInterfaceInteraction } from 'common-connect/dist';
+import { apiCallNameToFieldData, getBraintreeResponse, getCurrentTimestamp, stringifyData } from 'common-connect/dist';
 import { getConfig } from '../config/config';
 import { paymentSDK } from '../payment-sdk';
 
@@ -12,29 +12,44 @@ const BRAINTREE_PAYMENT_TYPE: RestrictedFields['type'] = {
   key: getConfig().paymentTypeKey,
 };
 
-// Custom fields written on the payment, by name. Only {messageName}Response — the extension's {messageName}Request
-// fields are never written, as they would re-trigger the extension
-type PaymentFields = Record<string, string>;
+// Custom fields written on a payment or customer, by name. A Braintree call is recorded as {messageName}ProcessorRequest
+// and {messageName}Response — never the extension's {messageName}Request, which would re-trigger the extension
+export type CustomFields = Record<string, string>;
 
-export const handleCustomFieldResponse = (
-  messageName: string,
-  message: string | object | undefined,
-): PaymentFields => ({
-  [`${messageName}Response`]: message ? `${JSON.stringify(message)}` : '',
-});
+// A string answer is stored as is, as the extension and the pspInteractions do (stringifyData)
+const stringifyField = (message: unknown): string => (message ? stringifyData(message as string | object) : '');
+
+// The fields recording one Braintree call: exactly what was sent and what Braintree answered
+export const buildCallFields = (messageName: string, request: unknown, response: unknown): CustomFields => {
+  const [{ name: requestField }, { name: responseField }] = apiCallNameToFieldData(messageName, true);
+  return { [requestField]: stringifyField(request), [responseField]: stringifyField(response) };
+};
+
+/**
+ * What Braintree answered on a failed call: its own response (common-connect keeps it on the thrown error), or, for an
+ * error the SDK throws without a response (not found, timeout, network), the SDK error as received.
+ */
+export const braintreeFailure = (err: unknown): object => {
+  const response = getBraintreeResponse(err);
+  if (response && typeof response === 'object') return response;
+  return err instanceof Error
+    ? { success: false, name: err.name, message: err.message }
+    : { success: false, message: String(err) };
+};
 
 /**
  * One setCustomField per field, as braintree-extension writes them (buildCustomFieldAction). The SDK's
- * updatePayment({ customFields }) can't be used after createPayment: it sends setCustomType, which overwrites the
+ * updatePayment({ customFields }) is never used: it sends setCustomType, which overwrites the
  * type and every field.
  */
-const buildSetCustomFieldActions = (fields: PaymentFields): PaymentUpdateAction[] =>
+const buildSetCustomFieldActions = (fields: CustomFields): PaymentUpdateAction[] =>
   Object.entries(fields).map(([name, value]) => ({ action: 'setCustomField', name, value }));
 
-// createPayment only: establishes the Braintree type (setCustomType), keeping the fields a reused payment already has
-export const withBraintreeType = (fields: PaymentFields, payment: Payment): RestrictedFields => ({
+// createPayment only: a new payment is created with the Braintree type, so it is never set later by setCustomType,
+// which would overwrite the type and every field
+export const braintreePaymentCustom = (fields: CustomFields): RestrictedFields => ({
   type: BRAINTREE_PAYMENT_TYPE,
-  fields: { ...payment.custom?.fields, ...fields },
+  fields,
 });
 
 const typeIds = new Map<string, Promise<string>>();
@@ -68,7 +83,7 @@ export const notBraintreePaymentMessage = (paymentId: string) =>
 
 //see also handleTransactionResponse from extensions module
 export const handleCustomTransactionFields = (
-  fields: PaymentFields,
+  fields: CustomFields,
   response: Transaction & { localPayment?: { paymentId: string } },
   payment: Payment,
 ) => {
@@ -84,20 +99,27 @@ export const handleCustomTransactionFields = (
   }
 };
 
-// Request/response interface-interaction pair recorded on the payment for one Braintree call
-export const buildPspInteractions = (messageName: string, request: string | object, response: string | object) => [
-  handleInterfaceInteraction({ messageName, message: request, messageType: 'ProcessorRequest' }),
-  handleInterfaceInteraction({ messageName, message: response, messageType: 'Response' }),
-];
+// The interaction type the processor's post-deploy creates (key overridable by env, unlike common-connect's
+// handleInterfaceInteraction, which always uses the default key)
+const buildInteraction = (type: string, message: string | object): CustomFieldsDraft => ({
+  type: { typeId: 'type', key: getConfig().interactionTypeKey },
+  fields: { type, data: stringifyData(message), timestamp: getCurrentTimestamp() },
+});
 
-// What a Braintree call records on the payment: {messageName}Response (+ extra fields) and the interaction pair
+// Request/response interface-interaction pair recorded on the payment for one Braintree call
+export const buildPspInteractions = (messageName: string, request: string | object, response: string | object) => {
+  const [{ name: requestField }, { name: responseField }] = apiCallNameToFieldData(messageName, true);
+  return [buildInteraction(requestField, request), buildInteraction(responseField, response)];
+};
+
+// What a Braintree call records on the payment: both call fields (+ extra fields) and the interaction pair
 export const buildResponseActions = (
   messageName: string,
   request: string | object,
   response: string | object,
-  extraFields: PaymentFields = {},
+  extraFields: CustomFields = {},
 ): PaymentUpdateAction[] => [
-  ...buildSetCustomFieldActions({ ...handleCustomFieldResponse(messageName, response), ...extraFields }),
+  ...buildSetCustomFieldActions({ ...buildCallFields(messageName, request, response), ...extraFields }),
   ...buildPspInteractions(messageName, request, response).map(
     (interaction): PaymentUpdateAction => ({ action: 'addInterfaceInteraction', ...interaction }),
   ),

@@ -107,17 +107,20 @@ describe('braintree-customer.service', () => {
       expect(result).toBeUndefined();
     });
 
-    test('returns undefined on other errors', async () => {
+    // a temporary failure isn't reported as a missing customer
+    test('returns undefined on other errors, logged as an unreadable customer with the cause', async () => {
       const execute = jest.fn<() => Promise<any>>().mockRejectedValue(new Error('Network error'));
       const get = jest.fn().mockReturnValue({ execute });
       const withId = jest.fn().mockReturnValue({ get });
       const customers = jest.fn().mockReturnValue({ withId });
+      const warnSpy = jest.spyOn(log, 'warn').mockImplementation(() => log);
 
       mockCtClient({ customers });
 
       const result = await service.getCtCustomer('ct-error');
 
       expect(result).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/Could not read customer ct-error.*Network error/));
     });
   });
 
@@ -167,129 +170,87 @@ describe('braintree-customer.service', () => {
     });
   });
 
+  const customerWith = (custom?: object) => ({
+    id: 'ct-123',
+    version: 1,
+    createdAt: '2024-01-01T00:00:00Z',
+    lastModifiedAt: '2024-01-01T00:00:00Z',
+    ...(custom ? { custom } : {}),
+  });
+  // the customer read of the chain mockCustomerClient set up last
+  let customerGet: jest.Mock;
+  // customers().withId().get()/post() chain; returns the post mock to read the sent actions from
+  const mockCustomerClient = (customer: object | undefined) => {
+    const post = jest.fn().mockReturnValue({
+      execute: jest.fn<() => Promise<unknown>>().mockResolvedValue({ body: { ...customer, version: 2 } }),
+    });
+    const execute = customer
+      ? jest.fn<() => Promise<unknown>>().mockResolvedValue({ body: customer })
+      : jest.fn<() => Promise<unknown>>().mockRejectedValue({ httpErrorStatus: 404 });
+    const get = jest.fn().mockReturnValue({ execute });
+    customerGet = get;
+    mockCtClient({ customers: jest.fn().mockReturnValue({ withId: jest.fn().mockReturnValue({ get, post }) }) });
+    return post;
+  };
+  // a customer the caller has already read
+  const readCustomer = () => customerWith(braintreeCustomerCustom({})) as unknown as Customer;
+  const customerReads = () => customerGet.mock.calls.length;
+  const sentActions = (post: jest.Mock) =>
+    (post.mock.calls as [{ body: { actions: unknown[] } }][]).map(([args]) => args.body.actions);
+  // Braintree's customer lookup misses: the SDK error and its record
+  const notFound = Object.assign(new Error('customer not found'), { name: 'notFoundError' });
+  const findMiss = {
+    findProcessorRequest: '{"customerId":"ct-123"}',
+    findResponse: '{"success":false,"name":"notFoundError","message":"customer not found"}',
+  };
+
   describe('linkBraintreeCustomerId', () => {
-    test('no-op when customer already has braintreeCustomerId set', async () => {
-      const mockCustomer = {
-        id: 'ct-123',
-        version: 1,
-        email: 'test@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        custom: {
-          type: { typeId: 'type' },
-          fields: { braintreeCustomerId: 'bt-existing-123' },
-        },
-        createdAt: '2024-01-01T00:00:00Z',
-        lastModifiedAt: '2024-01-01T00:00:00Z',
-      } as any;
-
-      const execute = jest.fn<() => Promise<any>>().mockResolvedValue({ body: mockCustomer });
-      const get = jest.fn().mockReturnValue({ execute });
-      const withId = jest.fn().mockReturnValue({ get });
-      const customers = jest.fn().mockReturnValue({ withId });
-
-      mockCtClient({ customers });
+    test('the same braintreeCustomerId already stored: nothing written', async () => {
+      const post = mockCustomerClient(customerWith(braintreeCustomerCustom({ braintreeCustomerId: 'bt-123' })));
 
       await service.linkBraintreeCustomerId('ct-123', 'bt-123');
 
-      expect(withId).toHaveBeenCalledTimes(1);
+      expect(post).not.toHaveBeenCalled();
     });
 
-    test('succeeds on first attempt', async () => {
-      const mockCustomer = {
-        id: 'ct-123',
-        version: 1,
-        email: 'test@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        createdAt: '2024-01-01T00:00:00Z',
-        lastModifiedAt: '2024-01-01T00:00:00Z',
-      } as any;
+    // re-pointing the customer would hide its stored payment methods; the records still go out
+    test('another braintreeCustomerId already stored: the link kept, the records written', async () => {
+      const post = mockCustomerClient(customerWith(braintreeCustomerCustom({ braintreeCustomerId: 'bt-stored' })));
 
-      const mockUpdatedCustomer = {
-        ...mockCustomer,
-        version: 2,
-        custom: {
-          type: { typeId: 'type' },
-          fields: { braintreeCustomerId: 'bt-123' },
-        },
-      };
+      await service.linkBraintreeCustomerId('ct-123', 'bt-new', { findResponse: '{"id":"ct-123"}' });
 
-      // Create a simpler mock structure
-      const mockGetResponse = jest.fn<() => Promise<any>>().mockResolvedValue({ body: mockCustomer });
-      const mockGetChain = jest.fn().mockReturnValue({ execute: mockGetResponse });
-      const mockPostResponse = jest.fn<() => Promise<any>>().mockResolvedValue({ body: mockUpdatedCustomer });
-      const mockPostChain = jest.fn().mockReturnValue({ execute: mockPostResponse });
-      const mockWithIdChain = jest.fn().mockReturnValue({ get: mockGetChain, post: mockPostChain });
-      const mockCustomers = jest.fn().mockReturnValue({ withId: mockWithIdChain });
-
-      (paymentSDK.ctAPI as any).client = { customers: mockCustomers };
-
-      await service.linkBraintreeCustomerId('ct-123', 'bt-123');
-
-      expect(mockPostResponse).toHaveBeenCalled();
+      expect(sentActions(post)).toEqual([
+        [{ action: 'setCustomField', name: 'findResponse', value: '{"id":"ct-123"}' }],
+      ]);
     });
 
     test('retries up to 3 times with 1s delay', async () => {
-      const mockCustomer = {
-        id: 'ct-123',
-        version: 1,
-        email: 'test@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        createdAt: '2024-01-01T00:00:00Z',
-        lastModifiedAt: '2024-01-01T00:00:00Z',
-      } as any;
-
-      let callCount = 0;
-
-      const mockGetResponse = jest.fn().mockImplementation(() => {
-        callCount++;
-        return Promise.resolve({ body: mockCustomer });
-      });
-      const mockGetChain = jest.fn().mockReturnValue({ execute: mockGetResponse });
-      const mockPostResponse = jest.fn<() => Promise<any>>().mockResolvedValue(undefined); // Simulate failure
-      const mockPostChain = jest.fn().mockReturnValue({ execute: mockPostResponse });
-      const mockWithIdChain = jest.fn().mockReturnValue({ get: mockGetChain, post: mockPostChain });
-      const mockCustomers = jest.fn().mockReturnValue({ withId: mockWithIdChain });
-
-      (paymentSDK.ctAPI as any).client = { customers: mockCustomers };
+      const post = mockCustomerClient(customerWith());
+      // every update fails
+      post.mockReturnValue({ execute: jest.fn<() => Promise<unknown>>().mockResolvedValue(undefined) });
 
       const promise = service.linkBraintreeCustomerId('ct-123', 'bt-123');
-
-      // Advance timers through all retry attempts (3 attempts with 1000ms between them)
       await jest.advanceTimersByTimeAsync(1000);
       await jest.advanceTimersByTimeAsync(1000);
-      await jest.advanceTimersByTimeAsync(1000);
-
       await promise;
 
-      // Should be called 3 times (initial + 2 retries)
-      expect(mockPostResponse).toHaveBeenCalledTimes(3);
+      expect(post).toHaveBeenCalledTimes(3);
+    });
+
+    test('the record fields of the same request go in the same update', async () => {
+      const post = mockCustomerClient(customerWith(braintreeCustomerCustom({})));
+
+      await service.linkBraintreeCustomerId('ct-123', 'bt-123', { findResponse: '{"id":"ct-123"}' });
+
+      expect(sentActions(post)).toEqual([
+        [
+          { action: 'setCustomField', name: 'findResponse', value: '{"id":"ct-123"}' },
+          { action: 'setCustomField', name: 'braintreeCustomerId', value: 'bt-123' },
+        ],
+      ]);
     });
 
     describe("by the customer's custom type", () => {
-      const customerWith = (custom?: object) => ({
-        id: 'ct-123',
-        version: 1,
-        createdAt: '2024-01-01T00:00:00Z',
-        lastModifiedAt: '2024-01-01T00:00:00Z',
-        ...(custom ? { custom } : {}),
-      });
-      // customers().withId().get()/post() chain; returns the post mock to read the sent actions from
-      const mockCustomerClient = (customer: object) => {
-        const post = jest.fn().mockReturnValue({
-          execute: jest.fn<() => Promise<unknown>>().mockResolvedValue({ body: { ...customer, version: 2 } }),
-        });
-        const get = jest
-          .fn()
-          .mockReturnValue({ execute: jest.fn<() => Promise<unknown>>().mockResolvedValue({ body: customer }) });
-        mockCtClient({ customers: jest.fn().mockReturnValue({ withId: jest.fn().mockReturnValue({ get, post }) }) });
-        return post;
-      };
-      const sentActions = (post: jest.Mock) =>
-        (post.mock.calls as [{ body: { actions: unknown[] } }][]).map(([args]) => args.body.actions);
-
       test('no custom type: sets the Braintree customer type with braintreeCustomerId', async () => {
         const post = mockCustomerClient(customerWith());
 
@@ -319,7 +280,7 @@ describe('braintree-customer.service', () => {
       // never replaces a merchant's own customer type; no retries
       test('another custom type: nothing written, logged once', async () => {
         const post = mockCustomerClient(customerWith(otherTypeCustom()));
-        const warnSpy = jest.spyOn(log, 'warn');
+        const warnSpy = jest.spyOn(log, 'warn').mockImplementation(() => log);
 
         await service.linkBraintreeCustomerId('ct-123', 'bt-123');
 
@@ -329,240 +290,284 @@ describe('braintree-customer.service', () => {
       });
     });
 
-    test('customer not found causes early return', async () => {
-      const mockGetResponse = jest.fn<() => Promise<any>>().mockRejectedValue({ httpErrorStatus: 404 });
-      const mockGetChain = jest.fn().mockReturnValue({ execute: mockGetResponse });
-      const mockPostChain = jest.fn().mockReturnValue({});
-      const mockWithIdChain = jest.fn().mockReturnValue({ get: mockGetChain, post: mockPostChain });
-      const mockCustomers = jest.fn().mockReturnValue({ withId: mockWithIdChain });
+    test("the caller's customer is used for the first attempt; a retry reads it again", async () => {
+      const post = mockCustomerClient(customerWith(braintreeCustomerCustom({})));
+      // the first update fails (stale version)
+      post.mockReturnValueOnce({ execute: jest.fn<() => Promise<unknown>>().mockResolvedValue(undefined) });
 
-      (paymentSDK.ctAPI as any).client = { customers: mockCustomers };
+      const promise = service.linkBraintreeCustomerId('ct-123', 'bt-123', {}, readCustomer());
+      expect(customerReads()).toBe(0);
+      await jest.advanceTimersByTimeAsync(1000);
+      await promise;
+
+      expect(customerReads()).toBe(1);
+      expect(post).toHaveBeenCalledTimes(2);
+    });
+
+    test('customer not found: nothing written', async () => {
+      const post = mockCustomerClient(undefined);
 
       await service.linkBraintreeCustomerId('ct-missing', 'bt-123');
 
-      // Should not attempt update since customer lookup failed
-      expect(mockPostChain).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
     });
   });
 
   describe('vaultPaymentMethodForCustomer', () => {
+    const vault = (ctCustomerId?: string) =>
+      service.vaultPaymentMethodForCustomer({ paymentMethodNonce: 'nonce-123', ctCustomerId });
+    // the request's customer writes are fire-and-forget
+    const flush = () => jest.advanceTimersByTimeAsync(0);
+
     beforeEach(() => {
-      jest.clearAllMocks();
+      (CommonConnect.findCustomer as jest.Mock).mockRejectedValue(notFound as never);
     });
 
-    test('throws when neither braintreeCustomerId nor ctCustomerId provided', async () => {
-      await expect(
-        service.vaultPaymentMethodForCustomer({
-          paymentMethodNonce: 'nonce-123',
-        }),
-      ).rejects.toThrow(ErrorInvalidOperation);
+    test('no customer on the cart: refused before Braintree', async () => {
+      await expect(vault(undefined)).rejects.toThrow(ErrorInvalidOperation);
+
+      expect(CommonConnect.findCustomer).not.toHaveBeenCalled();
     });
 
-    test('creates new customer and vaults payment method', async () => {
-      const mockCtCustomer = {
-        id: 'ct-123',
-        version: 1,
-        email: 'test@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        createdAt: '2024-01-01T00:00:00Z',
-        lastModifiedAt: '2024-01-01T00:00:00Z',
-      } as any;
+    // unlike a vaulting transactionSale, a vault needs the CT customer
+    test('CT customer unreadable: refused before the vault', async () => {
+      mockCustomerClient(undefined);
 
-      const mockGetResponse = jest.fn<() => Promise<any>>().mockResolvedValue({ body: mockCtCustomer });
-      const mockGetChain = jest.fn().mockReturnValue({ execute: mockGetResponse });
-      // linkBraintreeCustomerId is fired (fire-and-forget) after a new customer is created —
-      // it re-fetches the customer (get, above) then persists braintreeCustomerId (post, here).
-      const mockPostResponse = jest.fn<() => Promise<any>>().mockResolvedValue({ body: mockCtCustomer });
-      const mockPostChain = jest.fn().mockReturnValue({ execute: mockPostResponse });
-      const mockWithIdChain = jest.fn().mockReturnValue({ get: mockGetChain, post: mockPostChain });
-      const mockCustomers = jest.fn().mockReturnValue({ withId: mockWithIdChain });
+      const error = await vault('ct-missing').catch((err: unknown) => err);
 
-      (paymentSDK.ctAPI as any).client = { customers: mockCustomers };
+      expect(error).toBeInstanceOf(ErrorInvalidOperation);
+      expect(error).toHaveProperty('message', expect.stringContaining('could not read customer ct-missing'));
 
-      (CommonConnect.createCustomer as any).mockResolvedValue({
-        id: 'bt-123',
-        paymentMethods: [{ token: 'pm-token-1', verified: true }],
-      });
-
-      const result = await service.vaultPaymentMethodForCustomer({
-        paymentMethodNonce: 'nonce-123',
-        ctCustomerId: 'ct-123',
-      });
-
-      expect(result.token).toBe('pm-token-1');
-      expect(result.verified).toBe(true);
-      expect(CommonConnect.createCustomer).toHaveBeenCalledWith(
-        expect.objectContaining({ paymentMethodNonce: 'nonce-123' }),
-      );
-      // linkBraintreeCustomerId is fired without being awaited — flush pending microtasks/timers
-      // so it settles against THIS test's mocks before jest moves to the next test.
-      await jest.advanceTimersByTimeAsync(0);
+      expect(CommonConnect.createCustomer).not.toHaveBeenCalled();
+      expect(CommonConnect.createPaymentMethod).not.toHaveBeenCalled();
     });
 
-    test('throws when CT customer not found', async () => {
-      const mockGetResponse = jest.fn<() => Promise<any>>().mockRejectedValue({ httpErrorStatus: 404 });
-      const mockGetChain = jest.fn().mockReturnValue({ execute: mockGetResponse });
-      const mockWithIdChain = jest.fn().mockReturnValue({ get: mockGetChain });
-      const mockCustomers = jest.fn().mockReturnValue({ withId: mockWithIdChain });
+    test('new customer: created with the nonce; the link and both records in one update', async () => {
+      const post = mockCustomerClient(customerWith());
+      const btCustomer = { id: 'ct-123', paymentMethods: [{ token: 'pm-token-1', verified: true }] };
+      (CommonConnect.createCustomer as jest.Mock).mockResolvedValue(btCustomer as never);
 
-      (paymentSDK.ctAPI as any).client = { customers: mockCustomers };
+      await expect(vault('ct-123')).resolves.toEqual({ token: 'pm-token-1', verified: true, ctCustomerId: 'ct-123' });
+      await flush();
+      // the customer read before the vault serves the write too
+      expect(customerReads()).toBe(1);
 
-      await expect(
-        service.vaultPaymentMethodForCustomer({
-          paymentMethodNonce: 'nonce-123',
-          ctCustomerId: 'ct-missing',
-        }),
-      ).rejects.toThrow(ErrorInvalidOperation);
+      const createRequest = (CommonConnect.createCustomer as jest.Mock).mock.calls[0][0];
+      expect(createRequest).toEqual(expect.objectContaining({ paymentMethodNonce: 'nonce-123' }));
+      expect(sentActions(post)).toEqual([
+        [
+          {
+            action: 'setCustomType',
+            type: { typeId: 'type', key: getConfig().customerTypeKey },
+            fields: {
+              ...findMiss,
+              vaultProcessorRequest: JSON.stringify(createRequest),
+              vaultResponse: JSON.stringify(btCustomer),
+              braintreeCustomerId: 'ct-123',
+            },
+          },
+        ],
+      ]);
     });
 
-    test('self-heal: uses existing Braintree customer when found', async () => {
-      const mockCtCustomer = {
-        id: 'ct-123',
-        version: 1,
-        email: 'test@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        createdAt: '2024-01-01T00:00:00Z',
-        lastModifiedAt: '2024-01-01T00:00:00Z',
-      } as any;
+    test('self-heal: braintreeCustomerId missing, a matching Braintree customer found — vaulted onto it and re-linked', async () => {
+      const post = mockCustomerClient(customerWith(braintreeCustomerCustom({})));
+      (CommonConnect.findCustomer as jest.Mock).mockResolvedValue({ id: 'ct-123' } as never);
+      (CommonConnect.createPaymentMethod as jest.Mock).mockResolvedValue({ token: 'pm-token-2' } as never);
 
-      const mockGetResponse = jest.fn<() => Promise<any>>().mockResolvedValue({ body: mockCtCustomer });
-      const mockGetChain = jest.fn().mockReturnValue({ execute: mockGetResponse });
-      // linkBraintreeCustomerId is fired (fire-and-forget) after the self-heal re-link —
-      // it re-fetches the customer (get, above) then persists braintreeCustomerId (post, here).
-      const mockPostResponse = jest.fn<() => Promise<any>>().mockResolvedValue({ body: mockCtCustomer });
-      const mockPostChain = jest.fn().mockReturnValue({ execute: mockPostResponse });
-      const mockWithIdChain = jest.fn().mockReturnValue({ get: mockGetChain, post: mockPostChain });
-      const mockCustomers = jest.fn().mockReturnValue({ withId: mockWithIdChain });
+      await expect(vault('ct-123')).resolves.toEqual({ token: 'pm-token-2', verified: false, ctCustomerId: 'ct-123' });
+      await flush();
 
-      (paymentSDK.ctAPI as any).client = { customers: mockCustomers };
-
-      (CommonConnect.findCustomer as any).mockResolvedValue({ id: 'ct-123' });
-      (CommonConnect.createPaymentMethod as any).mockResolvedValue({
-        token: 'pm-token-2',
-        verified: false,
-      });
-
-      const result = await service.vaultPaymentMethodForCustomer({
-        paymentMethodNonce: 'nonce-123',
-        ctCustomerId: 'ct-123',
-      });
-
-      expect(result.token).toBe('pm-token-2');
-      expect(result.verified).toBe(false);
+      expect(CommonConnect.createCustomer).not.toHaveBeenCalled();
       expect(CommonConnect.createPaymentMethod).toHaveBeenCalledWith(expect.objectContaining({ customerId: 'ct-123' }));
-      // linkBraintreeCustomerId is fired without being awaited — flush pending microtasks/timers
-      // so it settles against THIS test's mocks before jest moves to the next test.
+      expect(sentActions(post)).toHaveLength(1);
+      expect(sentActions(post)[0]).toEqual(
+        expect.arrayContaining([
+          { action: 'setCustomField', name: 'findResponse', value: '{"id":"ct-123"}' },
+          { action: 'setCustomField', name: 'vaultResponse', value: '{"token":"pm-token-2"}' },
+          { action: 'setCustomField', name: 'braintreeCustomerId', value: 'ct-123' },
+        ]),
+      );
+    });
+
+    test('known braintreeCustomerId (from the CT customer): vaulted onto it, records written without a link', async () => {
+      const post = mockCustomerClient(customerWith(braintreeCustomerCustom({ braintreeCustomerId: 'bt-123' })));
+      const paymentMethod = { token: 'pm-token-3', verified: true };
+      (CommonConnect.createPaymentMethod as jest.Mock).mockResolvedValue(paymentMethod as never);
+
+      await expect(vault('ct-123')).resolves.toEqual({ token: 'pm-token-3', verified: true, ctCustomerId: 'ct-123' });
+      await flush();
+
+      const vaultRequest = (CommonConnect.createPaymentMethod as jest.Mock).mock.calls[0][0];
+      expect(vaultRequest).toEqual(
+        expect.objectContaining({ customerId: 'bt-123', paymentMethodNonce: 'nonce-123', options: expect.any(Object) }),
+      );
+      expect(sentActions(post)).toEqual([
+        [
+          { action: 'setCustomField', name: 'findProcessorRequest', value: findMiss.findProcessorRequest },
+          { action: 'setCustomField', name: 'findResponse', value: findMiss.findResponse },
+          { action: 'setCustomField', name: 'vaultProcessorRequest', value: JSON.stringify(vaultRequest) },
+          { action: 'setCustomField', name: 'vaultResponse', value: JSON.stringify(paymentMethod) },
+        ],
+      ]);
+    });
+
+    test('braintreeCustomerId drift: logged, vaulted onto the stored one', async () => {
+      mockCustomerClient(customerWith(braintreeCustomerCustom({ braintreeCustomerId: 'bt-123' })));
+      (CommonConnect.findCustomer as jest.Mock).mockResolvedValue({ id: 'ct-123' } as never);
+      (CommonConnect.createPaymentMethod as jest.Mock).mockResolvedValue({ token: 'pm-token-4' } as never);
+      const warnSpy = jest.spyOn(log, 'warn').mockImplementation(() => log);
+
+      await vault('ct-123');
+      await flush();
+
+      expect(CommonConnect.createPaymentMethod).toHaveBeenCalledWith(expect.objectContaining({ customerId: 'bt-123' }));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('braintreeCustomerId mismatch for customer ct-123'));
+    });
+
+    test("vault fails: Braintree's answer recorded with the lookup, no link, the error rethrown", async () => {
+      const post = mockCustomerClient(customerWith(braintreeCustomerCustom({})));
+      const decline = { success: false, message: 'Declined' };
+      (CommonConnect.createCustomer as jest.Mock).mockRejectedValue(
+        CommonConnect.withBraintreeResponse(new CommonConnect.CustomError(500, 'Declined'), decline) as never,
+      );
+
+      await expect(vault('ct-123')).rejects.toThrow('Declined');
+      await flush();
+
+      expect(sentActions(post)).toHaveLength(1);
+      expect(sentActions(post)[0]).toEqual(
+        expect.arrayContaining([
+          { action: 'setCustomField', name: 'findResponse', value: findMiss.findResponse },
+          { action: 'setCustomField', name: 'vaultResponse', value: JSON.stringify(decline) },
+        ]),
+      );
+      expect(sentActions(post)[0]).not.toContainEqual(expect.objectContaining({ name: 'braintreeCustomerId' }));
+    });
+
+    test('Braintree returns no payment method: refused', async () => {
+      mockCustomerClient(customerWith(braintreeCustomerCustom({ braintreeCustomerId: 'bt-123' })));
+      (CommonConnect.createPaymentMethod as jest.Mock).mockResolvedValue(null as never);
+
+      await expect(vault('ct-123')).rejects.toThrow(ErrorInvalidOperation);
+      await flush();
+    });
+
+    test.each([
+      { description: 'verified', paymentMethod: { token: 'pm', verified: true }, verified: true },
+      { description: 'verified absent', paymentMethod: { token: 'pm' }, verified: false },
+    ])('maps verified: $description', async ({ paymentMethod, verified }) => {
+      mockCustomerClient(customerWith(braintreeCustomerCustom({ braintreeCustomerId: 'bt-123' })));
+      (CommonConnect.createPaymentMethod as jest.Mock).mockResolvedValue(paymentMethod as never);
+
+      await expect(vault('ct-123')).resolves.toEqual(expect.objectContaining({ verified }));
+      await flush();
+    });
+  });
+
+  // customer-level Braintree calls: what was sent and what Braintree answered, as {name}ProcessorRequest/{name}Response
+  describe('recordCustomerCall', () => {
+    // fire-and-forget
+    const record = async () => {
+      service.recordCustomerCall('ct-123', 'find', { customerId: 'ct-123' }, { id: 'ct-123' });
       await jest.advanceTimersByTimeAsync(0);
+    };
+
+    test('the Braintree customer type: both fields by setCustomField', async () => {
+      const post = mockCustomerClient(customerWith(braintreeCustomerCustom({ braintreeCustomerId: 'ct-123' })));
+
+      await record();
+
+      expect(sentActions(post)).toEqual([
+        [
+          { action: 'setCustomField', name: 'findProcessorRequest', value: '{"customerId":"ct-123"}' },
+          { action: 'setCustomField', name: 'findResponse', value: '{"id":"ct-123"}' },
+        ],
+      ]);
     });
 
-    test('logs warning on braintreeCustomerId drift', async () => {
-      const mockCtCustomer = {
-        id: 'ct-123',
-        version: 1,
-        email: 'test@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        createdAt: '2024-01-01T00:00:00Z',
-        lastModifiedAt: '2024-01-01T00:00:00Z',
-      } as unknown as Customer;
+    test('no custom type: sets the Braintree customer type with both fields', async () => {
+      const post = mockCustomerClient(customerWith());
 
-      const mockGetResponse = jest.fn<() => Promise<any>>().mockResolvedValue({ body: mockCtCustomer });
-      const mockGetChain = jest.fn().mockReturnValue({ execute: mockGetResponse });
-      const mockPostResponse = jest.fn<() => Promise<any>>().mockResolvedValue({ body: mockCtCustomer });
-      const mockPostChain = jest.fn().mockReturnValue({ execute: mockPostResponse });
-      const mockWithIdChain = jest.fn().mockReturnValue({ get: mockGetChain, post: mockPostChain });
-      const mockCustomers = jest.fn().mockReturnValue({ withId: mockWithIdChain });
+      await record();
 
-      (paymentSDK.ctAPI as any).client = { customers: mockCustomers };
-
-      (CommonConnect.findCustomer as any).mockResolvedValue({ id: 'different-bt-id' });
-      (CommonConnect.createPaymentMethod as any).mockResolvedValue({
-        token: 'pm-token-3',
-        verified: true,
-      });
-
-      const result = await service.vaultPaymentMethodForCustomer({
-        paymentMethodNonce: 'nonce-123',
-        braintreeCustomerId: 'provided-bt-id',
-        ctCustomerId: 'ct-123',
-      });
-
-      expect(result.token).toBe('pm-token-3');
-      // Note: drift warning is logged but doesn't affect the result
+      expect(sentActions(post)).toEqual([
+        [
+          {
+            action: 'setCustomType',
+            type: { typeId: 'type', key: getConfig().customerTypeKey },
+            fields: { findProcessorRequest: '{"customerId":"ct-123"}', findResponse: '{"id":"ct-123"}' },
+          },
+        ],
+      ]);
     });
 
-    test('throws when no payment method returned', async () => {
-      (CommonConnect.createPaymentMethod as any).mockResolvedValue(null as any);
+    // e.g. the same Braintree customer on every checkout load
+    test('the same answer already stored: nothing written', async () => {
+      const post = mockCustomerClient(
+        customerWith(
+          braintreeCustomerCustom({ findProcessorRequest: '{"customerId":"ct-123"}', findResponse: '{"id":"ct-123"}' }),
+        ),
+      );
 
-      const mockCtCustomer = {
-        id: 'ct-123',
-        version: 1,
-        email: 'test@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        createdAt: '2024-01-01T00:00:00Z',
-        lastModifiedAt: '2024-01-01T00:00:00Z',
-      } as any;
+      await record();
 
-      const mockGetResponse = jest.fn<() => Promise<any>>().mockResolvedValue({ body: mockCtCustomer });
-      const mockGetChain = jest.fn().mockReturnValue({ execute: mockGetResponse });
-      const mockWithIdChain = jest.fn().mockReturnValue({ get: mockGetChain });
-      const mockCustomers = jest.fn().mockReturnValue({ withId: mockWithIdChain });
+      expect(post).not.toHaveBeenCalled();
+    });
 
-      (paymentSDK.ctAPI as any).client = { customers: mockCustomers };
+    test("the caller's customer: no read of its own", async () => {
+      const post = mockCustomerClient(customerWith(braintreeCustomerCustom({})));
 
-      await expect(
-        service.vaultPaymentMethodForCustomer({
-          paymentMethodNonce: 'nonce-123',
-          braintreeCustomerId: 'bt-123',
+      service.recordCustomerCall('ct-123', 'find', { customerId: 'ct-123' }, { id: 'ct-123' }, readCustomer());
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(customerReads()).toBe(0);
+      expect(post).toHaveBeenCalledTimes(1);
+    });
+
+    test("another custom type: nothing written, never replaces the merchant's type", async () => {
+      const post = mockCustomerClient(customerWith(otherTypeCustom()));
+
+      await record();
+
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    // a fire-and-forget rejection would crash the process
+    test('the customer read throws: logged, no unhandled rejection', async () => {
+      mockCtClient({
+        customers: jest.fn(() => {
+          throw new Error('client unavailable');
         }),
-      ).rejects.toThrow(ErrorInvalidOperation);
+      });
+      const warnSpy = jest.spyOn(log, 'warn').mockImplementation(() => log);
+
+      await record();
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('find not recorded on customer ct-123'));
+    });
+  });
+
+  // the caller writes the record together with its other customer writes
+  describe('findExistingBraintreeCustomerId', () => {
+    test('the found Braintree customer and its record, nothing written', async () => {
+      const post = mockCustomerClient(customerWith());
+      (CommonConnect.findCustomer as jest.Mock).mockResolvedValue({ id: 'ct-123' } as never);
+
+      await expect(service.findExistingBraintreeCustomerId('ct-123')).resolves.toEqual({
+        braintreeCustomerId: 'ct-123',
+        recordFields: { findProcessorRequest: '{"customerId":"ct-123"}', findResponse: '{"id":"ct-123"}' },
+      });
+      expect(post).not.toHaveBeenCalled();
     });
 
-    test('maps verified status correctly (true/absent -> false)', async () => {
-      const mockCtCustomer = {
-        id: 'ct-123',
-        version: 1,
-        email: 'test@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        createdAt: '2024-01-01T00:00:00Z',
-        lastModifiedAt: '2024-01-01T00:00:00Z',
-      } as any;
+    test('a miss: no id, the SDK error as the record', async () => {
+      (CommonConnect.findCustomer as jest.Mock).mockRejectedValue(notFound as never);
 
-      const mockGetResponse = jest.fn<() => Promise<any>>().mockResolvedValue({ body: mockCtCustomer });
-      const mockGetChain = jest.fn().mockReturnValue({ execute: mockGetResponse });
-      const mockWithIdChain = jest.fn().mockReturnValue({ get: mockGetChain });
-      const mockCustomers = jest.fn().mockReturnValue({ withId: mockWithIdChain });
-
-      (paymentSDK.ctAPI as any).client = { customers: mockCustomers };
-
-      // Test verified=true
-      (CommonConnect.createPaymentMethod as any).mockResolvedValueOnce({
-        token: 'pm-verified',
-        verified: true,
+      await expect(service.findExistingBraintreeCustomerId('ct-123')).resolves.toEqual({
+        braintreeCustomerId: undefined,
+        recordFields: findMiss,
       });
-
-      let result = await service.vaultPaymentMethodForCustomer({
-        paymentMethodNonce: 'nonce-123',
-        braintreeCustomerId: 'bt-123',
-      });
-
-      expect(result.verified).toBe(true);
-
-      // Test verified=undefined (should map to false)
-      (CommonConnect.createPaymentMethod as any).mockResolvedValueOnce({
-        token: 'pm-unverified',
-      });
-
-      result = await service.vaultPaymentMethodForCustomer({
-        paymentMethodNonce: 'nonce-456',
-        braintreeCustomerId: 'bt-123',
-      });
-
-      expect(result.verified).toBe(false);
     });
   });
 });

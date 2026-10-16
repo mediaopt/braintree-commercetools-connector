@@ -20,7 +20,7 @@ const sessionSentTo = (urlSuffix: string) =>
     .map(([header]) => header["X-Session-Id"]);
 
 const createPaymentResponse = {
-  braintreeData: { clientToken: "click-token", braintreeCustomerId: "" },
+  braintreeData: { clientToken: "click-token" },
   payment: {
     ctPaymentId: "click-payment",
     braintreeAmount: 10,
@@ -64,7 +64,6 @@ describe("usePayment — PayPal Express session switch", () => {
         return {
           braintreeData: {
             clientToken: "mount-token",
-            braintreeCustomerId: "",
           },
         };
       if (url.endsWith("/updateCartShipping"))
@@ -77,11 +76,21 @@ describe("usePayment — PayPal Express session switch", () => {
     const payment = await renderDeferredProvider();
 
     await act(() => payment.createExpressPayment("click-session"));
-    await act(() => payment.updateCartShipping("method-1"));
+    await act(() => payment.updateCartShipping("payment-1", "method-1"));
 
     expect(sessionSentTo("/expressClientToken")).toEqual(["mount-session"]);
     expect(sessionSentTo("")).toEqual(["click-session"]);
     expect(sessionSentTo("/updateCartShipping")).toEqual(["click-session"]);
+    // the processor writes the new amount to this payment's amountPlanned
+    expect(mockedProcessorRequest).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringMatching(/\/updateCartShipping$/),
+      {
+        ctPaymentId: "payment-1",
+        newShippingMethodId: "method-1",
+        address: undefined,
+      },
+    );
   });
 
   it("warns and keeps the current session when onPayButtonClick resolves without one", async () => {
@@ -109,6 +118,36 @@ describe("usePayment — PayPal Express session switch", () => {
   });
 });
 
+describe("usePayment — payment shared by BraintreePaymentEnabler", () => {
+  it("uses it instead of creating a payment on mount", async () => {
+    mockedProcessorRequest.mockReset().mockResolvedValue({ success: true });
+    let payment: ReturnType<typeof usePayment> | undefined;
+    const Consumer = () => {
+      payment = usePayment();
+      return null;
+    };
+    render(
+      <PaymentProvider
+        processorUrl={PROCESSOR_URL}
+        sessionId="session-id"
+        paymentMethodType="CreditCard"
+        purchaseCallback={jest.fn()}
+        initialPayment={createPaymentResponse}
+      >
+        <Consumer />
+      </PaymentProvider>,
+    );
+    await waitFor(() => expect(payment?.clientToken).toBe("click-token"));
+    expect(mockedProcessorRequest).not.toHaveBeenCalled();
+
+    await act(() => payment!.handleTransactionSale("nonce"));
+
+    expect(mockedProcessorRequest.mock.calls[0][2]).toMatchObject({
+      ctPaymentId: "click-payment",
+    });
+  });
+});
+
 describe("usePayment — handleTransactionSale", () => {
   let handleTransactionSale:
     ReturnType<typeof usePayment>["handleTransactionSale"] | undefined;
@@ -118,7 +157,7 @@ describe("usePayment — handleTransactionSale", () => {
     return null;
   };
 
-  beforeEach(async () => {
+  const renderSale = async () => {
     handleTransactionSale = undefined;
     mockedProcessorRequest
       .mockReset()
@@ -134,9 +173,10 @@ describe("usePayment — handleTransactionSale", () => {
       </PaymentProvider>,
     );
     await waitFor(() => expect(handleTransactionSale).toBeDefined());
-  });
+  };
 
   it("rejects with TRANSACTION_SALE_FAILED, not the processor's message, when the sale fails", async () => {
+    await renderSale();
     mockedProcessorRequest.mockResolvedValueOnce({
       success: false,
       message: "Declined for 1 Private Street",

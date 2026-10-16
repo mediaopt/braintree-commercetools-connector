@@ -1,14 +1,18 @@
 import { describe, test, expect, jest, afterEach } from '@jest/globals';
 import {
   getTypeId,
+  braintreeFailure,
+  braintreePaymentCustom as newBraintreePaymentCustom,
+  buildCallFields,
+  buildPspInteractions,
   buildResponseActions,
-  handleCustomFieldResponse,
   handleCustomTransactionFields,
   isBraintreePayment,
-  withBraintreeType,
 } from '../../src/utils/customEntities.utils';
 import { Payment } from '@commercetools/connect-payments-sdk';
 import { Transaction } from 'braintree';
+import { CustomError, withBraintreeResponse } from 'common-connect/dist';
+import { getConfig } from '../../src/config/config';
 import { paymentSDK } from '../../src/payment-sdk';
 import { BRAINTREE_PAYMENT_TYPE_ID, braintreePaymentCustom, otherTypeCustom } from './mock-custom-types';
 
@@ -29,18 +33,64 @@ describe('customEntities.utils', () => {
     jest.restoreAllMocks();
   });
 
-  describe('handleCustomFieldResponse', () => {
+  describe('buildCallFields', () => {
     test.each([
-      { description: 'stringifies a string message', message: 'test message', expected: '"test message"' },
+      { description: 'stores a string message as is', message: 'test message', expected: 'test message' },
       { description: 'stringifies an object message', message: { id: 'tx-123' }, expected: '{"id":"tx-123"}' },
       { description: 'returns an empty string without message', message: undefined, expected: '' },
     ])('$description', ({ message, expected }) => {
-      expect(handleCustomFieldResponse('transactionSale', message)).toEqual({ transactionSaleResponse: expected });
+      expect(buildCallFields('transactionSale', message, message)).toEqual({
+        transactionSaleProcessorRequest: expected,
+        transactionSaleResponse: expected,
+      });
+    });
+  });
+
+  describe('braintreeFailure', () => {
+    test("Braintree's own response kept on the thrown error", () => {
+      const response = { success: false, message: 'Declined', transaction: { id: 'tx-1' } };
+      const err = withBraintreeResponse(new CustomError(500, 'Declined'), response);
+
+      expect(braintreeFailure(err)).toBe(response);
+    });
+
+    test('an SDK error without a Braintree response: as received', () => {
+      const err = new Error('not found');
+      err.name = 'notFoundError';
+
+      expect(braintreeFailure(err)).toEqual({ success: false, name: 'notFoundError', message: 'not found' });
+    });
+
+    test('a non-Error', () => {
+      expect(braintreeFailure('boom')).toEqual({ success: false, message: 'boom' });
+    });
+  });
+
+  describe('buildPspInteractions', () => {
+    const config = getConfig();
+    const defaultKey = config.interactionTypeKey;
+    afterEach(() => {
+      config.interactionTypeKey = defaultKey;
+    });
+
+    test("uses the processor's configured interaction type key", () => {
+      config.interactionTypeKey = 'custom-interaction-type';
+
+      expect(buildPspInteractions('void', { transactionId: 'tx-1' }, 'ok')).toEqual([
+        {
+          type: { typeId: 'type', key: 'custom-interaction-type' },
+          fields: { type: 'voidProcessorRequest', data: '{"transactionId":"tx-1"}', timestamp: expect.any(String) },
+        },
+        {
+          type: { typeId: 'type', key: 'custom-interaction-type' },
+          fields: { type: 'voidResponse', data: 'ok', timestamp: expect.any(String) },
+        },
+      ]);
     });
   });
 
   describe('buildResponseActions', () => {
-    test('one setCustomField per field (response field and extra fields) plus the interaction pair', () => {
+    test('one setCustomField per field (both call fields and extra fields) plus the interaction pair', () => {
       const actions = buildResponseActions(
         'refund',
         { transactionId: 'tx-1' },
@@ -49,6 +99,7 @@ describe('customEntities.utils', () => {
       );
 
       expect(actions).toEqual([
+        { action: 'setCustomField', name: 'refundProcessorRequest', value: '{"transactionId":"tx-1"}' },
         { action: 'setCustomField', name: 'refundResponse', value: '{"id":"tx-2"}' },
         { action: 'setCustomField', name: 'BraintreeOrderId', value: 'o-1' },
         expect.objectContaining({
@@ -67,13 +118,11 @@ describe('customEntities.utils', () => {
     });
   });
 
-  describe('withBraintreeType', () => {
-    test('sets the Braintree payment type, keeping the fields a reused payment already has', () => {
-      const payment: Payment = { ...basePayment, custom: braintreePaymentCustom({ transactionSaleResponse: 'old' }) };
-
-      expect(withBraintreeType({ getClientTokenResponse: 'token' }, payment)).toEqual({
+  describe('braintreePaymentCustom', () => {
+    test('the Braintree payment type by key, for a new payment draft', () => {
+      expect(newBraintreePaymentCustom({})).toEqual({
         type: { typeId: 'type', key: 'braintree-payment-type' },
-        fields: { transactionSaleResponse: 'old', getClientTokenResponse: 'token' },
+        fields: {},
       });
     });
   });

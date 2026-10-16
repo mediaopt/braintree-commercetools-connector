@@ -33,8 +33,6 @@ import { withBraintreeRef } from "../../helpers/braintreeErrorRef";
 type AchVaultRequest = {
   paymentMethodNonce: string;
   ctPaymentId: string;
-  braintreeCustomerId?: string; // links ACH to customer vault (enables getStoredPaymentMethods)
-  ctCustomerId?: string; // required when no Braintree customer exists yet
   logFrontendIssue?: string; // browser-only failure of the previous attempt, logged by the processor
 };
 
@@ -78,13 +76,8 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   onRegisterValidation,
   onError,
 }: ACHMaskProps) => {
-  const {
-    handleTransactionSale,
-    clientToken,
-    requestHeader,
-    paymentInfo,
-    braintreeCustomerId,
-  } = usePayment();
+  const { handleTransactionSale, clientToken, requestHeader, paymentInfo } =
+    usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
 
@@ -323,8 +316,6 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                     >(requestHeader, getAchVaultTokenURL, {
                       paymentMethodNonce: tokenizedPayload.nonce,
                       ctPaymentId: paymentInfo.ctPaymentId,
-                      braintreeCustomerId: braintreeCustomerId || undefined,
-                      ctCustomerId: paymentInfo.ctCustomerId,
                       logFrontendIssue: pendingFrontendIssueRef.current,
                     });
 

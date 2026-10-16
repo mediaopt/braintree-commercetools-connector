@@ -21,7 +21,7 @@ import {
   // PURE_VAULT_DISABLED: PureVaultRequestSchemaDTO,
   TransactionSaleRequestSchemaDTO,
 } from '../dtos/braintree-payment.dto';
-import { logger } from 'common-connect';
+import { log } from '../libs/logger';
 import {
   getBraintreePaymentTypeId,
   isBraintreePayment,
@@ -209,7 +209,7 @@ export abstract class AbstractPaymentService {
       ),
     ]);
     const request = opts.data.actions[0];
-    logger.info(`Received request to modify payment ${opts.paymentId} with action ${request.action}`);
+    log.info(`Received request to modify payment ${opts.paymentId} with action ${request.action}`);
     if ('error' in typeLookup)
       return this.rejectPaymentIntent(
         ctPayment.id,
@@ -256,7 +256,7 @@ export abstract class AbstractPaymentService {
     reason: string,
     level: 'warn' | 'error' = 'warn',
   ): PaymentIntentResponseSchemaDTO {
-    logger[level](`${operation}: rejected, paymentId: ${paymentId} — ${reason}`);
+    log[level](`${operation}: rejected, paymentId: ${paymentId} — ${reason}`);
     return { outcome: PaymentModificationStatus.REJECTED };
   }
 

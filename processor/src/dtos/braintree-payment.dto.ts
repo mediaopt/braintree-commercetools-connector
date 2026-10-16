@@ -95,7 +95,6 @@ const PaymentVaultSchema = Type.Object({
 export const InitPaymentResponseSchema = Type.Object({
   braintreeData: Type.Object({
     clientToken: Type.String(),
-    braintreeCustomerId: Type.Optional(Type.String()),
   }),
   payment: Type.Intersect([
     PaymentRequiredFieldsSchema,
@@ -109,7 +108,6 @@ export const InitPaymentResponseSchema = Type.Object({
 export const ExpressClientTokenResponseSchema = Type.Object({
   braintreeData: Type.Object({
     clientToken: Type.String(),
-    braintreeCustomerId: Type.Optional(Type.String()),
   }),
 });
 export type ExpressClientTokenResponseSchemaDTO = Static<typeof ExpressClientTokenResponseSchema>;
@@ -117,7 +115,6 @@ export type ExpressClientTokenResponseSchemaDTO = Static<typeof ExpressClientTok
 export const PaymentOutcomeSchema = Type.Enum(PaymentOutcome);
 
 export const InitPaymentRequestSchema = Type.Object({
-  paymentMethodType: Type.Enum(PaymentMethodType),
   builderType: Type.Optional(Type.Enum(CustomBuilderType)),
 
   // paymentMethod: Type.Object({
@@ -161,7 +158,6 @@ export type PaymentResponseSchemaDTO = Static<typeof InitPaymentResponseSchema>;
 
 export const TransactionSaleRequestSchema = Type.Object({
   ctPaymentId: Type.String(),
-  braintreeCustomerId: Type.Optional(Type.String()),
   paymentMethodNonce: Type.Optional(Type.String()),
   paymentToken: Type.Optional(Type.String()),
   storeInVaultOnSuccess: Type.Optional(Type.Boolean()),
@@ -229,6 +225,8 @@ export type UpdateCartShippingResponseSchemaDTO = Static<typeof UpdateCartShippi
 // PayPal withholds that until final approval) — enough for commercetools to recompute tax/shipping
 // price against the buyer's in-progress country/region instead of the cart's stale stored address.
 export const UpdateCartShippingRequestSchema = Type.Object({
+  // the Express payment whose amountPlanned follows the new cart amount
+  ctPaymentId: Type.String(),
   newShippingMethodId: Type.String(),
   address: Type.Optional(
     Type.Object({
@@ -244,8 +242,6 @@ export type UpdateCartShippingRequestSchemaDTO = Static<typeof UpdateCartShippin
 export const AchVaultTokenRequestSchema = Type.Object({
   paymentMethodNonce: Type.String(),
   ctPaymentId: Type.String(),
-  braintreeCustomerId: Type.Optional(Type.String()),
-  ctCustomerId: Type.Optional(Type.String()),
   // Browser-only failure of an earlier attempt (our code and text + Braintree error code/requestId, never an SDK
   // message), logged by getAchVaultToken.
   // Bounded: it is buyer-supplied.

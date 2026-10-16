@@ -55,7 +55,7 @@ describe("Create payment", () => {
     return processorRequest<CreatePaymentRequest, CreatePaymentResponse>(
       {},
       "createPaymentUrl",
-      { builderType: undefined, paymentMethodType: "PayPal" },
+      {},
     ).then((result) => {
       expect(result).toHaveProperty("braintreeData");
       expect(result).toHaveProperty("payment");

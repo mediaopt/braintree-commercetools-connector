@@ -25,6 +25,16 @@ const PAYMENT_TYPE_FULL_FIELD_NAMES = [
 
 const INTERACTION_TYPE_FULL_FIELD_NAMES = ['type', 'data', 'timestamp'];
 
+const CUSTOMER_TYPE_FULL_FIELD_NAMES = [
+  'braintreeCustomerId',
+  'findProcessorRequest',
+  'findResponse',
+  'vaultProcessorRequest',
+  'vaultResponse',
+  'deletePaymentProcessorRequest',
+  'deletePaymentResponse',
+];
+
 // post-deploy.ts delegates the actual create-if-missing/add-missing-fields orchestration to
 // paymentSDK.ctCustomTypeService.createOrUpdate() (built into @commercetools/connect-payments-sdk)
 // — so this only needs to assert post-deploy builds and passes the right TypeDraft per type, not
@@ -68,16 +78,17 @@ describe('connectors/post-deploy', () => {
     });
   });
 
-  // the processor writes braintreeCustomerId itself (linkBraintreeCustomerId), so it doesn't rely on
-  // braintree-extension's post-deploy for it — and never registers the extension's own customer fields
-  test('provisions braintree-customer-type with braintreeCustomerId only', async () => {
+  // the processor writes braintreeCustomerId (linkBraintreeCustomerId) and its customer-level call records
+  // (recordCustomerCall) itself, so it doesn't rely on braintree-extension's post-deploy for them — and never
+  // registers the extension's own {name}Request customer fields
+  test('provisions braintree-customer-type with braintreeCustomerId and the customer call fields', async () => {
     const createOrUpdate = await runPostDeploy();
 
     expect(createOrUpdate).toHaveBeenCalledWith({
       key: customerTypeKey,
       name: { en: 'Custom customer type to braintree fields' },
       resourceTypeIds: ['customer'],
-      fieldDefinitions: [expect.objectContaining({ name: 'braintreeCustomerId' })],
+      fieldDefinitions: CUSTOMER_TYPE_FULL_FIELD_NAMES.map((name) => expect.objectContaining({ name })),
     });
   });
 

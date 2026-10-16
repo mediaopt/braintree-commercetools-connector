@@ -19,7 +19,6 @@ import { ExpressAddressData } from "../payment-enabler/interfaces/express";
 export type ClientTokenRequest = {
   paymentId: string;
   paymentVersion: number;
-  braintreeCustomerId?: string;
   merchantAccountId?: string;
 };
 
@@ -85,6 +84,8 @@ export type PaymentProviderProps = RequiredSessionData & {
   // PayPal Express deferred-cart-creation mode — see enabler/src/app/usePayment.tsx
   deferredPaymentCreation?: boolean;
   initialAmount?: CTAmount;
+  // The one payment shared by every standard/stored component, created once by BraintreePaymentEnabler
+  initialPayment?: CreatePaymentResponse;
 };
 
 export type GeneralComponentsProps = PaymentProviderProps &
@@ -103,7 +104,6 @@ export type ClientTokenResponse = {
 
 type BraintreePaymentData = {
   clientToken: string;
-  braintreeCustomerId: string;
 };
 
 type RequiredPaymentData = {

@@ -21,7 +21,7 @@ import {
 } from "../../helpers/submitError";
 import { HostedFieldsHostedFieldsFieldName } from "braintree-web/hosted-fields";
 import { ThreeDSecureVerifyOptions } from "braintree-web/three-d-secure";
-import { CHALLENGE_SHOW_TIMEOUT_MS } from "./constants";
+import { CHALLENGE_SHOW_TIMEOUT_MS, DEFAULT_VAULT_LABEL } from "./constants";
 import {
   ChallengeNotShownError,
   isRetryBlocked,
@@ -50,7 +50,6 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
     handleTransactionSale,
     // PURE_VAULT_DISABLED: handlePureVault,
     paymentInfo,
-    braintreeCustomerId,
   } = usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
@@ -465,11 +464,11 @@ export const CreditCardMask: FC<PropsWithChildren<CreditCardMaskProps>> = ({
 
         {!onRegisterSubmit &&
           enableVaulting &&
-          braintreeCustomerId && ( //PURE_VAULT_DISABLED  && !isPureVault
+          paymentInfo.ctCustomerId && ( //PURE_VAULT_DISABLED  && !isPureVault
             <>
               <label className={`${HOSTED_FIELDS_LABEL} mb-2`}>
                 <input className="mr-3" ref={ccVaultCheckbox} type="checkbox" />
-                {vaultLabel ?? "Save my card"}
+                {vaultLabel ?? DEFAULT_VAULT_LABEL}
               </label>
             </>
           )}

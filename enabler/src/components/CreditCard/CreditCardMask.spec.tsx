@@ -50,11 +50,16 @@ jest.mock("../../app/useBraintreeClient", () => {
 });
 
 const mockHandleTransactionSale = jest.fn();
+// a guest by default; the vault checkbox tests set ctCustomerId
+const mockPaymentInfo: { ctCustomerId?: string } = {};
 jest.mock("../../app/usePayment", () => ({
   usePayment: () => ({
     handleTransactionSale: mockHandleTransactionSale,
-    paymentInfo: { braintreeAmount: "10.00", email: "buyer@example.com" },
-    braintreeCustomerId: undefined,
+    paymentInfo: {
+      braintreeAmount: "10.00",
+      email: "buyer@example.com",
+      ...mockPaymentInfo,
+    },
   }),
 }));
 
@@ -69,7 +74,11 @@ jest.mock("../../app/useLoader", () => ({
 }));
 
 import { CreditCardMask } from "./CreditCardMask";
-import { CHALLENGE_SHOW_TIMEOUT_MS, THREEDS_CONTAINER_ID } from "./constants";
+import {
+  CHALLENGE_SHOW_TIMEOUT_MS,
+  DEFAULT_VAULT_LABEL,
+  THREEDS_CONTAINER_ID,
+} from "./constants";
 import { isRetryBlocked } from "./threeDSVerifier";
 
 const windowWithCardinal = window as { Cardinal?: unknown };
@@ -111,6 +120,31 @@ const STILL_LOADING = {
   code: "THREEDS_STILL_LOADING",
   message: "3D Secure is still loading. Please try again in a moment.",
 };
+
+// Without Checkout (no onRegisterSubmit) the mask shows its own "Save my card" checkbox, for a logged-in customer only:
+// the card is vaulted to the customer's Braintree customer, which the processor resolves itself
+describe("CreditCardMask — vault checkbox without Checkout", () => {
+  beforeEach(() => {
+    hostedFieldsHandlers = {};
+  });
+
+  afterEach(() => {
+    delete mockPaymentInfo.ctCustomerId;
+  });
+
+  const saveCheckbox = () =>
+    render(<CreditCardMask enableVaulting />).queryByText(DEFAULT_VAULT_LABEL);
+
+  it("shows it for a logged-in customer", () => {
+    mockPaymentInfo.ctCustomerId = "ct-customer-1";
+
+    expect(saveCheckbox()).not.toBeNull();
+  });
+
+  it("hides it for a guest", () => {
+    expect(saveCheckbox()).toBeNull();
+  });
+});
 
 describe("CreditCardMask — Checkout submit() and onError on 3D Secure and tokenize failures", () => {
   const mockOnError = jest.fn();
