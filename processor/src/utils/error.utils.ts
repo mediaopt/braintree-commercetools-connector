@@ -19,24 +19,27 @@ export const errorMessage = (err: unknown): string => {
 
 type BraintreeFailureResponse = {
   errors?: { deepErrors?: () => Array<{ code?: string }> };
-  transaction?: { id?: string; processorResponseCode?: string; processorResponseType?: string };
+  transaction?: Partial<
+    Pick<Transaction, 'id' | 'processorResponseCode' | 'processorResponseType' | 'gatewayRejectionReason'>
+  >;
 };
 
 /**
- * What a log may say about a failed Braintree call: Braintree's error codes, processor response code/type and
- * transaction id, or the SDK error's name when Braintree sent no response. Never the message, which can echo personal
- * data — the full response is recorded on the payment or customer instead.
+ * What a log may say about a failed Braintree call: Braintree's error codes, processor response code/type, gateway
+ * rejection reason and transaction id, or the SDK error's name when Braintree sent no response. Never the message,
+ * which can echo personal data — the full response is recorded on the payment or customer instead.
  */
 export const braintreeErrorRef = (err: unknown): string => {
   const response = getBraintreeResponse(err) as BraintreeFailureResponse | undefined;
   if (!response) return `Braintree error: ${err instanceof Error ? err.name : 'unknown'}`;
   const codes = response.errors?.deepErrors?.().map(({ code }) => code) ?? [];
-  const { id, processorResponseCode, processorResponseType } = response.transaction ?? {};
+  const { id, processorResponseCode, processorResponseType, gatewayRejectionReason } = response.transaction ?? {};
   return (
     [
       codes.length && `Braintree error codes: ${codes.join(', ')}`,
       processorResponseCode && `processor response code: ${processorResponseCode}`,
       processorResponseType && `processor response type: ${processorResponseType}`,
+      gatewayRejectionReason && `gateway rejection reason: ${gatewayRejectionReason}`,
       id && `transaction: ${id}`,
     ]
       .filter(Boolean)
