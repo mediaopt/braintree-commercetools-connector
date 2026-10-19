@@ -120,7 +120,6 @@ import {
   addPlaceholderActions,
   findActiveCharges,
   findTransactionIdOrUndefined,
-  hasCancelledPlaceholder,
   hasOpenPlaceholder,
   hasPlaceholder,
   hasSale,
@@ -1740,9 +1739,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
   }
 
   /**
-   * The transactionSale checks that need the payment and the cart: a Braintree payment, not cancelled or already
-   * charged, whose cart still has amountPlanned and its line items. Logs and throws, so nothing reaches Braintree. The
-   * request's own fields are checked before anything is read (validateTransactionSaleParams).
+   * The transactionSale checks that need the payment and the cart: a Braintree payment, not an ACH micro-deposit
+   * payment or already charged, whose cart still has amountPlanned and its line items. Logs and throws, so nothing
+   * reaches Braintree. The request's own fields are checked before anything is read (validateTransactionSaleParams).
    */
   private validateTransactionSale(
     ctPaymentId: string,
@@ -1759,11 +1758,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
       log.error(`transactionSale: ${notBraintreePaymentMessage(ctPaymentId)}`);
       throw new ErrorInvalidOperation(notBraintreePayment(ctPaymentId));
     }
-    // Unverified ACH payment whose Order was cancelled before the micro-deposits were verified (cancelPlaceholderPayment)
-    if (hasCancelledPlaceholder(ctPayment)) {
-      throw new ErrorInvalidOperation(
-        `transactionSale refused — payment ${ctPaymentId} was cancelled before verification`,
+    // An ACH micro-deposit payment (placeholder, cancelled or not, possibly with a held capture claim) is charged only
+    // through the Payment Intents capture (captureMicroDepositAch), which owns the claim against a double debit
+    if (hasPlaceholder(ctPayment)) {
+      log.error(
+        `merchant integration issue: transactionSale called on ACH micro-deposit payment ${ctPaymentId} — capture it through Payment Intents`,
       );
+      throw new ErrorInvalidOperation(`transactionSale refused for payment ${ctPaymentId}`);
     }
     if (!cartRead) throw new ErrorInvalidOperation(`could not find cart for transactionSale payment ${ctPaymentId}`);
     // Checkout creates one payment per checkout and charges it once
