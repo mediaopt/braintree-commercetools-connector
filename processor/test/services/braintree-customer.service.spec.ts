@@ -13,16 +13,6 @@ jest.mock('common-connect', () => ({
   createCustomer: jest.fn(),
   createPaymentMethod: jest.fn(),
   findCustomer: jest.fn(),
-  mapCTCustomerToNewBraintreeCustomer: jest.fn((ctCustomer: any) => ({
-    id: ctCustomer.id,
-    email: ctCustomer.email,
-    firstName: ctCustomer.firstName,
-    lastName: ctCustomer.lastName,
-  })),
-  VAULT_BRAINTREE_OPTIONS: {
-    makeDefault: true,
-    skipIfCardExistsForCustomer: false,
-  },
 }));
 
 import * as CommonConnect from 'common-connect';
@@ -313,9 +303,9 @@ describe('braintree-customer.service', () => {
     });
   });
 
-  describe('vaultPaymentMethodForCustomer', () => {
+  describe('vaultAchBankAccountForCustomer', () => {
     const vault = (ctCustomerId?: string) =>
-      service.vaultPaymentMethodForCustomer({ paymentMethodNonce: 'nonce-123', ctCustomerId });
+      service.vaultAchBankAccountForCustomer({ paymentMethodNonce: 'nonce-123', ctCustomerId });
     // the request's customer writes are fire-and-forget
     const flush = () => jest.advanceTimersByTimeAsync(0);
 
@@ -342,18 +332,28 @@ describe('braintree-customer.service', () => {
       expect(CommonConnect.createPaymentMethod).not.toHaveBeenCalled();
     });
 
-    test('new customer: created with the nonce; the link and both records in one update', async () => {
+    test('new customer: created without the nonce, the bank account vaulted with the verification options; the link and both records in one update', async () => {
       const post = mockCustomerClient(customerWith());
-      const btCustomer = { id: 'ct-123', paymentMethods: [{ token: 'pm-token-1', verified: true }] };
+      const btCustomer = { id: 'ct-123' };
+      const bankAccount = { token: 'pm-token-1', verified: true };
       (CommonConnect.createCustomer as jest.Mock).mockResolvedValue(btCustomer as never);
+      (CommonConnect.createPaymentMethod as jest.Mock).mockResolvedValue(bankAccount as never);
 
       await expect(vault('ct-123')).resolves.toEqual({ token: 'pm-token-1', verified: true, ctCustomerId: 'ct-123' });
       await flush();
       // the customer read before the vault serves the write too
       expect(customerReads()).toBe(1);
 
-      const createRequest = (CommonConnect.createCustomer as jest.Mock).mock.calls[0][0];
-      expect(createRequest).toEqual(expect.objectContaining({ paymentMethodNonce: 'nonce-123' }));
+      // customer.create takes no bank account verification options: a nonce vaulted there is never verified
+      const createRequest = (CommonConnect.createCustomer as jest.Mock).mock.calls[0][0] as Record<string, unknown>;
+      expect(createRequest.paymentMethodNonce).toBeUndefined();
+      const vaultRequest = (CommonConnect.createPaymentMethod as jest.Mock).mock.calls[0][0];
+      expect(vaultRequest).toEqual({
+        customerId: 'ct-123',
+        paymentMethodNonce: 'nonce-123',
+        // the configured method (BRAINTREE_PER_METHOD_CONFIG.ach), else common-connect's default
+        options: expect.objectContaining({ usBankAccountVerificationMethod: expect.any(String) }),
+      });
       expect(sentActions(post)).toEqual([
         [
           {
@@ -361,13 +361,26 @@ describe('braintree-customer.service', () => {
             type: { typeId: 'type', key: getConfig().customerTypeKey },
             fields: {
               ...findMiss,
-              vaultProcessorRequest: JSON.stringify(createRequest),
-              vaultResponse: JSON.stringify(btCustomer),
+              // the bank account's vault, recorded last
+              vaultProcessorRequest: JSON.stringify(vaultRequest),
+              vaultResponse: JSON.stringify(bankAccount),
               braintreeCustomerId: 'ct-123',
             },
           },
         ],
       ]);
+    });
+
+    test('new customer, the bank account vault fails: refused, the created customer still linked for the retry', async () => {
+      const post = mockCustomerClient(customerWith());
+      (CommonConnect.createCustomer as jest.Mock).mockResolvedValue({ id: 'ct-123' } as never);
+      (CommonConnect.createPaymentMethod as jest.Mock).mockRejectedValue(new Error('declined') as never);
+
+      await expect(vault('ct-123')).rejects.toThrow('declined');
+      await flush();
+
+      // the retry finds braintreeCustomerId and vaults onto that customer instead of creating a duplicate
+      expect(JSON.stringify(sentActions(post))).toContain('"braintreeCustomerId":"ct-123"');
     });
 
     test('self-heal: braintreeCustomerId missing, a matching Braintree customer found — vaulted onto it and re-linked', async () => {

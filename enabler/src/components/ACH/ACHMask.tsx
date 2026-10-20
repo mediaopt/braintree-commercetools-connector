@@ -29,11 +29,16 @@ import { HOSTED_FIELDS_LABEL, HOSTED_FIELDS } from "../../styles";
 import { processorRequest } from "../../services/processorRequest";
 import { processorUrls } from "../constants";
 import { withBraintreeRef } from "../../helpers/braintreeErrorRef";
+import {
+  FORM_INCOMPLETE_TEXT,
+  FRONTEND_ISSUE_MAX_LENGTH,
+  SIGN_IN_TEXT,
+} from "./constants";
 
 type AchVaultRequest = {
   paymentMethodNonce: string;
   ctPaymentId: string;
-  logFrontendIssue?: string; // browser-only failure of the previous attempt, logged by the processor
+  logFrontendIssue?: string; // browser-only failures of earlier attempts, logged by the processor
 };
 
 type AchVaultResponse = {
@@ -76,8 +81,12 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
   onRegisterValidation,
   onError,
 }: ACHMaskProps) => {
-  const { handleTransactionSale, clientToken, requestHeader, paymentInfo } =
-    usePayment();
+  const {
+    handleTransactionSale,
+    clientToken,
+    currentRequestHeader,
+    paymentInfo,
+  } = usePayment();
   const { notify } = useNotifications();
   const { isLoading } = useLoader();
 
@@ -167,13 +176,21 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     formButtonDisabled = formButtonDisabled || !firstName || !lastName;
   }
 
+  // ACH vaults the bank account to the customer, which a guest doesn't have (ctCustomerId comes from createPayment)
+  const signInRequired = !paymentInfo.ctCustomerId;
+
   const formRef = useRef<HTMLFormElement>(null);
   const formButtonDisabledRef = useRef(false);
+  const signInRequiredRef = useRef(signInRequired);
   const pendingFrontendIssueRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     formButtonDisabledRef.current = formButtonDisabled;
   }, [formButtonDisabled]);
+
+  useEffect(() => {
+    signInRequiredRef.current = signInRequired;
+  }, [signInRequired]);
 
   // Resolves only once the whole tokenize + vault + transactionSale flow is done and rejects on
   // every failure: Checkout only has submit()'s promise to tell a failed payment apart from a
@@ -192,19 +209,40 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
       };
 
       // For failures no processor call sees: the next attempt's vault request carries them, since the
-      // buyer's browser console usually isn't accessible to whoever debugs the payment.
+      // buyer's browser console usually isn't accessible to whoever debugs the payment. Only our code and the
+      // Braintree reference: the processor accepts nothing else. All of them since the last vault response, the
+      // oldest dropped first when they don't fit.
       const failInBrowser: typeof fail = (code, text, err) => {
-        pendingFrontendIssueRef.current = `${code}: ${withBraintreeRef(text, err)}`;
+        let issues = [
+          pendingFrontendIssueRef.current,
+          withBraintreeRef(code, err),
+        ]
+          .filter(Boolean)
+          .join("; ");
+        while (
+          issues.length > FRONTEND_ISSUE_MAX_LENGTH &&
+          issues.includes("; ")
+        ) {
+          issues = issues.slice(issues.indexOf("; ") + 2);
+        }
+        pendingFrontendIssueRef.current =
+          issues.length > FRONTEND_ISSUE_MAX_LENGTH ? undefined : issues;
         fail(code, text, err);
       };
+
+      // Collected anew on every attempt: a failed collection must never send the previous attempt's data.
+      deviceDataRef.current = "";
 
       if (!clientToken) {
         return fail("ACH_NO_CLIENT_TOKEN", "Something went wrong - try again");
       }
 
+      if (signInRequired) {
+        return fail("ACH_SIGN_IN_REQUIRED", SIGN_IN_TEXT);
+      }
+
       if (formButtonDisabled) {
-        notify("Error", "Please fill in all required fields");
-        return reject(new Error("empty fields"));
+        return fail("ACH_FORM_INCOMPLETE", FORM_INCOMPLETE_TEXT);
       }
       isLoading(true);
 
@@ -313,7 +351,7 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                     const vaultResponse = await processorRequest<
                       AchVaultRequest,
                       AchVaultResponse
-                    >(requestHeader, getAchVaultTokenURL, {
+                    >(currentRequestHeader(), getAchVaultTokenURL, {
                       paymentMethodNonce: tokenizedPayload.nonce,
                       ctPaymentId: paymentInfo.ctPaymentId,
                       logFrontendIssue: pendingFrontendIssueRef.current,
@@ -404,8 +442,14 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     if (!clientToken) return;
     onRegisterSubmit?.(() => submitPaymentRef.current());
     onRegisterValidation?.({
-      isValid: async () => !formButtonDisabledRef.current,
+      isValid: async () =>
+        !signInRequiredRef.current && !formButtonDisabledRef.current,
       showValidation: async () => {
+        if (signInRequiredRef.current) {
+          notify("Error", SIGN_IN_TEXT);
+          onError?.({ code: "ACH_SIGN_IN_REQUIRED", message: SIGN_IN_TEXT });
+          return;
+        }
         formRef.current?.reportValidity();
       },
     });
@@ -416,6 +460,10 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
     // Failures are already notified inside submitPayment.
     submitPayment().catch(() => {});
   };
+
+  if (signInRequired) {
+    return <p className="m-auto p-8 max-w-3xl">{SIGN_IN_TEXT}</p>;
+  }
 
   return (
     <>

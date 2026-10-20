@@ -84,7 +84,7 @@ after such cart changes.
 
 ⁴ You must contact Braintree to enable the required verification method for the checkout flow. For configuring see the enabler [`README.md`](enabler/README.md#ach).
 
-This is your responsibility to configure in the merchant center → checkout application → payment integration the relevant payment methods based on your Braintree account settings, using [payment integration predicates](https://docs.commercetools.com/checkout/payment-integration-predicates#predicate-syntax). The "Recommended predicates" column above shows a starting point for each method: for local payment methods, it's the country/currency pairing the method is fixed to; for ACH, it restricts the method to logged-in customers, since ACH requires vaulting to a Braintree customer and a guest checkout can't complete it even though this connector doesn't block guests from seeing the option.
+This is your responsibility to configure in the merchant center → checkout application → payment integration the relevant payment methods based on your Braintree account settings, using [payment integration predicates](https://docs.commercetools.com/checkout/payment-integration-predicates#predicate-syntax). The "Recommended predicates" column above shows a starting point for each method: for local payment methods, it's the country/currency pairing the method is fixed to; for ACH, it restricts the method to logged-in customers, since ACH requires vaulting to a Braintree customer and a guest checkout can't complete it. Without the predicate, a guest still sees ACH offered, and the component shows a "Please sign in to use this method." notice instead of the bank account form.
 
 Express methods only include PayPal Buy Now today.
 
