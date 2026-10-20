@@ -174,8 +174,9 @@ async function claimedSale(
       );
     return rejected;
   }
-  // Same recording as transactionSale: the Authorization overwrites the placeholder in place, and the Charge Braintree's
-  // settlement_pending maps to overwrites the claim (see updatePaymentWithTransaction)
+  // Recorded as a transactionSale (transactionSale itself refuses placeholder payments): the Authorization overwrites
+  // the placeholder in place, and the Charge Braintree's settlement_pending maps to overwrites the claim
+  // (see updatePaymentWithTransaction)
   await deps.updatePaymentWithTransaction({
     messageName: 'transactionSale',
     request: transactionRequest,
