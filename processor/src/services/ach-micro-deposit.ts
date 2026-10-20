@@ -300,6 +300,8 @@ export function placeholderOverwriteActions(
   response: Transaction,
   recorded: { type: TransactionType; state: TransactionState }[],
 ): PaymentUpdateAction[] {
+  // Defensive, shouldn't normally fire: transactionSale refuses placeholder payments, a capture refuses a cancelled one,
+  // and a cancel is refused while the capture's claim is held (a cancel written before the claim fails its version check)
   if (recorded.some((r) => hasOpenPlaceholder(payment, r.type)) && hasCancelledPlaceholder(payment)) {
     log.error(`${CONCURRENT_CANCEL_AND_SALE_ISSUE} on payment ${payment.id}, Braintree transaction ${response.id}`);
   }
