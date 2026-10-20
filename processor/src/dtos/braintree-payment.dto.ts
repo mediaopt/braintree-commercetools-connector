@@ -242,17 +242,18 @@ export type UpdateCartShippingRequestSchemaDTO = Static<typeof UpdateCartShippin
 const BRAINTREE_CODE = 'Braintree error code: [A-Z0-9_]{1,80}';
 const BRAINTREE_REQUEST_ID = 'Braintree requestId: [\\w-]{1,64}';
 const FRONTEND_ISSUE = `[A-Z0-9_]+( \\((${BRAINTREE_CODE}(, ${BRAINTREE_REQUEST_ID})?|${BRAINTREE_REQUEST_ID})\\))?`;
-// Checked by getAchVaultToken, not by the schema: a diagnostic field must never fail the request (e.g. an enabler
-// bundle cached in the buyer's browser that still sends another format)
+// Length and format are checked by getAchVaultToken, not by the schema: a diagnostic field must never fail the request
+// (e.g. an enabler bundle cached in the buyer's browser that still sends another format)
 export const FRONTEND_ISSUES_REGEX = new RegExp(`^${FRONTEND_ISSUE}(; ${FRONTEND_ISSUE})*$`);
+export const FRONTEND_ISSUES_MAX_LENGTH = 500;
 
 export const AchVaultTokenRequestSchema = Type.Object({
   paymentMethodNonce: Type.String(),
   ctPaymentId: Type.String(),
   // Browser-only failures of earlier attempts, logged by getAchVaultToken: our codes, each with at most the Braintree
   // error code/requestId (the enabler's withBraintreeRef), separated by "; ". Buyer-supplied, so only a value matching
-  // FRONTEND_ISSUES_REGEX is logged — no free text or line breaks reach the log.
-  logFrontendIssue: Type.Optional(Type.String({ maxLength: 500 })),
+  // FRONTEND_ISSUES_REGEX within FRONTEND_ISSUES_MAX_LENGTH is logged — no free text or line breaks reach the log.
+  logFrontendIssue: Type.Optional(Type.String()),
 });
 export type AchVaultTokenRequestSchemaDTO = Static<typeof AchVaultTokenRequestSchema>;
 

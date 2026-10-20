@@ -49,6 +49,7 @@ import {
   UpdateCartShippingRequestSchemaDTO,
   AchVaultTokenRequestSchemaDTO,
   AchVaultTokenResponseSchemaDTO,
+  FRONTEND_ISSUES_MAX_LENGTH,
   FRONTEND_ISSUES_REGEX,
 } from '../dtos/braintree-payment.dto';
 import { StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
@@ -1511,7 +1512,8 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // Before the cart guard, so a rejected request still logs the issue it reports
     if (logFrontendIssue)
       log.warn(
-        FRONTEND_ISSUES_REGEX.test(logFrontendIssue)
+        // length first, so the format check never runs on an oversized value
+        logFrontendIssue.length <= FRONTEND_ISSUES_MAX_LENGTH && FRONTEND_ISSUES_REGEX.test(logFrontendIssue)
           ? `getAchVaultToken: frontend issue reported on payment ${ctPaymentId} before this attempt: ${logFrontendIssue}`
           : `getAchVaultToken: malformed frontend issue report on payment ${ctPaymentId} dropped`,
       );
