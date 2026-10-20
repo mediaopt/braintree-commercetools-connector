@@ -2,13 +2,20 @@ import { Payment } from '@commercetools/connect-payments-sdk';
 import { PaymentUpdateAction, Transaction, TransactionType } from '@commercetools/platform-sdk';
 import { findSuitableTransactionId } from 'common-connect/dist';
 
-const PLACEHOLDER_PREFIX = 'BraintreePlaceholder: ';
+const PLACEHOLDER_PREFIX = 'ACH: ';
 
-// Marker interactionId of the ACH micro-deposit placeholder (addPlaceholderActions below and
-// cancelPlaceholderPayment, braintree-payment.service.ts), built from the commercetools payment id since Braintree
-// has no transaction yet. It is never a Braintree id, so it must never be sent to Braintree — find/exclude it via
-// isPlaceholderInteractionId() below.
-export const buildPlaceholderInteractionId = (ctPaymentId: string): string => `${PLACEHOLDER_PREFIX}${ctPaymentId}`;
+// Marker interactionId of the ACH micro-deposit placeholder (addPlaceholderActions below, and the cancel marker and
+// capture claim in ach-micro-deposit.ts): the vaulted bank account's token, since Braintree has no
+// transaction yet — settlement() charges it once the account is verified (docs/Intents.md). It is never a Braintree
+// transaction id, so it must never be sent to Braintree as one — find/exclude it via isPlaceholderInteractionId()
+// below — and, carrying a payment method token, never logged.
+export const buildPlaceholderInteractionId = (vaultToken: string): string => `${PLACEHOLDER_PREFIX}${vaultToken}`;
+
+// The vaulted bank account token carried by a placeholder's marker
+export const placeholderVaultToken = (t: Transaction): string | undefined =>
+  isPlaceholderInteractionId(t.interactionId)
+    ? t.interactionId!.slice(PLACEHOLDER_PREFIX.length) || undefined
+    : undefined;
 
 /**
  * Adds the ACH micro-deposit placeholder: an Authorization with the marker interactionId, which
@@ -22,7 +29,7 @@ export const buildPlaceholderInteractionId = (ctPaymentId: string): string => `$
  * payment: a declined sale makes the shared transactionSale throw (Braintree success: false) before anything is
  * written to commercetools.
  */
-export const addPlaceholderActions = (payment: Payment): PaymentUpdateAction[] =>
+export const addPlaceholderActions = (payment: Payment, vaultToken: string): PaymentUpdateAction[] =>
   payment.transactions.some((t) => t.type === 'Authorization')
     ? []
     : [
@@ -31,7 +38,7 @@ export const addPlaceholderActions = (payment: Payment): PaymentUpdateAction[] =
           transaction: {
             type: 'Authorization',
             state: 'Pending',
-            interactionId: buildPlaceholderInteractionId(payment.id),
+            interactionId: buildPlaceholderInteractionId(vaultToken),
             amount: { centAmount: payment.amountPlanned.centAmount, currencyCode: payment.amountPlanned.currencyCode },
           },
         },
@@ -46,6 +53,18 @@ export const isPlaceholder = (t: Transaction, type?: TransactionType): boolean =
 // Any placeholder, or only one of the given transaction type
 export const hasPlaceholder = (payment: Payment, type?: TransactionType): boolean =>
   payment.transactions.some((t) => isPlaceholder(t, type));
+
+// True when a merchant-given transaction id is this payment's ACH micro-deposit marker (`ACH: <token>`, the
+// interactionId of its placeholder Authorization) — there's no Braintree transaction behind it yet
+export const isMicroDepositMarker = (payment: Payment, id?: string): boolean =>
+  !!id && payment.transactions.some((t) => isPlaceholder(t) && t.interactionId === id);
+
+// A placeholder still to be overwritten by the real transaction — not a released capture claim (Failure)
+export const isOpenPlaceholder = (t: Transaction, type: TransactionType): boolean =>
+  isPlaceholder(t, type) && t.state !== 'Failure';
+
+export const hasOpenPlaceholder = (payment: Payment, type: TransactionType): boolean =>
+  payment.transactions.some((t) => isOpenPlaceholder(t, type));
 
 /**
  * Copy of the payment without placeholder transactions — lets the shared common-connect
@@ -71,9 +90,18 @@ export const findTransactionIdOrUndefined = (payment: Payment, type: Transaction
 
 /**
  * True when an unverified ACH payment's placeholder was cancelled (cancelPlaceholderPayment,
- * braintree-payment.service.ts) — such a payment must never be charged afterwards.
+ * ach-micro-deposit.ts) — such a payment must never be charged afterwards.
  */
 export const hasCancelledPlaceholder = (payment: Payment): boolean => hasPlaceholder(payment, 'CancelAuthorization');
+
+/**
+ * True when transactionSale already charged the payment: it always records the sale as an Authorization
+ * (transactionTypeOverride), Success or Pending (e.g. ACH settlement). The ACH micro-deposit placeholder isn't a sale.
+ */
+export const hasSale = (payment: Payment): boolean =>
+  payment.transactions.some(
+    (t) => t.type === 'Authorization' && (t.state === 'Success' || t.state === 'Pending') && !isPlaceholder(t),
+  );
 
 /**
  * Total cent amount already refunded on the payment. Braintree refunds stay Pending on commercetools until they

@@ -12,7 +12,7 @@ import {
   PaymentMethodUpdateRequest,
   BraintreeGateway,
 } from "braintree";
-import { CustomError } from "../errors/custom.error";
+import { CustomError, withBraintreeResponse } from "../errors/custom.error";
 import { Stream } from "stream";
 import { TransactionGateway } from "../interfaces/transaction.interface";
 import { Package } from "../types/index.types";
@@ -85,7 +85,10 @@ export const getClientToken = async (request: ClientTokenRequest) => {
   const response = await gateway.clientToken.generate(request);
   logResponse("getClientToken", response);
   if (!response.success) {
-    throw new CustomError(500, response.message);
+    throw withBraintreeResponse(
+      new CustomError(500, response.message),
+      response,
+    );
   }
   return response.clientToken;
 };
@@ -100,7 +103,10 @@ export const transactionSale = async (request: TransactionRequest) => {
     )
       ? `[${response.transaction.processorResponseType}] `
       : "";
-    throw new CustomError(500, `${prefix}${response.message}`);
+    throw withBraintreeResponse(
+      new CustomError(500, `${prefix}${response.message}`),
+      response,
+    );
   }
   return response.transaction;
 };
@@ -110,7 +116,10 @@ export const refund = async (transactionId: string, amount?: string) => {
   const response = await gateway.transaction.refund(transactionId, amount);
   logResponse("refund", response);
   if (!response.success) {
-    throw new CustomError(500, response.message);
+    throw withBraintreeResponse(
+      new CustomError(500, response.message),
+      response,
+    );
   }
   return response.transaction;
 };
@@ -120,7 +129,10 @@ export const voidTransaction = async (transactionId: string) => {
   const response = await gateway.transaction.void(transactionId);
   logResponse("void", response);
   if (!response.success) {
-    throw new CustomError(500, response.message);
+    throw withBraintreeResponse(
+      new CustomError(500, response.message),
+      response,
+    );
   }
   return response.transaction;
 };
@@ -137,7 +149,10 @@ export const addPackageTracking = async (
   );
   logResponse("packageTracking", response);
   if (!response.success) {
-    throw new CustomError(500, response.message);
+    throw withBraintreeResponse(
+      new CustomError(500, response.message),
+      response,
+    );
   }
   return response.transaction;
 };
@@ -155,7 +170,10 @@ export const submitForSettlement = async (
     : await gateway.transaction.submitForSettlement(transactionId);
   logResponse("submitForSettlement", response);
   if (!response.success) {
-    throw new CustomError(500, response.message);
+    throw withBraintreeResponse(
+      new CustomError(500, response.message),
+      response,
+    );
   }
   return response.transaction;
 };
@@ -167,6 +185,16 @@ export const findCustomer = async (customerId: string): Promise<Customer> => {
   return response;
 };
 
+// Throws (the SDK's notFoundError) when no payment method has this token
+export const findPaymentMethod = async (
+  token: string,
+): Promise<PaymentMethod> => {
+  const gateway = getBraintreeGateway(BRAINTREE_TIMEOUT_CUSTOMER);
+  const response = await gateway.paymentMethod.find(token);
+  logger.info(`findPaymentMethod response: customerId: ${response.customerId}`);
+  return response;
+};
+
 export const createCustomer = async (
   request: CustomerCreateRequest,
 ): Promise<Customer> => {
@@ -174,7 +202,10 @@ export const createCustomer = async (
   const response = await gateway.customer.create(request);
   logResponse("createCustomer", response);
   if (!response.success) {
-    throw new CustomError(500, response.message);
+    throw withBraintreeResponse(
+      new CustomError(500, response.message),
+      response,
+    );
   }
   return response.customer;
 };
@@ -186,7 +217,10 @@ export const createPaymentMethod = async (
   const response = await gateway.paymentMethod.create(request);
   logResponse("createPaymentMethod", response);
   if (!response.success) {
-    throw new CustomError(500, response.message);
+    throw withBraintreeResponse(
+      new CustomError(500, response.message),
+      response,
+    );
   }
   return response.paymentMethod;
 };
@@ -248,7 +282,10 @@ export const updatePayment = async (
   );
   logResponse("updatePaymentMethod", response);
   if (!response.success) {
-    throw new CustomError(500, response.message);
+    throw withBraintreeResponse(
+      new CustomError(500, response.message),
+      response,
+    );
   }
   return response.paymentMethod;
 };

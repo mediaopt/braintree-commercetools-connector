@@ -7,7 +7,6 @@ jest.mock('common-connect/dist', () => ({
 }));
 import * as CommonConnect from 'common-connect/dist';
 import { paymentSDK } from '../../src/payment-sdk';
-import { PaymentMethodType } from '../../src/dtos/braintree-payment.dto';
 import { BraintreePaymentService } from '../../src/services/braintree-payment.service';
 import { BraintreePaymentServiceOptions } from '../../src/services/types/braintree-payment.type';
 import * as FastifyContext from '../../src/libs/fastify/context/context';
@@ -60,10 +59,7 @@ describe('real carts: mapped Braintree line items balance the charged amount', (
     jest.spyOn(paymentSDK.ctPaymentService, 'updatePayment').mockResolvedValue({} as never);
     (CommonConnect.getClientToken as jest.Mock).mockResolvedValue('client-token' as never);
 
-    const result = await braintreePaymentService.createPayment({
-      paymentMethodType: PaymentMethodType.PAYPAL,
-      builderType: undefined,
-    } as never);
+    const result = await braintreePaymentService.createPayment({});
 
     const lineItems = result.payment.braintreeLineItems ?? [];
     const balance = lineItems.reduce(

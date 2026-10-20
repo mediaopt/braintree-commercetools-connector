@@ -66,10 +66,7 @@ describe('braintree-payment.route', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/payments',
-        payload: {
-          paymentMethodType: 'CreditCard',
-          currency: 'USD',
-        },
+        payload: {},
         headers: { 'x-session-id': 'session-123' },
       });
 
@@ -86,10 +83,7 @@ describe('braintree-payment.route', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/payments',
-        payload: {
-          paymentMethodType: 'CreditCard',
-          currency: 'USD',
-        },
+        payload: {},
       });
 
       expect(response.statusCode).not.toBe(200);
@@ -256,7 +250,6 @@ describe('braintree-payment.route', () => {
         payload: {
           ctPaymentId: 'payment-123',
           paymentMethodNonce: 'ach-nonce',
-          braintreeCustomerId: 'bt-cust-123',
         },
         headers: { 'x-session-id': 'session-123' },
       });
@@ -285,6 +278,31 @@ describe('braintree-payment.route', () => {
       });
 
       expect(mockPaymentService.getAchVaultToken).toHaveBeenCalledWith(expect.objectContaining(payload));
+    });
+
+    // diagnostic only: neither a malformed nor an oversized value fails the vault (getAchVaultToken drops it)
+    test.each([
+      ['a code', 'ACH_TOKENIZE_FAILED'],
+      [
+        'codes with Braintree references',
+        'ACH_TOKENIZE_FAILED (Braintree error code: US_BANK_X, Braintree requestId: req-1); ACH_CLIENT_CREATE_FAILED (Braintree requestId: req-2)',
+      ],
+      ['free text', 'ACH_TOKENIZE_FAILED: bank 1000000000'],
+      ['a line break', 'ACH_TOKENIZE_FAILED\nfake log line'],
+      ['more than 500 characters', 'A'.repeat(501)],
+    ])('logFrontendIssue with %s: accepted', async (_, logFrontendIssue) => {
+      const authenticateImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      fastify = await buildApp(authenticateImpl);
+      (mockPaymentService.getAchVaultToken as jest.Mock).mockResolvedValue({ token: 'test', verified: true } as never);
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/payments/getAchVaultToken',
+        payload: { ctPaymentId: 'payment-123', paymentMethodNonce: 'ach-nonce', logFrontendIssue },
+        headers: { 'x-session-id': 'session-123' },
+      });
+
+      expect(response.statusCode).toBe(200);
     });
   });
 });

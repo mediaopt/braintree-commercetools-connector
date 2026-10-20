@@ -13,7 +13,7 @@ import {
 } from './types/operation.type';
 
 import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-componets.dto';
-import { PaymentIntentResponseSchemaDTO, PaymentModificationStatus } from '../dtos/operations/payment-intents.dto';
+import { PaymentIntentResponseSchemaDTO } from '../dtos/operations/payment-intents.dto';
 import {
   PaymentUpdateResponseSchemaDTO,
   PaymentRequestSchemaDTO,
@@ -21,13 +21,14 @@ import {
   // PURE_VAULT_DISABLED: PureVaultRequestSchemaDTO,
   TransactionSaleRequestSchemaDTO,
 } from '../dtos/braintree-payment.dto';
-import { logger } from 'common-connect';
+import { log } from '../libs/logger';
 import {
   getBraintreePaymentTypeId,
   isBraintreePayment,
   notBraintreePaymentMessage,
 } from '../utils/customEntities.utils';
 import { errorMessage } from '../utils/error.utils';
+import { rejectPaymentIntent } from '../utils/paymentIntent.utils';
 
 /**
  * Abstract base class for payment service implementations.
@@ -209,16 +210,16 @@ export abstract class AbstractPaymentService {
       ),
     ]);
     const request = opts.data.actions[0];
-    logger.info(`Received request to modify payment ${opts.paymentId} with action ${request.action}`);
+    log.info(`Received request to modify payment ${opts.paymentId} with action ${request.action}`);
     if ('error' in typeLookup)
-      return this.rejectPaymentIntent(
+      return rejectPaymentIntent(
         ctPayment.id,
         request.action,
         `could not look up the Braintree payment type: ${typeLookup.error}`,
         'error',
       );
     if (!isBraintreePayment(ctPayment, typeLookup.id))
-      return this.rejectPaymentIntent(ctPayment.id, request.action, notBraintreePaymentMessage(ctPayment.id), 'error');
+      return rejectPaymentIntent(ctPayment.id, request.action, notBraintreePaymentMessage(ctPayment.id), 'error');
     switch (request.action) {
       case 'capturePayment': {
         return await this.settlement({
@@ -244,20 +245,6 @@ export abstract class AbstractPaymentService {
         throw new ErrorInvalidOperation(`Operation not supported.`);
       }
     }
-  }
-
-  /**
-   * Rejected answer for an operation impossible in the payment's current state (warn) or after a failure (error) —
-   * see docs/Intents.md "How this connector answers".
-   */
-  protected rejectPaymentIntent(
-    paymentId: string,
-    operation: string,
-    reason: string,
-    level: 'warn' | 'error' = 'warn',
-  ): PaymentIntentResponseSchemaDTO {
-    logger[level](`${operation}: rejected, paymentId: ${paymentId} — ${reason}`);
-    return { outcome: PaymentModificationStatus.REJECTED };
   }
 
   /**

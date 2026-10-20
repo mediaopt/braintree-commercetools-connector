@@ -52,6 +52,11 @@ The connector includes a checkout mode for faster, streamlined payment processin
 
 To use the checkout compatible connector please create a checkout application in the [merchant center](https://docs.commercetools.com/checkout/overview#merchant-center-configuration). In the application payment integrations you can select this connector and configure payment methods available. Please note that the connector only supports standard payments and express payments. It is your responsibility to configure the relevant restriction for your payment methods. This includes, but doesn't limit to, local payment methods (Example: for Przelewy24 country PL is required, set it as billingAddress.country = "PL").
 
+If a sale is refused because the cart changed so that the payment no longer matches what the buyer approved (e.g. in
+the PayPal window), make sure that you call
+[`reloadPaymentMethods()`](https://docs.commercetools.com/checkout/releases/2025-03-05-introduced-reloadpaymentmethods-method-and-failedtorefreshsession-message)
+after such cart changes.
+
 #### Payment methods and their restrictions
 
 | Category | Method              | previous name (npm client)         | checkout reference | Country requirement                                           | Currency requirement           | Recommended predicates                                                                                   |
@@ -79,7 +84,7 @@ To use the checkout compatible connector please create a checkout application in
 
 ⁴ You must contact Braintree to enable the required verification method for the checkout flow. For configuring see the enabler [`README.md`](enabler/README.md#ach).
 
-This is your responsibility to configure in the merchant center → checkout application → payment integration the relevant payment methods based on your Braintree account settings, using [payment integration predicates](https://docs.commercetools.com/checkout/payment-integration-predicates#predicate-syntax). The "Recommended predicates" column above shows a starting point for each method: for local payment methods, it's the country/currency pairing the method is fixed to; for ACH, it restricts the method to logged-in customers, since ACH requires vaulting to a Braintree customer and a guest checkout can't complete it even though this connector doesn't block guests from seeing the option.
+This is your responsibility to configure in the merchant center → checkout application → payment integration the relevant payment methods based on your Braintree account settings, using [payment integration predicates](https://docs.commercetools.com/checkout/payment-integration-predicates#predicate-syntax). The "Recommended predicates" column above shows a starting point for each method: for local payment methods, it's the country/currency pairing the method is fixed to; for ACH, it restricts the method to logged-in customers, since ACH requires vaulting to a Braintree customer and a guest checkout can't complete it. Without the predicate, a guest still sees ACH offered, and the component shows a "Please sign in to use this method." notice instead of the bank account form.
 
 Express methods only include PayPal Buy Now today.
 
@@ -109,6 +114,12 @@ and ACH bank accounts saved through other means (e.g. the extension/connector mo
 checkout-compatible build does not surface those as stored payment methods, since commercetools
 Checkout has no UI to display them. Please open an issue if you are interested in this.
 
+Saving a card requires a logged-in customer. The card is stored with the Braintree customer linked on the
+commercetools customer (`braintreeCustomerId`); an existing link is never replaced. The processor records its
+Braintree customer calls on the commercetools customer (`findProcessorRequest`/`findResponse`, `vault…`,
+`deletePayment…`), as the extension does with `findResponse`. These records hold personal data — the Braintree
+customer's email, addresses and vaulted payment methods — and are written only when they change.
+
 #### Button customization
 
 Per-method button styling and functional identifiers (colors, labels, `googleMerchantId`, `venmo.profileId`, vault-checkbox label text, etc.) are configured on the processor via two environment variables and served to the enabler through `GET /operations/config` — see `processor/.env.template` for the full reference. Example values:
@@ -135,7 +146,7 @@ To use the connector you need to have the following:
   - private key (BRAINTREE_PRIVATE_KEY)
   - environment (BRAINTREE_ENVIRONMENT) - the environment of your Braintree API client (production or sandbox)
 
-Please keep in mind, that the parameter [merchant account id](https://developer.paypal.com/braintree/articles/control-panel/important-gateway-credentials#merchant-account-id-versus-merchant-id) (BRAINTREE_MERCHANT_ACCOUNT) differs from merchant ID and is optional.
+Please keep in mind, that the parameter [merchant account id](https://developer.paypal.com/braintree/articles/control-panel/important-gateway-credentials#merchant-account-id-versus-merchant-id) (BRAINTREE_MERCHANT_ACCOUNT) differs from merchant ID and is optional. Without it, local payment methods are not available.
 
 Please set the following parameters according to your project requirements:
 

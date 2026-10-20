@@ -1,3 +1,12 @@
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  jest,
+} from "@jest/globals";
 import { EventEmitter } from "events";
 import { BraintreeGateway, Environment } from "braintree";
 import {
@@ -9,6 +18,7 @@ import {
   addPackageTracking,
   submitForSettlement,
   findCustomer,
+  findPaymentMethod,
   createCustomer,
   createPaymentMethod,
   deleteCustomer,
@@ -17,10 +27,10 @@ import {
   deletePayment,
   updatePayment,
 } from '../service';
-import { CustomError } from "..";
+import { CustomError, getBraintreeResponse } from "..";
 
 jest.mock("braintree", () => {
-  const actual = jest.requireActual("braintree");
+  const actual = jest.requireActual("braintree") as object;
   return {
     ...actual,
     BraintreeGateway: jest.fn(),
@@ -62,6 +72,7 @@ beforeEach(() => {
       create: jest.fn(),
       delete: jest.fn(),
       update: jest.fn(),
+      find: jest.fn(),
     },
   };
   MockBraintreeGateway.mockClear();
@@ -176,6 +187,28 @@ describe("transactionSale", () => {
   );
 });
 
+// a caller (the processor) can record Braintree's own answer; non-enumerable, so serializing the error — as the
+// extension's controllers and error middleware do — gives exactly what it gave before
+describe("failure response kept on the thrown error", () => {
+  const failure = {
+    success: false,
+    message: "Declined",
+    transaction: { processorResponseType: "approved" },
+  };
+
+  test("available to the caller", async () => {
+    mockGatewayInstance.transaction.sale.mockResolvedValue(failure);
+    const err = await transactionSale({ amount: "10.00" } as any).catch((e) => e);
+    expect(getBraintreeResponse(err)).toBe(failure);
+  });
+
+  test("not serialized with the error", async () => {
+    mockGatewayInstance.transaction.sale.mockResolvedValue(failure);
+    const err = await transactionSale({ amount: "10.00" } as any).catch((e) => e);
+    expect(JSON.stringify(err)).toBe(JSON.stringify(new CustomError(500, "Declined")));
+  });
+});
+
 describe("refund", () => {
   test("returns transaction on success", async () => {
     const mockTransaction = { id: "txn-1", status: "settled" };
@@ -288,6 +321,22 @@ describe("findCustomer", () => {
     mockGatewayInstance.customer.find.mockResolvedValue(mockCustomer);
     const result = await findCustomer("cust-1");
     expect(result).toBe(mockCustomer);
+  });
+});
+
+describe("findPaymentMethod", () => {
+  test("returns the payment method from gateway", async () => {
+    const mockMethod = { token: "vault-token", customerId: "cust-1" };
+    mockGatewayInstance.paymentMethod.find.mockResolvedValue(mockMethod);
+    const result = await findPaymentMethod("vault-token");
+    expect(mockGatewayInstance.paymentMethod.find).toHaveBeenCalledWith("vault-token");
+    expect(result).toBe(mockMethod);
+  });
+
+  test("passes on the SDK's not-found error", async () => {
+    const notFound = Object.assign(new Error("not found"), { name: "notFoundError" });
+    mockGatewayInstance.paymentMethod.find.mockRejectedValue(notFound);
+    await expect(findPaymentMethod("unknown")).rejects.toBe(notFound);
   });
 });
 

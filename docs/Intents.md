@@ -65,23 +65,24 @@ Full shape of an action, as sent to the Payment Intents API:
 The outcome values are defined by commercetools (see the link above). This connector answers as follows:
 
 - **A Braintree call failed**, including a decline, since a Braintree response with `success: false` counts as a
-  failure. The answer is rejected and logged with `logger.error`. The failure is recorded on the payment as the
-  custom field named after the Braintree call (`submitForSettlementResponse`, `refundResponse`, `voidResponse`,
-  `findTransactionResponse`) plus pspInteractions, best effort: if that commercetools write fails, the answer is
+  failure. The answer is rejected and logged with `log.error` (Braintree's error codes only, not its message). The
+  failure is recorded on the payment like a success: the request sent in `{call}ProcessorRequest` and Braintree's own
+  response in `{call}Response` (`submitForSettlement`, `refund`, `void`, `findTransaction`), plus pspInteractions,
+  best effort: if that commercetools write fails, the answer is
   still rejected and only the log remains. The Braintree call isn't retried, and there's no follow-up lookup on
   Braintree.
 - **The payment doesn't carry the Braintree payment custom type**, which this connector sets when it creates a
   payment: either another system created the payment, or its type was overwritten later. The answer is rejected and
-  logged with `logger.error`. If you are sure it's a Braintree checkout payment with a missing type, set that type
+  logged with `log.error`. If you are sure it's a Braintree checkout payment with a missing type, set that type
   with a raw commercetools call, (see `braintree-extension`). The checkout flow only sets one type for payment and
   it is the Braintree type on creation. So if this type is overwritten by some other part of your system it is your
   responsibility to prevent the override in the future. If the connector can't look up its payment type on
-  commercetools, the answer is rejected and logged with `logger.error` too; the next call tries the lookup again.
+  commercetools, the answer is rejected and logged with `log.error` too; the next call tries the lookup again.
 - **The operation is impossible in the payment's current state** (nothing suitable to act on, already fully
   refunded, a `transactionId` or `merchantReference` that doesn't belong to the payment, a capture `merchantReference`
   that isn't an Authorization of the payment, more than one capture to refund or reverse without a target, a Braintree status that
-  can't be reversed). The answer is rejected, logged with `logger.warn`.
-- **Checked on commercetools only.** Before calling Braintree, an operation is rejected (`logger.warn`) when the
+  can't be reversed). The answer is rejected, logged with `log.warn`.
+- **Checked on commercetools only.** Before calling Braintree, an operation is rejected (`log.warn`) when the
   payment itself grants it can't succeed:
   - refund and reverse: the target is the payment's only Charge and its Success and Pending Refunds already cover
     it, or, for refund, leave less than the requested amount. With more than one Charge, a Refund can't be
@@ -158,25 +159,18 @@ On commercetools, the Authorization transaction carries the parent's id and each
 
 ## ACH micro-deposit verification
 
-This flow applies only to ACH with micro-deposit verification (see Braintree's
-[ACH verification](https://developer.paypal.com/braintree/docs/guides/ach/overview#verification)). Until verification
-completes, Braintree has no transaction, only the vaulted bank account, and the payment carries a placeholder
-Authorization instead.
+> **The micro-deposit flow (`micro_transfers`) isn't officially supported. If you want to use it, you MUST open an
+> issue to get full support** (see the [enabler README](../enabler/README.md#ach)).
 
-- Cancel and reverse without a `merchantReference` write a cancel marker on commercetools (a CancelAuthorization
-  carrying the placeholder's marker id). There's nothing to void on Braintree.
-- If the marker can't be written, the answer is rejected.
-- The processor's `transactionSale` refuses a payment carrying the marker, so the cancelled Order can't be charged
-  once the micro-deposits are verified.
-- Calling the operations that correspond to the commercetools Payment Intents cancel/reverse and capture at the same
-  time is a merchant integration issue. On an unverified ACH payment the capture side is the post-verification
-  `transactionSale`; a Payment Intents capture is rejected here, since there's no Braintree transaction to capture.
-  The connector never triggers either call itself: both come from the merchant's integration, so preventing the
-  overlap is the merchant's responsibility.
-  - Each operation goes through when Braintree permits it, and Payment Intents answers approved when Braintree
-    approves it. A cancel of the placeholder makes no Braintree call, so it's approved once the marker is written.
-  - The conflict only shows after that approval. The connector logs it with `logger.error`, together with the
-    commercetools payment id and, on the sale side, the Braintree transaction id, so the merchant can find the
-    payment and resolve it manually.
-  - The connector can't tell which call was triggered by mistake and which one was intended, so it doesn't undo
-    either.
+When Braintree can't verify a bank account at once, the payment still gets a placeholder Authorization, so it doesn't
+get stuck at a dead end without any resolution: it can be cancelled or reversed before verification, and captured
+once the account is verified.
+
+Take into account that the flow requires:
+
+1. Confirming the micro-transfer amounts with Braintree first (`usBankAccountVerification.confirmMicroTransferAmounts`):
+   Braintree sends no verification webhook, and a capture before verification is rejected.
+2. Capturing the full amount: a partial capture is rejected.
+3. Checking the payment manually after a capture whose outcome is unknown (e.g. a Braintree timeout, logged as such):
+   its `Initial` Charge blocks further captures and cancels, so that a second debit can't happen. If the Braintree
+   control panel shows no sale for the payment, set that Charge to `Failure` to allow another capture.

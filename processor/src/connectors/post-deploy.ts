@@ -17,9 +17,8 @@ import { paymentSDK } from '../payment-sdk';
 import { getConfig } from '../config/config';
 
 // The processor registers every field it writes itself, so it can be developed or tested independently of extension.
-// The endpoint names processor itself calls Braintree with (see braintree-payment.service.ts's
-// updatePaymentWithTransaction/handleCustomFieldResponse usage) — the only ones it needs its own
-// ProcessorRequest field for. Everything else on braintree-payment-type (Request fields, and
+// The names processor records its Braintree calls under (buildCallFields in utils/customEntities.utils.ts): each writes
+// both {name}ProcessorRequest and {name}Response. Everything else on the extension's types (Request fields, and
 // endpoints processor never calls) stays braintree-extension's own post-deploy's job.
 const PROCESSOR_PAYMENT_API_CALL_NAMES = [
   'getClientToken',
@@ -28,7 +27,12 @@ const PROCESSOR_PAYMENT_API_CALL_NAMES = [
   'refund',
   'void',
   'findTransaction',
+  'findPaymentMethod',
 ];
+
+// Customer-level calls, recorded on the CT customer (recordCustomerCall in braintree-customer.service.ts)
+// The extension's names for the same Braintree calls, so the {name}Response fields are shared with it
+const PROCESSOR_CUSTOMER_API_CALL_NAMES = ['find', 'vault', 'deletePayment'];
 
 const LOCAL_PAYMENT_METHODS_PAYMENT_ID_FIELD: FieldDefinitionData = {
   name: 'LocalPaymentMethodsPaymentId',
@@ -94,7 +98,10 @@ async function ensureProcessorFields(): Promise<void> {
     {
       typeKey: getConfig().customerTypeKey,
       shape: CUSTOM_TYPE_DESCRIPTORS[BRAINTREE_CUSTOMER_TYPE_KEY],
-      fields: [BRAINTREE_CUSTOMER_ID_FIELD],
+      fields: [
+        BRAINTREE_CUSTOMER_ID_FIELD,
+        ...PROCESSOR_CUSTOMER_API_CALL_NAMES.flatMap((name) => apiCallNameToFieldData(name, true)),
+      ],
     },
   ];
 

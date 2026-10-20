@@ -1,16 +1,15 @@
 import { BuilderType, BraintreeLineItem, BraintreeShipping } from "../types";
 import { BraintreePaymentMethodType } from "../components/Builder/types";
 
+// Mirrors InitPaymentRequestSchema: {} for the one payment shared by every standard/stored
+// method, { builderType: "express" } for PayPal Express
 export type CreatePaymentRequest = {
-  builderType: BuilderType;
-  paymentMethodType: BraintreePaymentMethodType;
-  merchantAccountId?: string;
+  builderType?: BuilderType;
 };
 
 // Options accepted by handleTransactionSale. Fields mirror processor/src/dtos/braintree-payment.dto.ts
 // (TransactionSaleRequestSchemaDTO), minus ctPaymentId and paymentMethodNonce which are added internally.
 export type TransactionSaleOptions = {
-  braintreeCustomerId?: string;
   paymentToken?: string;
   storeInVaultOnSuccess?: boolean;
   storeShipping?: boolean;
@@ -46,6 +45,8 @@ export type VaultRequest = {
 PURE_VAULT_DISABLED end */
 
 export type ChangeShippingRequest = {
+  // the Express payment whose amount the processor updates with the cart
+  ctPaymentId: string;
   newShippingMethodId: string;
   address?: {
     country: string;

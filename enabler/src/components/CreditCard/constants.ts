@@ -5,3 +5,6 @@
 export const CHALLENGE_SHOW_TIMEOUT_MS = 10000;
 
 export const THREEDS_CONTAINER_ID = "braintree-3ds-container";
+
+// the vault checkbox's label when PerMethodConfig.creditCard.vaultLabel isn't set
+export const DEFAULT_VAULT_LABEL = "Save my card";
