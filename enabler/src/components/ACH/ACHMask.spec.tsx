@@ -172,6 +172,30 @@ describe("ACHMask — Checkout submit() always settles", () => {
     );
   });
 
+  // A refused vault (non-2xx) may never have reached the processor's issue log (e.g. session auth)
+  it("a failed or refused vault request keeps the browser failure for the next one", async () => {
+    mockTokenize
+      .mockImplementationOnce((_options, cb) => cb({ code: "X" }))
+      .mockImplementation((_options, cb) =>
+        cb(undefined, { nonce: "bank-nonce" }),
+      );
+    mockProcessorRequest.mockResolvedValue(undefined);
+
+    await expect(submit()).rejects.toMatchObject({
+      code: "ACH_TOKENIZE_FAILED",
+    });
+    await expect(submit()).rejects.toMatchObject({
+      code: "ACH_VAULT_REQUEST_FAILED",
+    });
+    await expect(submit()).rejects.toMatchObject({
+      code: "ACH_VAULT_REQUEST_FAILED",
+    });
+
+    expect(
+      mockProcessorRequest.mock.calls.map(([, , body]) => body.logFrontendIssue),
+    ).toEqual(["ACH_TOKENIZE_FAILED", "ACH_TOKENIZE_FAILED"]);
+  });
+
   it("a retry whose device data collection fails sends no device data from the attempt before", async () => {
     mockTokenize.mockImplementation((_options, cb) =>
       cb(undefined, { nonce: "bank-nonce" }),

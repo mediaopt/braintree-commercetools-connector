@@ -101,7 +101,7 @@ describe("usePayment — PayPal Express session switch", () => {
 
     expect(sessionSentTo("")).toEqual(["mount-session"]);
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("onPayButtonClick resolved without a sessionId"),
+      expect.stringContaining("PayPal Express: missing sessionId."),
     );
     warn.mockRestore();
   });
@@ -115,6 +115,16 @@ describe("usePayment — PayPal Express session switch", () => {
     );
 
     expect(sessionSentTo("")).toEqual([]);
+  });
+
+  // processorRequest answers falsy for an unreachable processor and for a refusal (non-2xx) alike
+  it("refuses when createPayment fails or is refused", async () => {
+    const payment = await renderDeferredProvider();
+    mockedProcessorRequest.mockResolvedValueOnce(false);
+
+    await expect(
+      payment.createExpressPayment("click-session"),
+    ).rejects.toThrow("Could not create express payment");
   });
 });
 

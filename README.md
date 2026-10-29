@@ -90,7 +90,7 @@ Express methods only include PayPal Buy Now today.
 
 ##### PayPal Express
 
-- **No cart needed before the click** (e.g. a product page or mini-cart button): commercetools Checkout creates the cart in its `onPayButtonClick` hook, immediately before the PayPal window opens, and the commercetools Payment is created only after that click.
+- **No cart needed before the click** (e.g. a product page or mini-cart button): set up the cart as described in [Express Payments](https://docs.commercetools.com/checkout/browser-sdk#express-payments).
 - **Stored payment methods** are not offered for Express — please open an issue if you are interested in this.
 - **Custom line items** are not sent to PayPal as line items: for a cart containing them, the PayPal window shows only the subtotal, shipping and total, and the payment still completes — please open an issue if you are interested in this.
 

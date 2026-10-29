@@ -26,10 +26,10 @@ export const makeRequest = <ResponseType, T>(
   }
 
   // Never logs the error itself: a JSON parse error quotes part of the response body.
+  // A refusal (non-2xx: the processor's error body) fails like an unreachable processor, so no caller takes the
+  // error body for an answer; the processor answers every success with 200.
   return fetch(url, requestData)
-    .then((response) => {
-      return response.json();
-    })
+    .then((response) => (response.ok ? response.json() : Promise.reject()))
     .then((responseData) => {
       return responseData as ResponseType;
     })
