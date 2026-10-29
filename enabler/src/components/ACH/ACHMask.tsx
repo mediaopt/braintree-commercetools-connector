@@ -358,8 +358,9 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                     });
 
                     if (!vaultResponse) {
-                      // No response when the processor is unreachable or answers non-JSON; the
-                      // pending issue stays for the next attempt.
+                      // No response when the processor is unreachable, refuses the request (non-2xx) or
+                      // answers non-JSON; the pending issue stays for the next attempt (a refusal inside the
+                      // processor's service already logged it, so it may be logged twice).
                       return fail(
                         "ACH_VAULT_REQUEST_FAILED",
                         "There is an error in vaulting the bank account.",
@@ -373,8 +374,8 @@ export const ACHMask: FC<PropsWithChildren<ACHMaskProps>> = ({
                       merchantReturnUrl,
                     } = vaultResponse;
 
-                    // The processor's message is not passed on (see withBraintreeRef); the processor
-                    // logs the failure itself.
+                    // Not expected: the processor refuses every failed vault (handled above). The processor's
+                    // message is not passed on (see withBraintreeRef); the processor logs the failure itself.
                     if (!vaultToken) {
                       return fail(
                         "ACH_VAULT_FAILED",

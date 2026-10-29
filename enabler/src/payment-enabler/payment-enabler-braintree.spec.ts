@@ -1,11 +1,22 @@
 import { BraintreePaymentEnabler } from "./payment-enabler-braintree";
 
-const mockFetchOk = (json: Record<string, unknown>) => {
-  (global as any).fetch = jest.fn().mockResolvedValue({
+const createdPayment = {
+  braintreeData: { clientToken: "token" },
+  payment: {
+    ctPaymentId: "payment-1",
+    braintreeAmount: 10,
+    currency: "USD",
+  },
+};
+
+// Answers the config request with the given config, and createPayment with a created payment
+const mockFetchOk = (config: Record<string, unknown>) => {
+  (global as any).fetch = jest.fn(async (url: string) => ({
     ok: true,
     status: 200,
-    json: async () => json,
-  });
+    json: async () =>
+      url.endsWith("/operations/config") ? config : createdPayment,
+  }));
 };
 
 const buildEnabler = (overrides: Record<string, unknown> = {}) =>
@@ -35,15 +46,13 @@ describe("BraintreePaymentEnabler", () => {
   });
 
   describe("one payment shared by every standard/stored component", () => {
-    const sharedPayment = {
-      braintreeData: { clientToken: "token" },
-      payment: {
-        ctPaymentId: "payment-1",
-        braintreeAmount: 10,
-        currency: "USD",
-      },
-    };
     let createPaymentResponses: unknown[];
+    // The processor's error body for a request without a readable session, answered with 401
+    const sessionRefusal = {
+      message: "Session is not active",
+      statusCode: 401,
+      error: "invalid_token",
+    };
 
     const createPaymentCalls = () =>
       (global.fetch as jest.Mock).mock.calls.filter(
@@ -51,15 +60,15 @@ describe("BraintreePaymentEnabler", () => {
       );
 
     beforeEach(() => {
-      createPaymentResponses = [sharedPayment];
-      (global as any).fetch = jest.fn(async (url: string) => ({
-        ok: true,
-        status: 200,
-        json: async () =>
-          url.endsWith("/operations/config")
-            ? {}
-            : createPaymentResponses.shift(),
-      }));
+      createPaymentResponses = [createdPayment];
+      (global as any).fetch = jest.fn(async (url: string) => {
+        const body = url.endsWith("/operations/config")
+          ? {}
+          : createPaymentResponses.shift();
+        return body === sessionRefusal
+          ? { ok: false, status: 401, json: async () => body }
+          : { ok: true, status: 200, json: async () => body };
+      });
     });
 
     it("creates it once, without a payment method type, for all standard and stored builders", async () => {
@@ -91,11 +100,28 @@ describe("BraintreePaymentEnabler", () => {
 
     it("rejects the builder when creation fails, and the next builder retries", async () => {
       const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
-      createPaymentResponses = [undefined, sharedPayment];
+      createPaymentResponses = [undefined, createdPayment];
       const enabler = buildEnabler();
 
       await expect(enabler.createComponentBuilder("card")).rejects.toThrow(
         "Could not create payment",
+      );
+      await enabler.createComponentBuilder("card");
+
+      expect(createPaymentCalls()).toHaveLength(2);
+      warn.mockRestore();
+    });
+
+    it("rejects the builder when the processor refuses creation, without blocking Express", async () => {
+      const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+      createPaymentResponses = [sessionRefusal, createdPayment];
+      const enabler = buildEnabler();
+
+      await expect(enabler.createComponentBuilder("card")).rejects.toThrow(
+        "Could not create payment",
+      );
+      await expect(enabler.createExpressBuilder("paypal")).resolves.toEqual(
+        expect.objectContaining({ build: expect.any(Function) }),
       );
       await enabler.createComponentBuilder("card");
 

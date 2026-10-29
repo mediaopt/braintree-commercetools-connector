@@ -177,6 +177,8 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
   const createExpressPayment = async (
     clickSessionId?: string,
   ): Promise<DeferredPaymentResult> => {
+    // Checkout resolves onPayButtonClick with the session of the checkout transaction it starts after the
+    // merchant's hook; every later processor call uses it
     if (clickSessionId) {
       sessionIdRef.current = clickSessionId;
     } else if (!sessionIdRef.current) {
@@ -185,8 +187,10 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
         "PayPal Express: onPayButtonClick resolved without a sessionId and there is no current session.",
       );
     } else {
+      // Checkout throws rather than resolve without a sessionId: reaching this means the enabler is driven
+      // without the commercetools Checkout SDK
       console.warn(
-        "PayPal Express: onPayButtonClick resolved without a sessionId, continuing with the current session.",
+        "PayPal Express: missing sessionId. Ensure that you either use the commercetools Checkout SDK or directly import the components.",
       );
     }
     const result = await fetchCreatePaymentResult();

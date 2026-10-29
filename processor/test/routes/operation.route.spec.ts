@@ -97,7 +97,8 @@ describe('operation.route', () => {
       expect(JSON.parse(response.body)).toEqual(mockConfig);
     });
 
-    test('returns non-200 when SessionHeaderAuth fails', async () => {
+    // Checkout creates the Express enabler without a session when the merchant's session has no cart yet
+    test('returns 200 with config response even when SessionHeaderAuth fails', async () => {
       const sessionHeaderAuthImpl = jest.fn().mockImplementation(async () => {
         throw new Error('Auth failed');
       });
@@ -106,12 +107,22 @@ describe('operation.route', () => {
       const authorizationImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
       fastify = await buildApp(sessionHeaderAuthImpl, jwtAuthImpl, oauth2AuthImpl, authorizationImpl);
 
+      const mockConfig = {
+        clientKey: 'test-key',
+        environment: 'sandbox',
+      };
+
+      (mockPaymentService.config as any).mockResolvedValue(mockConfig);
+
       const response = await fastify.inject({
         method: 'GET',
         url: '/config',
+        headers: { 'x-session-id': 'undefined' },
       });
 
-      expect(response.statusCode).not.toBe(200);
+      expect(sessionHeaderAuthImpl).toHaveBeenCalled();
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toEqual(mockConfig);
     });
   });
 
