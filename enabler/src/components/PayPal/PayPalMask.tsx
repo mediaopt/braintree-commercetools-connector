@@ -388,6 +388,8 @@ export const PayPalMask: FC<PropsWithChildren<PayPalMaskProps>> = ({
                               region: data.shipping_address.state,
                             },
                           );
+                          // unreachable processor or a refused change (e.g. a shipping method it can't apply): PayPal shows an error
+                          if (!shippingResult) return actions.reject();
                           setUpdatedTotal(shippingResult.braintreeAmount);
                           shippingChangedRef.current = true;
                           // the selected option carries the commercetools gross, which must match the breakdown

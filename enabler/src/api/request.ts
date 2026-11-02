@@ -25,13 +25,9 @@ export const makeRequest = <ResponseType, T>(
     requestData.body = JSON.stringify(data);
   }
 
-  // Never logs the error itself: a JSON parse error quotes part of the response body.
-  return fetch(url, requestData)
-    .then((response) => {
-      return response.json();
-    })
-    .then((responseData) => {
-      return responseData as ResponseType;
-    })
-    .catch(() => console.warn(`Processor request to ${url} failed.`));
+  // A refusal (non-2xx: the processor's error body) fails like an unreachable processor, so no caller takes the
+  // error body for an answer; the processor answers every success with 200.
+  return fetch(url, requestData).then((response) =>
+    response.ok ? (response.json() as Promise<ResponseType>) : Promise.reject(),
+  );
 };

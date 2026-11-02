@@ -8,6 +8,7 @@ import { BaseOptions } from "../../payment-enabler/interfaces/baseOptions";
 import { ComponentOptions } from "../../payment-enabler/interfaces/enabler";
 import { createElement } from "react";
 import { RenderTemplate } from "../RenderTemplate";
+import { sessionIdHeader } from "../../helpers/sessionHeader";
 
 class BraintreeStoredComponent implements StoredComponent {
   private root: Root | null = null;
@@ -54,7 +55,7 @@ class BraintreeStoredComponent implements StoredComponent {
     const token = this.config.id;
     if (!token) return;
     const url = `${this.baseOptions.processorUrl.replace(/\/$/, '')}/stored-payment-methods/${token}`;
-    const response = await fetch(url, { method: 'DELETE', headers: { 'X-Session-Id': this.baseOptions.sessionId } });
+    const response = await fetch(url, { method: 'DELETE', headers: sessionIdHeader(this.baseOptions.sessionId) });
     if (!response.ok) {
       throw new Error(`Failed to delete stored payment method: ${response.status}`);
     }

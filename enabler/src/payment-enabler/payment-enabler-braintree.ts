@@ -63,7 +63,7 @@ export class BraintreePaymentEnabler implements PaymentEnabler {
       {},
     );
     // Rejects the builder request, as the commercetools connect-payment-integration-template's builders do on a failed
-    // setup request
+    // setup request, a refused one (e.g. no session) included. Express doesn't wait for this setup, so it still builds.
     if (!initialPayment) throw new Error("Could not create payment");
     return { baseOptions: { ...baseOptions, initialPayment } };
   };

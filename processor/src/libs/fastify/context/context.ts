@@ -7,6 +7,7 @@ import fp from 'fastify-plugin';
 export type ContextData = {
   anonymousId?: string;
   customerId?: string;
+  method?: string;
   path?: string;
   pathTemplate?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -79,6 +80,7 @@ export const requestContextPlugin = fp(async (fastify: FastifyInstance) => {
   await fastify.register(fastifyRequestContext, {
     defaultStoreValues: (req: FastifyRequest) => ({
       request: {
+        method: req.method,
         path: req.url,
         pathTemplate: req.routeOptions.url,
         pathParams: req.params,

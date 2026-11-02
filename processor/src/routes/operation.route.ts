@@ -15,6 +15,7 @@ import {
   PaymentIntentResponseSchemaDTO,
 } from '../dtos/operations/payment-intents.dto';
 import { StatusResponseSchema, StatusResponseSchemaDTO } from '../dtos/operations/status.dto';
+import { optionalSessionAuth } from '../libs/fastify/optional-session-auth';
 import { AbstractPaymentService } from '../services/abstract-payment.service';
 
 type OperationRouteOptions = {
@@ -29,14 +30,18 @@ export const operationsRoute = async (fastify: FastifyInstance, opts: FastifyPlu
   fastify.get<{ Reply: ConfigResponseSchemaDTO }>(
     '/config',
     {
-      preHandler: [opts.sessionHeaderAuthHook.authenticate()],
+      // No preHandler: the config holds nothing secret, and commercetools Checkout creates the Express enabler
+      // without a session when the merchant's session has no cart yet. The session auth is still attempted so
+      // a cart-bound session gets its stored-payment-methods flag.
       schema: {
         response: {
           200: ConfigResponseSchema,
         },
       },
     },
-    async (_, reply) => {
+    async (request, reply) => {
+      // No readable session: no cart in the context, config() reports stored payment methods as disabled
+      await optionalSessionAuth(opts.sessionHeaderAuthHook, request);
       const config = await opts.paymentService.config();
       reply.code(200).send(config);
     },

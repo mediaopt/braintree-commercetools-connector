@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import Fastify, { FastifyInstance } from 'fastify';
-import { SessionHeaderAuthenticationHook } from '@commercetools/connect-payments-sdk';
+import { ErrorAuthErrorResponse, SessionHeaderAuthenticationHook } from '@commercetools/connect-payments-sdk';
 import { errorHandler } from '../../src/libs/fastify/error-handler';
 import { requestContextPlugin } from '../../src/libs/fastify/context/context';
 import { paymentRoutes } from '../../src/routes/braintree-payment.route';
@@ -136,7 +136,9 @@ describe('braintree-payment.route', () => {
 
     test('returns 200 even when auth throws (catches internally)', async () => {
       const authenticateImpl = jest.fn().mockImplementation(async () => {
-        throw new Error('Auth failed');
+        throw new ErrorAuthErrorResponse('Session is not active', {
+          cause: new ErrorAuthErrorResponse('commercetools session not found'),
+        });
       });
       fastify = await buildApp(authenticateImpl);
 
@@ -147,27 +149,29 @@ describe('braintree-payment.route', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/payments/expressClientToken',
+        headers: { 'x-session-id': 'expired-session' },
       });
 
+      expect(authenticateImpl).toHaveBeenCalled();
       expect(response.statusCode).toBe(200);
       expect(JSON.parse(response.body).braintreeData.clientToken).toBe('anon-client-token-456');
     });
 
-    test('service call still reached even when auth throws', async () => {
-      const authenticateImpl = jest.fn().mockImplementation(async () => {
-        throw new Error('Auth failed');
-      });
+    test('returns 200 without a session header, without trying the session auth', async () => {
+      const authenticateImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
       fastify = await buildApp(authenticateImpl);
 
       (mockPaymentService.getExpressClientToken as any).mockResolvedValue({
         braintreeData: { clientToken: 'fallback-token' },
       });
 
-      await fastify.inject({
+      const response = await fastify.inject({
         method: 'GET',
         url: '/payments/expressClientToken',
       });
 
+      expect(authenticateImpl).not.toHaveBeenCalled();
+      expect(response.statusCode).toBe(200);
       expect(mockPaymentService.getExpressClientToken).toHaveBeenCalled();
     });
   });

@@ -24,6 +24,7 @@ import {
 } from '../dtos/braintree-payment.dto';
 import { StoredPaymentMethodsResponseSchema, StoredPaymentMethodsResponse } from '../dtos/stored-payment-methods.dto';
 import { BraintreePaymentService } from '../services/braintree-payment.service';
+import { optionalSessionAuth } from '../libs/fastify/optional-session-auth';
 import { Type } from '@sinclair/typebox';
 
 type PaymentRoutesOptions = {
@@ -104,11 +105,8 @@ export const paymentRoutes = async (fastify: FastifyInstance, opts: FastifyPlugi
       },
     },
     async (request, reply) => {
-      try {
-        await opts.sessionHeaderAuthHook.authenticate()(request);
-      } catch {
-        // No cart-bound (or no valid) session — getExpressClientToken() falls back to anonymous.
-      }
+      // No cart-bound (or no valid) session — getExpressClientToken() falls back to anonymous.
+      await optionalSessionAuth(opts.sessionHeaderAuthHook, request);
       const result = await opts.paymentService.getExpressClientToken();
       return reply.status(200).send(result);
     },

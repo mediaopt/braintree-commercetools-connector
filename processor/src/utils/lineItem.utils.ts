@@ -184,7 +184,7 @@ export const lineItemsMatchItemTotal = (lineItems: BraintreeLineItem[], itemTota
   const lineItemTotal = lineItems.reduce((sum, { totalAmount }) => sum + Number(totalAmount), 0).toFixed(2);
   if (lineItemTotal === itemTotal) return true;
   log.warn(
-    `updateCartShipping: line items total (${lineItemTotal}) does not match itemTotal (${itemTotal}) for cart ${cartId}, the Braintree payment is updated without breakdown — please open an issue with the anonymized cart (prices, taxes, discounts, rounding settings) so the breakdown can be supported`,
+    `line items total (${lineItemTotal}) does not match itemTotal (${itemTotal}) for cart ${cartId}, the Braintree payment is updated without breakdown — please open an issue with the anonymized cart (prices, taxes, discounts, rounding settings) so the breakdown can be supported`,
   );
   return false;
 };
