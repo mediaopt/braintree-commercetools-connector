@@ -341,7 +341,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       const config = getConfig();
       if (!config.buttonStyleOverrides?.ach?.mandateText && !config.perMethodConfig?.ach?.businessName) {
         log.warn(
-          'config: neither BRAINTREE_BUTTON_STYLES.ach.mandateText nor BRAINTREE_PER_METHOD_CONFIG.ach.businessName is set — ' +
+          'neither BRAINTREE_BUTTON_STYLES.ach.mandateText nor BRAINTREE_PER_METHOD_CONFIG.ach.businessName is set — ' +
             'the ACH mandate text will omit the "on behalf of [business name]" clause entirely',
         );
       }
@@ -356,10 +356,10 @@ export class BraintreePaymentService extends AbstractPaymentService {
         buttonStyleOverrides: config.buttonStyleOverrides,
         perMethodConfig: config.perMethodConfig,
       };
-      log.info('config: success');
+      log.info('success');
       return result;
     } catch (e) {
-      log.error(`config: failed — ${errorMessage(e)}`);
+      log.error(`failed — ${errorMessage(e)}`);
       throw e;
     }
   }
@@ -536,7 +536,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
 
       return handler.body;
     } catch (e) {
-      log.error(`status: failed — ${errorMessage(e)}`);
+      log.error(`failed — ${errorMessage(e)}`);
       throw e;
     }
   }
@@ -621,9 +621,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           : undefined;
         braintreeCustomerId = customer?.custom?.fields.braintreeCustomerId;
       } catch (err) {
-        log.warn(
-          `getExpressClientToken: customer lookup failed for cart ${cartId}, issuing anonymous token — ${errorMessage(err)}`,
-        );
+        log.warn(`customer lookup failed for cart ${cartId}, issuing anonymous token — ${errorMessage(err)}`);
       }
     }
     const clientToken = await getClientToken({ merchantAccountId, customerId: braintreeCustomerId });
@@ -678,7 +676,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           lastPaymentRef ? this.ctPaymentService.getPayment({ id: lastPaymentRef.id }) : Promise.resolve(undefined),
           getBraintreePaymentTypeId().catch((err) => {
             log.error(
-              `createPayment: could not look up the Braintree payment type, not reusing the cart's last payment — ${errorMessage(err)}`,
+              `could not look up the Braintree payment type, not reusing the cart's last payment — ${errorMessage(err)}`,
             );
             return undefined;
           }),
@@ -745,7 +743,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
         this.recordResponse(ctPayment, 'getClientToken', clientTokenRequest, clientToken, 'getClientToken:record', ''),
       ]);
 
-      log.info(`createPayment: success, cartId: ${cartId}`);
+      log.info(`success, cartId: ${cartId}`);
       return this.buildCreatePaymentResponse(
         ctPayment,
         clientToken,
@@ -758,7 +756,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     } catch (err) {
       // Logged again by the error handler; the duplicate is accepted, as this line gives depersonalized debug data
       // sufficient to request the necessary details
-      log.error(`createPayment: failed, cartId: ${cartId} — ${errorMessage(err)}`);
+      log.error(`failed, cartId: ${cartId} — ${errorMessage(err)}`);
       throw err;
     }
   }
@@ -893,7 +891,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       );
       const shippingAmount = shippingNum.toFixed(2);
 
-      log.info(`updateCartShipping: success, cartId: ${ctCart.id}`);
+      log.info(`success, cartId: ${ctCart.id}`);
       return {
         braintreeAmount: totalNum.toFixed(2),
         shippingAmount,
@@ -913,7 +911,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
           : undefined,
       };
     } catch (err) {
-      log.error(`updateCartShipping: failed, cartId: ${cartId} — ${errorMessage(err)}`);
+      log.error(`failed, cartId: ${cartId} — ${errorMessage(err)}`);
       throw err;
     }
   }
@@ -959,7 +957,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
                 this.ctPaymentService.getPayment({ id }).catch((err) => {
                   // without it, the amount left to pay (and so the amount check) can't be computed
                   log.error(
-                    `transactionSale: could not read payment ${id} of cart ${cart.id}, refused payment ${ctPaymentId} — ${errorMessage(err)}`,
+                    `could not read payment ${id} of cart ${cart.id}, refused payment ${ctPaymentId} — ${errorMessage(err)}`,
                   );
                   throw new ErrorInvalidOperation(`transactionSale refused for payment ${ctPaymentId}`);
                 }),
@@ -1000,7 +998,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     const discountResidual = lineItems.length ? lineItemsTotal + shippingAmountNum - toNum(ctPayment.amountPlanned) : 0;
     if (discountResidual < -0.01) {
       log.warn(
-        `transactionSale: lineItems total (${lineItemsTotal.toFixed(2)}) plus shipping (${shippingAmountNum.toFixed(2)}) is less than the charged amount (${toNum(ctPayment.amountPlanned).toFixed(2)}) for payment ${ctPaymentId} — discountAmount clamped to 0, check for missing external tax/fees`,
+        `lineItems total (${lineItemsTotal.toFixed(2)}) plus shipping (${shippingAmountNum.toFixed(2)}) is less than the charged amount (${toNum(ctPayment.amountPlanned).toFixed(2)}) for payment ${ctPaymentId} — discountAmount clamped to 0, check for missing external tax/fees`,
       );
     }
     const { fractionDigits } = ctPayment.amountPlanned;
@@ -1076,7 +1074,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     try {
       response = await transactionSale(transactionRequest);
     } catch (e) {
-      log.error(`transactionSale: Braintree call failed, paymentId: ${ctPaymentId} — ${braintreeErrorRef(e)}`);
+      log.error(`Braintree call failed, paymentId: ${ctPaymentId} — ${braintreeErrorRef(e)}`);
       recordFindCustomer();
       // Braintree's answer recorded on the payment, no transaction; fire-and-forget, the buyer is waiting
       void this.recordResponse(
@@ -1105,7 +1103,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
     // it would keep the stored one anyway
     if (vaultCustomerId && response.customer?.id !== vaultCustomerId)
       log.error(
-        `transactionSale: Braintree answered with another customer than the sent one on payment ${ctPaymentId}, commercetools customer ${ctPayment.customer?.id}: ${response.customer?.id} — please report this to Braintree immediately`,
+        `Braintree answered with another customer than the sent one on payment ${ctPaymentId}, commercetools customer ${ctPayment.customer?.id}: ${response.customer?.id} — please report this to Braintree immediately`,
       );
     // Fire-and-forget: customer update has no webhook fallback, so retries are handled
     // internally in linkBraintreeCustomerId, but it does not block the transaction response.
@@ -1156,9 +1154,9 @@ export class BraintreePaymentService extends AbstractPaymentService {
       maxAttempts: localPaymentId ? 1 : undefined,
     });
     if (response.paymentInstrumentType === 'venmo_account' && !venmoUsername) {
-      log.warn(`transactionSale: Venmo username missing in request for payment ${ctPayment.id}`);
+      log.warn(`Venmo username missing in request for payment ${ctPayment.id}`);
     }
-    log.info(`transactionSale: success, paymentId: ${ctPaymentId}`);
+    log.info(`success, paymentId: ${ctPaymentId}`);
     return this.paymentActionSuccessResponse(ctPayment.id, undefined, venmoUsername);
   }
 
@@ -1552,7 +1550,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       // The placeholder write needs no custom type, so it still goes ahead; the merchant is told to resolve the type.
       if (ctPayment && braintreePaymentTypeId && !isBraintreePayment(ctPayment, braintreePaymentTypeId))
         log.error(
-          `getAchVaultToken: ${notBraintreePaymentMessage(ctPaymentId)} The pending placeholder is written, but resolve the type manually: every later operation on this payment is refused until then.`,
+          `${notBraintreePaymentMessage(ctPaymentId)} The pending placeholder is written, but resolve the type manually: every later operation on this payment is refused until then.`,
         );
       // Awaited — this placeholder is the write that triggers commercetools Checkout's Order creation, so it must
       // exist before the settlement_pending redirect goes out (retryCTSync never throws).
@@ -1580,13 +1578,13 @@ export class BraintreePaymentService extends AbstractPaymentService {
   public async getStoredPaymentMethods(): Promise<StoredPaymentMethodsResponse> {
     const ctCart = await this.ctCartService.getCart({ id: this.requireStoredPaymentMethodsCartId() });
     if (!ctCart.customerId) {
-      log.warn('getStoredPaymentMethods: cart has no customerId, returning empty');
+      log.warn('cart has no customerId, returning empty');
       return { storedPaymentMethods: [] };
     }
     const ctCustomer = await this.braintreeCustomerService.getCtCustomer(ctCart.customerId);
     const braintreeCustomerId = ctCustomer?.custom?.fields?.braintreeCustomerId;
     if (!braintreeCustomerId) {
-      log.warn(`getStoredPaymentMethods: CT customer ${ctCart.customerId} has no braintreeCustomerId, returning empty`);
+      log.warn(`CT customer ${ctCart.customerId} has no braintreeCustomerId, returning empty`);
       return { storedPaymentMethods: [] };
     }
     const gateway = await getBraintreeGateway();
@@ -1609,7 +1607,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       // const usBankAccounts = ((btCustomer as any).usBankAccounts ?? []).map(
       //   mapBraintreeUsBankAccountToStoredPaymentMethod,
       // );
-      log.info(`getStoredPaymentMethods: customer ${braintreeCustomerId} — creditCards: ${creditCards.length}`);
+      log.info(`customer ${braintreeCustomerId} — creditCards: ${creditCards.length}`);
       if (!creditCards.length) {
         log.warn(`No stored payment methods returned by Braintree for customer ${braintreeCustomerId}`);
       }
@@ -1631,7 +1629,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
               ).length;
               if (ctCreditCardCount !== creditCards.length) {
                 log.warn(
-                  `getStoredPaymentMethods: Braintree/commercetools credit card counts differ for customer ${braintreeCustomerId} — Braintree: ${creditCards.length}, commercetools: ${ctCreditCardCount}`,
+                  `Braintree/commercetools credit card counts differ for customer ${braintreeCustomerId} — Braintree: ${creditCards.length}, commercetools: ${ctCreditCardCount}`,
                 );
               }
             }),
@@ -1672,12 +1670,12 @@ export class BraintreePaymentService extends AbstractPaymentService {
       [, ctCart] = await Promise.all([braintreeDeletePayment(token), cartRead]);
       // the extension's deletePaymentResponse on success
       record('success');
-      log.info(`deleteStoredPaymentMethod: success, cartId: ${cartId}`);
+      log.info(`success, cartId: ${cartId}`);
     } catch (err) {
       record(braintreeFailure(err));
       // Logged again by the error handler; the duplicate is accepted, as this line gives depersonalized debug data
       // sufficient to request the necessary details
-      log.error(`deleteStoredPaymentMethod: failed, cartId: ${cartId} — ${braintreeErrorRef(err)}`);
+      log.error(`failed, cartId: ${cartId} — ${braintreeErrorRef(err)}`);
       throw err;
     }
 
@@ -1757,7 +1755,7 @@ export class BraintreePaymentService extends AbstractPaymentService {
       throw new ErrorInvalidOperation(`payment is missing for transactionSale payment ${ctPaymentId}}`);
     }
     if (!isBraintreePayment(ctPayment, braintreePaymentTypeId)) {
-      log.error(`transactionSale: ${notBraintreePaymentMessage(ctPaymentId)}`);
+      log.error(notBraintreePaymentMessage(ctPaymentId));
       throw new ErrorInvalidOperation(notBraintreePayment(ctPaymentId));
     }
     // An ACH micro-deposit payment (placeholder, cancelled or not, possibly with a held capture claim) is charged only
