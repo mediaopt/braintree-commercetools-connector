@@ -117,10 +117,10 @@ describe("usePayment — PayPal Express session switch", () => {
     expect(sessionSentTo("")).toEqual([]);
   });
 
-  // processorRequest answers falsy for an unreachable processor and for a refusal (non-2xx) alike
+  // processorRequest answers undefined for an unreachable processor and for a refusal (non-2xx) alike
   it("refuses when createPayment fails or is refused", async () => {
     const payment = await renderDeferredProvider();
-    mockedProcessorRequest.mockResolvedValueOnce(false);
+    mockedProcessorRequest.mockResolvedValueOnce(undefined);
 
     await expect(
       payment.createExpressPayment("click-session"),

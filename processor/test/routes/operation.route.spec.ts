@@ -5,6 +5,7 @@ import {
   JWTAuthenticationHook,
   Oauth2AuthenticationHook,
   AuthorityAuthorizationHook,
+  ErrorAuthErrorResponse,
 } from '@commercetools/connect-payments-sdk';
 import { errorHandler } from '../../src/libs/fastify/error-handler';
 import { requestContextPlugin } from '../../src/libs/fastify/context/context';
@@ -100,7 +101,9 @@ describe('operation.route', () => {
     // Checkout creates the Express enabler without a session when the merchant's session has no cart yet
     test('returns 200 with config response even when SessionHeaderAuth fails', async () => {
       const sessionHeaderAuthImpl = jest.fn().mockImplementation(async () => {
-        throw new Error('Auth failed');
+        throw new ErrorAuthErrorResponse('Session is not active', {
+          cause: new ErrorAuthErrorResponse('commercetools session not found'),
+        });
       });
       const jwtAuthImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
       const oauth2AuthImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
@@ -117,10 +120,34 @@ describe('operation.route', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/config',
-        headers: { 'x-session-id': 'undefined' },
+        headers: { 'x-session-id': 'expired-session' },
       });
 
       expect(sessionHeaderAuthImpl).toHaveBeenCalled();
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toEqual(mockConfig);
+    });
+
+    test('returns 200 with config response without a session header, without trying the session auth', async () => {
+      const sessionHeaderAuthImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      const jwtAuthImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      const oauth2AuthImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      const authorizationImpl = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      fastify = await buildApp(sessionHeaderAuthImpl, jwtAuthImpl, oauth2AuthImpl, authorizationImpl);
+
+      const mockConfig = {
+        clientKey: 'test-key',
+        environment: 'sandbox',
+      };
+
+      (mockPaymentService.config as any).mockResolvedValue(mockConfig);
+
+      const response = await fastify.inject({
+        method: 'GET',
+        url: '/config',
+      });
+
+      expect(sessionHeaderAuthImpl).not.toHaveBeenCalled();
       expect(response.statusCode).toBe(200);
       expect(JSON.parse(response.body)).toEqual(mockConfig);
     });

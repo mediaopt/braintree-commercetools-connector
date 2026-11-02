@@ -136,3 +136,53 @@ describe("PayPalMask — PayPal Express deferred createOrder", () => {
     );
   });
 });
+
+describe("PayPalMask — PayPal Express shipping change", () => {
+  beforeEach(() => {
+    capturedButtonsConfig = undefined;
+    mockCreateExpressPayment.mockReset();
+    mockPayPalCreatePayment.mockReset().mockResolvedValue("paypal-order-id");
+    basePaymentMock.updateCartShipping.mockReset();
+    mockUsePayment.mockReset().mockReturnValue(basePaymentMock);
+  });
+
+  it("rejects the change in PayPal when the processor doesn't apply it", async () => {
+    mockCreateExpressPayment.mockResolvedValue({
+      ...clickResult,
+      paymentInfo: {
+        ...clickResult.paymentInfo,
+        countryCode: "US",
+        shippingOptions: [
+          {
+            id: "standard",
+            type: "SHIPPING",
+            label: "Standard",
+            amount: { value: "5.00", currency_code: "USD" },
+            countryCode: "US",
+          },
+        ],
+      },
+    });
+    // processorRequest answers undefined for an unreachable processor and for a refusal (non-2xx) alike
+    basePaymentMock.updateCartShipping.mockResolvedValue(undefined);
+    await mountDeferredExpress(jest.fn());
+    await capturedButtonsConfig.createOrder();
+    const actions = { reject: jest.fn() };
+
+    await capturedButtonsConfig.onShippingChange(
+      {
+        paymentId: "paypal-payment",
+        shipping_address: { country_code: "US", postal_code: "10001" },
+        selected_shipping_option: { id: "standard", label: "Standard" },
+      },
+      actions,
+    );
+
+    expect(basePaymentMock.updateCartShipping).toHaveBeenCalledWith(
+      "click-payment",
+      "standard",
+      expect.objectContaining({ country: "US" }),
+    );
+    expect(actions.reject).toHaveBeenCalled();
+  });
+});

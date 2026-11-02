@@ -45,6 +45,20 @@ describe("BraintreePaymentEnabler", () => {
     expect((await enabler.setupData).baseOptions.onError).toBe(onError);
   });
 
+  // Checkout creates the Express enabler without a session when the merchant's session has no cart yet
+  it("constructs and builds Express with no session at all, sending no session header", async () => {
+    const enabler = buildEnabler({ sessionId: undefined });
+
+    await expect(enabler.setupData).resolves.toBeDefined();
+    await expect(enabler.createExpressBuilder("paypal")).resolves.toEqual(
+      expect.objectContaining({ build: expect.any(Function) }),
+    );
+
+    const [[configUrl, { headers }]] = (global.fetch as jest.Mock).mock.calls;
+    expect(configUrl).toBe("https://processor.example/operations/config");
+    expect(headers).not.toHaveProperty("X-Session-Id");
+  });
+
   describe("one payment shared by every standard/stored component", () => {
     let createPaymentResponses: unknown[];
     // The processor's error body for a request without a readable session, answered with 401
