@@ -71,7 +71,7 @@ export type RequestHeader = { [key: string]: string };
 
 type RequiredSessionData = {
   processorUrl: string;
-  sessionId: string;
+  sessionId?: string;
 };
 
 export type BuilderType = "dropin" | "express" | undefined;
