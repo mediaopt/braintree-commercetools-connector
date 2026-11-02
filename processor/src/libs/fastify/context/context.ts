@@ -7,6 +7,7 @@ import fp from 'fastify-plugin';
 export type ContextData = {
   anonymousId?: string;
   customerId?: string;
+  method?: string;
   path?: string;
   pathTemplate?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,12 +34,6 @@ export const updateRequestContext = (ctx: Partial<ContextData>) => {
     ...ctx,
   });
 };
-
-/**
- * The route a log line comes from, e.g. `GET /operations/config`: the template, never the actual URL — a path param
- * can be a payment method token (`DELETE /stored-payment-methods/:id`), and a query string is whatever the caller sent
- */
-export const routeLabel = (req: FastifyRequest) => `${req.method} ${req.routeOptions.url ?? 'unmatched route'}`;
 
 export const getCtSessionIdFromContext = (): string => {
   const contextData = getRequestContext() as ContextData;
@@ -85,6 +80,7 @@ export const requestContextPlugin = fp(async (fastify: FastifyInstance) => {
   await fastify.register(fastifyRequestContext, {
     defaultStoreValues: (req: FastifyRequest) => ({
       request: {
+        method: req.method,
         path: req.url,
         pathTemplate: req.routeOptions.url,
         pathParams: req.params,

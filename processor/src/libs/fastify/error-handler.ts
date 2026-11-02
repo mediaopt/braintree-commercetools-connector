@@ -13,30 +13,28 @@ import {
   MultiErrorx,
 } from '@commercetools/connect-payments-sdk';
 import { TAuthErrorResponse, TErrorObject, TErrorResponse } from './dtos/error.dto';
-import { routeLabel } from './context/context';
 
 function isFastifyValidationError(error: Error): error is FastifyError {
   return (error as unknown as FastifyError).validation != undefined;
 }
 
 export const errorHandler = (error: Error, req: FastifyRequest, reply: FastifyReply) => {
-  const route = routeLabel(req);
   if (isFastifyValidationError(error) && error.validation) {
-    return handleErrors(transformValidationErrors(error.validation, req), reply, route);
+    return handleErrors(transformValidationErrors(error.validation, req), reply);
   } else if (error instanceof ErrorAuthErrorResponse) {
-    return handleAuthError(error, reply, route);
+    return handleAuthError(error, reply);
   } else if (error instanceof Errorx) {
-    return handleErrors([error], reply, route);
+    return handleErrors([error], reply);
   } else if (error instanceof MultiErrorx) {
-    return handleErrors(error.errors, reply, route);
+    return handleErrors(error.errors, reply);
   }
 
   // If it isn't any of the cases above (for example a normal Error is thrown) then fallback to a general 500 internal server error
-  return handleErrors([new ErrorGeneral('Internal server error.', { cause: error, skipLog: false })], reply, route);
+  return handleErrors([new ErrorGeneral('Internal server error.', { cause: error, skipLog: false })], reply);
 };
 
-const handleAuthError = (error: ErrorAuthErrorResponse, reply: FastifyReply, route: string) => {
-  const transformedErrors: TErrorObject[] = transformErrorxToHTTPModel([error], route);
+const handleAuthError = (error: ErrorAuthErrorResponse, reply: FastifyReply) => {
+  const transformedErrors: TErrorObject[] = transformErrorxToHTTPModel([error]);
 
   const response: TAuthErrorResponse = {
     message: error.message,
@@ -49,8 +47,8 @@ const handleAuthError = (error: ErrorAuthErrorResponse, reply: FastifyReply, rou
   return reply.code(error.httpErrorStatus).send(response);
 };
 
-const handleErrors = (errorxList: Errorx[], reply: FastifyReply, route: string) => {
-  const transformedErrors: TErrorObject[] = transformErrorxToHTTPModel(errorxList, route);
+const handleErrors = (errorxList: Errorx[], reply: FastifyReply) => {
+  const transformedErrors: TErrorObject[] = transformErrorxToHTTPModel(errorxList);
 
   // Based on CoCo specs, the root level message attribute is always set to the values from the first error. MultiErrorx enforces the same HTTP status code.
   const response: TErrorResponse = {
@@ -62,13 +60,12 @@ const handleErrors = (errorxList: Errorx[], reply: FastifyReply, route: string) 
   return reply.code(errorxList[0].httpErrorStatus).send(response);
 };
 
-const transformErrorxToHTTPModel = (errors: Errorx[], route: string): TErrorObject[] => {
+const transformErrorxToHTTPModel = (errors: Errorx[]): TErrorObject[] => {
   const errorObjectList: TErrorObject[] = [];
 
   for (const err of errors) {
     // Not the error object itself: its cause can carry the full failed Braintree/commercetools request/response.
-    // The route in the text tells which call failed, e.g. a session failing in config only vs. in createPayment too
-    const logMessage = `${route}: ${err.code} (${err.httpErrorStatus}): ${err.message}${err.cause ? ` — ${errorMessage(err.cause)}` : ''}`;
+    const logMessage = `${err.code} (${err.httpErrorStatus}): ${err.message}${err.cause ? ` — ${errorMessage(err.cause)}` : ''}`;
     if (err.skipLog) {
       log.debug(logMessage);
     } else {
