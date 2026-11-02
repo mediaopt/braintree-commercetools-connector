@@ -66,7 +66,7 @@ type PaymentContextT = {
     ctPaymentId: string,
     newShippingMethodId: string,
     address?: ChangeShippingRequest["address"],
-  ) => Promise<UpdateCartShippingResult>;
+  ) => Promise<UpdateCartShippingResult | undefined>;
   // A function, not a value: the memoized context would otherwise keep the mount-time session (see sessionIdRef)
   currentRequestHeader: () => RequestHeader;
 };
@@ -355,11 +355,11 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       newShippingMethodId: string,
       address?: ChangeShippingRequest["address"],
     ) => {
-      return (await processorRequest<ChangeShippingRequest>(
+      return processorRequest<ChangeShippingRequest, UpdateCartShippingResult>(
         currentRequestHeader(),
         updateCartShippingUrl,
         { ctPaymentId, newShippingMethodId, address },
-      )) as UpdateCartShippingResult;
+      );
     };
 
     return {
