@@ -13,15 +13,11 @@ import {
   MultiErrorx,
 } from '@commercetools/connect-payments-sdk';
 import { TAuthErrorResponse, TErrorObject, TErrorResponse } from './dtos/error.dto';
+import { routeLabel } from './context/context';
 
 function isFastifyValidationError(error: Error): error is FastifyError {
   return (error as unknown as FastifyError).validation != undefined;
 }
-
-/**
- * The route a log line comes from, e.g. `GET /operations/config`: the template, never the actual URL (no ids or query)
- */
-export const routeLabel = (req: FastifyRequest) => `${req.method} ${req.routeOptions.url ?? 'unmatched route'}`;
 
 export const errorHandler = (error: Error, req: FastifyRequest, reply: FastifyReply) => {
   const route = routeLabel(req);

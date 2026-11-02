@@ -34,6 +34,12 @@ export const updateRequestContext = (ctx: Partial<ContextData>) => {
   });
 };
 
+/**
+ * The route a log line comes from, e.g. `GET /operations/config`: the template, never the actual URL — a path param
+ * can be a payment method token (`DELETE /stored-payment-methods/:id`), and a query string is whatever the caller sent
+ */
+export const routeLabel = (req: FastifyRequest) => `${req.method} ${req.routeOptions.url ?? 'unmatched route'}`;
+
 export const getCtSessionIdFromContext = (): string => {
   const contextData = getRequestContext() as ContextData;
   return paymentSdk.getCtSessionIdFromContext(contextData) as string;

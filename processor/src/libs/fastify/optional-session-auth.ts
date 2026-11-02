@@ -2,17 +2,16 @@ import { SessionHeaderAuthenticationHook } from '@commercetools/connect-payments
 import { FastifyRequest } from 'fastify';
 import { log } from '../logger';
 import { errorMessage } from '../../utils/error.utils';
-import { routeLabel } from './error-handler';
+import { routeLabel } from './context/context';
 
 /**
  * Session auth for routes that also answer without a session (Express before a cart exists): fills the request
  * context when the session is readable, otherwise continues without a cart. No header → no Session API call.
  */
 export const optionalSessionAuth = async (hook: SessionHeaderAuthenticationHook, request: FastifyRequest) => {
-  const route = routeLabel(request);
   if (!request.headers['x-session-id']) {
     // Expected for Express before the merchant's session has a cart
-    log.info(`${route}: no session header, answering without a session`);
+    log.info(`${routeLabel(request)}: no session header, answering without a session`);
     return;
   }
   try {
@@ -24,7 +23,7 @@ export const optionalSessionAuth = async (hook: SessionHeaderAuthenticationHook,
     // Not the session id: it authenticates the buyer's calls. The Session API's HTTP status, when it answered
     const status = (cause as { privateFields?: { status?: unknown } } | undefined)?.privateFields?.status;
     log.error(
-      `${route}: could not read the commercetools session, answering without it — ${errorMessage(cause ?? err)}${status ? ` (status ${status})` : ''}`,
+      `${routeLabel(request)}: could not read the commercetools session, answering without it — ${errorMessage(cause ?? err)}${status ? ` (status ${status})` : ''}`,
     );
   }
 };
