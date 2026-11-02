@@ -133,7 +133,7 @@ Per-method button styling and functional identifiers (colors, labels, `googleMer
 ```
 BRAINTREE_BUTTON_STYLES={"paypal":{"buttonColor":"gold","buttonLabel":"pay","shape":"pill","size":"responsive"},"paypalExpress":{"buttonColor":"gold","buttonLabel":"buynow","shape":"pill","size":"responsive"},"applePay":{"applePayDisplayName":"set your own store name"},"googlePay":{"buttonTheme":"black","buttonType":"buy"},"venmo":{"desktopFlow":"desktopWebLogin"},"creditCard":{"showPostalCode":false}}
 
-BRAINTREE_PER_METHOD_CONFIG={"googlePay":{"googleMerchantId":"[your-google-merchant-id]","acquirerCountryCode":"[merchant-country-code]"},"venmo":{"profileId":"[optional-venmo-profile-id]"},"creditCard":{"vaultLabel":"Save my card"},"ach":{"businessName":"[your business name here]","actionLabel":"COMPLETE CHECKOUT","usBankAccountVerificationMethod":"network_check"}}
+BRAINTREE_PER_METHOD_CONFIG={"googlePay":{"googleMerchantId":"[your-google-merchant-id]","acquirerCountryCode":"[merchant-country-code]"},"venmo":{"profileId":"[your-venmo-profile-id]"},"creditCard":{"vaultLabel":"Save my card"},"ach":{"businessName":"[your business name here]","actionLabel":"COMPLETE CHECKOUT","usBankAccountVerificationMethod":"network_check"}}
 ```
 
 By design these two variables must not contain any secrets, therefore they are sent to the browser as they are. Use only the structure described in `processor/.env.template`: one object per payment method key (`paypal`, `paypalExpress`, `googlePay`, …) holding only the keys listed for it, as in the examples above. Keep secrets in the variables intended for them (e.g. `BRAINTREE_PRIVATE_KEY`).
