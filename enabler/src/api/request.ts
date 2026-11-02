@@ -27,9 +27,7 @@ export const makeRequest = <ResponseType, T>(
 
   // A refusal (non-2xx: the processor's error body) fails like an unreachable processor, so no caller takes the
   // error body for an answer; the processor answers every success with 200.
-  return fetch(url, requestData)
-    .then((response) => (response.ok ? response.json() : Promise.reject()))
-    .then((responseData) => {
-      return responseData as ResponseType;
-    });
+  return fetch(url, requestData).then((response) =>
+    response.ok ? (response.json() as Promise<ResponseType>) : Promise.reject(),
+  );
 };

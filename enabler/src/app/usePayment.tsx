@@ -289,11 +289,10 @@ export const PaymentProvider: FC<PropsWithChildren<PaymentProviderProps>> = ({
       };
 
       isLoading(true);
-      const response = (await processorRequest<TransactionSaleRequest>(
-        currentRequestHeader(),
-        transactionSaleUrl,
-        requestBody,
-      )) as PaymentActionResponseData;
+      const response = await processorRequest<
+        TransactionSaleRequest,
+        PaymentActionResponseData
+      >(currentRequestHeader(), transactionSaleUrl, requestBody);
       isLoading(false);
       if (!response?.success) {
         // Not the processor's message: it may carry Braintree's, which can echo payment data. The
