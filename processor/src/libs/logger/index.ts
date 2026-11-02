@@ -10,7 +10,7 @@ type LogFormat = NonNullable<NonNullable<Parameters<typeof createApplicationLogg
  * (`DELETE /stored-payment-methods/:id`), and a query string is whatever the caller sent. Lines logged outside a
  * request (startup, …) have no context and stay as they are.
  */
-const routePrefix: LogFormat = {
+export const routePrefix: LogFormat = {
   transform: (info) => {
     const { method, pathTemplate } = getRequestContext();
     if (method) info.message = `${method} ${pathTemplate ?? 'unmatched route'}: ${info.message}`;
