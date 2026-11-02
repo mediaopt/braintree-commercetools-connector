@@ -90,7 +90,7 @@ Express methods only include PayPal Buy Now today.
 
 ##### PayPal Express
 
-- **No cart needed before the click** (e.g. a product page or mini-cart button): set up the cart as described in [Express Payments](https://docs.commercetools.com/checkout/browser-sdk#express-payments).
+- **Cart**: the cart can be on the session before the button renders, or be created and linked to the session by your `onPayButtonClick` hook (e.g. a product page or mini-cart button), see [Express Payments](https://docs.commercetools.com/checkout/browser-sdk#express-payments). If you set the relevant cart before rendering the button, you don't need `onPayButtonClick`. If you create a new cart inside `onPayButtonClick`, it is your responsibility to bind it to the session.
 - **Stored payment methods** are not offered for Express — please open an issue if you are interested in this.
 - **Custom line items** are not sent to PayPal as line items: for a cart containing them, the PayPal window shows only the subtotal, shipping and total, and the payment still completes — please open an issue if you are interested in this.
 
@@ -122,6 +122,12 @@ customer's email, addresses and vaulted payment methods — and are written only
 
 #### Button customization
 
+All keys are optional — without them every payment method uses its defaults — but in `BRAINTREE_PER_METHOD_CONFIG`:
+
+- If you use **Google Pay**, you should set `googlePay.googleMerchantId`, see the documentation at [Braintree Google Pay](https://developer.paypal.com/braintree/docs/guides/google-pay/client-side/javascript/v3/). `googlePay.acquirerCountryCode` is optional: without it the cart's billing country is used, else the cart's country.
+- If you use **Venmo**, you should set `venmo.profileId`, see the documentation at [Braintree Venmo](https://developer.paypal.com/braintree/docs/guides/venmo/client-side/javascript/v3/).
+- If you use **ACH**, you should set `ach.businessName`, see the documentation at [Braintree ACH](https://developer.paypal.com/braintree/docs/guides/ach/client-side/javascript/v3/).
+
 Per-method button styling and functional identifiers (colors, labels, `googleMerchantId`, `venmo.profileId`, vault-checkbox label text, etc.) are configured on the processor via two environment variables and served to the enabler through `GET /operations/config` — see `processor/.env.template` for the full reference. Example values:
 
 ```
@@ -129,6 +135,8 @@ BRAINTREE_BUTTON_STYLES={"paypal":{"buttonColor":"gold","buttonLabel":"pay","sha
 
 BRAINTREE_PER_METHOD_CONFIG={"googlePay":{"googleMerchantId":"[your-google-merchant-id]","acquirerCountryCode":"[merchant-country-code]"},"venmo":{"profileId":"[optional-venmo-profile-id]"},"creditCard":{"vaultLabel":"Save my card"},"ach":{"businessName":"[your business name here]","actionLabel":"COMPLETE CHECKOUT","usBankAccountVerificationMethod":"network_check"}}
 ```
+
+By design these two variables must not contain any secrets, therefore they are sent to the browser as they are. Use only the structure described in `processor/.env.template`: one object per payment method key (`paypal`, `paypalExpress`, `googlePay`, …) holding only the keys listed for it, as in the examples above. Keep secrets in the variables intended for them (e.g. `BRAINTREE_PRIVATE_KEY`).
 
 ## Prerequisites
 
