@@ -15,7 +15,7 @@ See the root [`README.md`](../README.md#payment-methods-and-their-restrictions) 
 Every component needs at minimum:
 
 - **`processorUrl`**: `string` — base URL of your deployed `processor` instance.
-- **`sessionId`**: `string` — the commercetools Checkout session ID. Undefined only when commercetools Checkout creates the PayPal Express enabler before the merchant's session has a cart; no `X-Session-Id` header is sent then.
+- **`sessionId`**: `string | undefined` — the commercetools Checkout session ID. Undefined only when commercetools Checkout creates the PayPal Express enabler before the merchant's session has a cart; no `X-Session-Id` header is sent then.
 - **`purchaseCallback`**: `(result, options?) => void` — called after a transaction completes. If omitted, the enabler falls back to redirecting to `MERCHANT_RETURN_URL` (configured on the processor).
 - **`paymentMethodType`**: which component to render (see the payment-methods table linked above).
 - **`builderType`**: `"express"` (optional) — distinguishes the PayPal Express flow from standard rendering.
